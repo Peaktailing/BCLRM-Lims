@@ -30,6 +30,12 @@
 {% macro rem(column) %}{% if remembered.suggest.get(column) %} list="inv-rem-{{ column }}"{% endif %}{% endmacro %}
 {# A dialog field that must be filled in (the dialog's script sets required). #}
 {% macro req(column) %}{% if column in module.required %} data-required="1"{% endif %}{% endmacro %}
+{# The boxes to choose from, each after the fridge or cabinet it is kept
+   in ("Fridge 2 › Box A"), so a closed cell says it too; racks come sorted
+   by place, so each place's boxes stand together. #}
+{% macro box_options(selected=none) %}
+  {% for rack in racks %}<option value="{{ rack.id }}" {% if rack.id == selected %}selected{% endif %}>{{ box_labels[rack.id] }}</option>{% endfor %}
+{% endmacro %}
 {% macro star(column) %}{% if column in module.required %}<span class="req-star" title="{{ _('Required') }}">*</span>{% endif %}{% endmacro %}
 
 {% macro field_cell(field, value, form_id, locked, src_label='', links={}, item_id=0, sources=[]) %}
@@ -120,9 +126,9 @@
         {% for rack in racks %}
           {% if rack.id in manageable_racks %}
             <button type="button" class="btn btn-sm" data-record-edit="inv-rack-dialog"
-                    data-record-payload="{{ grid.racks[loop.index0].edit['data-record-payload'] }}">{{ icon('sliders') }} {{ rack.name }}</button>
+                    data-record-payload="{{ grid.racks[loop.index0].edit['data-record-payload'] }}">{{ icon('sliders') }} {{ box_labels[rack.id] }}</button>
           {% else %}
-            <span class="btn btn-sm is-static" title="{{ _('Only %(who)s or an admin can change this %(kind)s', who=rack.created_by, kind=rack.kind|tr('inventory')) }}">{{ icon('lock') }} {{ rack.name }}</span>
+            <span class="btn btn-sm is-static" title="{{ _('Only %(who)s or an admin can change this %(kind)s', who=rack.created_by, kind=rack.kind|tr('inventory')) }}">{{ icon('lock') }} {{ box_labels[rack.id] }}</span>
           {% endif %}
         {% endfor %}
         <button type="button" class="btn btn-sm" data-record-edit="inv-rack-dialog"
@@ -151,6 +157,9 @@
 {% for column, values in remembered.suggest.items() %}
   <datalist id="inv-rem-{{ column }}">{% for v in values %}<option value="{{ v }}"></option>{% endfor %}</datalist>
 {% endfor %}
+{% if m.has('storage') %}
+  <datalist id="inv-box-places">{% for place in places %}<option value="{{ place }}"></option>{% endfor %}</datalist>
+{% endif %}
 {% for source in sources %}
   <datalist id="inv-src-{{ loop.index0 }}">{% for ref in source.refs %}<option value="{{ ref }}"></option>{% endfor %}</datalist>
 {% endfor %}
@@ -261,7 +270,7 @@
                 {% endif %}
               {% endif %}
               {% if m.has('storage') %}
-                <th class="dt-sortable" data-sort-key="rack_id" style="width: 104px;"><span class="dt-col-head">{{ icon('box', 'dt-col-icon') }}{{ _('Box') }}<span class="dt-sort-indicator"></span></span></th>
+                <th class="dt-sortable" data-sort-key="rack_id" style="width: {{ box_width }}px;"><span class="dt-col-head">{{ icon('box', 'dt-col-icon') }}{{ _('Box') }}<span class="dt-sort-indicator"></span></span></th>
                 <th class="dt-sortable" data-sort-key="position" style="width: 72px;"><span class="dt-col-head">{{ icon('position', 'dt-col-icon') }}{{ _('Position') }}<span class="dt-sort-indicator"></span></span></th>
               {% else %}
                 <th class="dt-sortable" data-sort-key="location_note" style="width: 112px;" {% if m.kind == 'orders' %}data-default-hidden="1"{% endif %}><span class="dt-col-head">{{ icon('location', 'dt-col-icon') }}{{ _('Location') }}<span class="dt-sort-indicator"></span></span></th>
@@ -360,7 +369,7 @@
                   <td>
                     <select name="rack_id" form="{{ f }}" data-autosave="1" aria-label="{{ _('Box') }}" {% if locked %}disabled{% endif %}>
                       <option value="">–</option>
-                      {% for rack in racks %}<option value="{{ rack.id }}" {% if rack.id == i.rack_id_fk %}selected{% endif %}>{{ rack.name }}</option>{% endfor %}
+                      {{ box_options(i.rack_id_fk) }}
                     </select>
                   </td>
                   <td><input class="ident" name="position" form="{{ f }}" value="{{ r.position }}" placeholder="–" data-autosave="1" aria-label="{{ _('Position') }}" {% if locked %}disabled{% endif %}></td>
@@ -489,7 +498,7 @@
             <input type="hidden" name="action" value="rack">
             <select name="value" aria-label="{{ _('Box') }}" required>
               <option value="" disabled selected>{{ _('Choose a box…') }}</option>
-              {% for rack in racks %}<option value="{{ rack.id }}">{{ rack.name }}</option>{% endfor %}
+              {{ box_options() }}
               <option value="unplace">{{ _('Unplace') }}</option>
             </select>
             <button type="submit" class="btn btn-sm">{{ _('Move') }}</button>
@@ -552,7 +561,8 @@
         {{ rack_grid('inv-' ~ key, grid, url_for('inventory.place_item', key=key, item_id=0)|replace('/0/', '/{id}/'),
                      rack_noun='box', rack_dialog_id='inv-rack-dialog',
                      new_rack_payload={'rows': 9, 'cols': 9, 'kind': 'box'},
-                     empty_text=_('No boxes yet. Use New box to add a freezer box or shelf.')) }}
+                     empty_text=_('No boxes yet. Use New box to add a freezer box or shelf.'),
+                     group_label='kept in' if racks|selectattr('place')|list else None, no_group=_('Not said')) }}
       </section>
     </div>
   {% endif %}
@@ -694,7 +704,7 @@
       <fieldset class="record-group">
         <legend>{{ _('Where and when') }}</legend>
         {% if m.has('storage') %}
-          <label>{{ _('Box') }} <select name="rack_id"><option value="">{{ _('Not in a box') }}</option>{% for rack in racks %}<option value="{{ rack.id }}">{{ rack.name }}</option>{% endfor %}</select></label>
+          <label>{{ _('Box') }} <select name="rack_id"><option value="">{{ _('Not in a box') }}</option>{{ box_options() }}</select></label>
           <label>{{ _('Position') }} <input name="position" class="font-mono" placeholder="{{ _('e.g. D7') }}"></label>
         {% endif %}
         <label {% if not m.has('storage') %}class="col-span-full"{% endif %}><span>{{ _('Location note') }}{{ star('location_note') }}</span> <input name="location_note" placeholder="{{ _('freezer, shelf, room…') }}"{{ req('location_note') }}{{ rem('location_note') }}></label>
@@ -743,7 +753,7 @@
         <label>{{ _('Belongs to') }} <select name="is_shared"><option value="0">{{ _('Personal') }}</option><option value="1">{{ _('Lab common') }}</option>{% for gid, gname in groups_api.choices() %}<option value="g{{ gid }}">{{ gname }}</option>{% endfor %}</select></label>
       {% endif %}
       {% if m.has('storage') %}
-        <label>{{ _('Box') }} <select name="rack_id"><option value="">{{ _('Not in a box') }}</option>{% for rack in racks %}<option value="{{ rack.id }}">{{ rack.name }}</option>{% endfor %}</select></label>
+        <label>{{ _('Box') }} <select name="rack_id"><option value="">{{ _('Not in a box') }}</option>{{ box_options() }}</select></label>
         <p class="record-wide text-[12px] text-muted">{{ _('In a box, the pair takes the next two free positions.') }}</p>
       {% endif %}
     </div>
@@ -805,6 +815,10 @@
     <label data-box-count>{{ _('How many') }}
       <input type="number" name="count" min="1" max="50" value="1"
              title="{{ _('Several boxes alike, named after this one: Tower A 1, Tower A 2…') }}">
+    </label>
+    <label class="col-span-full">{{ _('Kept in') }}
+      <input name="place" list="inv-box-places" maxlength="120" autocomplete="off" placeholder="{{ _('e.g. Fridge 2, explosion-proof cabinet') }}">
+      <span class="text-[12px] text-muted">{{ _('The fridge, freezer or cabinet it is in. Its contents are found by it, in search too.') }}</span>
     </label>
     {% if stored_at_field %}
       <label class="col-span-full">{{ stored_at_field.label|tr('inventory') }}

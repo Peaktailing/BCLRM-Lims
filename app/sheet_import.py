@@ -1230,9 +1230,11 @@ def organism_target(session, module) -> Target:
 class InventoryTarget(Target):
     def prepare(self, session):
         from .models import InventoryRack
+        from . import inventory_service as svc
+        racks = list(session.scalars(select(InventoryRack).where(InventoryRack.module_id_fk == self.module.id)))
+        # By its name, or as the sheet's Box column reads ("Fridge 2 › Box A").
         return {"people": _people(session),
-                "racks": {r.name.lower(): r for r in session.scalars(
-                    select(InventoryRack).where(InventoryRack.module_id_fk == self.module.id))}}
+                "racks": {**{svc.box_label(r).lower(): r for r in racks}, **{r.name.lower(): r for r in racks}}}
 
     def add_column(self, session, ctx, label, kind):
         from . import inventory as presets

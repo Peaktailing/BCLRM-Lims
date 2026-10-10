@@ -50,6 +50,7 @@ from .models import (
     LitterRecord,
     InventoryItem,
     InventoryModule,
+    InventoryRack,
     MouseRack,
     MouseWeight,
     MOUSE_STATUS_OPTIONS,
@@ -6062,7 +6063,9 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
             InventoryItem.name.ilike(like, escape="\\") | InventoryItem.category.ilike(like, escape="\\")
             | InventoryItem.vendor.ilike(like, escape="\\") | InventoryItem.catalog_number.ilike(like, escape="\\")
             | InventoryItem.lot.ilike(like, escape="\\") | InventoryItem.notes.ilike(like, escape="\\")
-            | InventoryItem.attrs.ilike(like, escape="\\"))
+            | InventoryItem.attrs.ilike(like, escape="\\")
+            # What is kept in a cabinet or fridge named so ("explosion-proof").
+            | InventoryItem.rack_id_fk.in_(select(InventoryRack.id).where(InventoryRack.place.ilike(like, escape="\\"))))
         # Digits are a record's number and a lot or catalogue number too
         # ("0012" is lot 0012M4817V, not record 12); a lot or catalogue
         # number that starts with it comes first.
@@ -6082,7 +6085,8 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
                 "label": f"{i18n.translate_value(module.label)} #{item.number} · "
                          + (item.name or gettext("(unnamed)")),
                 "sublabel": " · ".join(filter(None, [item.category, item.status, item.vendor,
-                                                     gettext("lab common") if item.is_shared else item.owner])),
+                                                     gettext("lab common") if item.is_shared else item.owner,
+                                                     inventories.where_label(item)])),
                 # Open the inventory already searched down to this item.
                 "url": url_for("inventory.module", key=module.key, q=item.name or str(item.number)),
             })
@@ -6909,8 +6913,7 @@ def notebook_lookup_item(key: str, number: int):
             InventoryItem.module_id_fk == module.id, InventoryItem.number == number))
         if not item:
             return jsonify({"ok": False}), 404
-        where = " · ".join(v for v in ((item.rack.name if item.rack else ""), inventories.rack_label(item),
-                                       item.location_note) if v)
+        where = " · ".join(v for v in (inventories.where_label(item), item.location_note) if v)
         amount = " ".join(v for v in (item.quantity, item.unit) if v)
         fields = [("Name", item.name), ("Category", item.category), ("Status", item.status),
                   ("Owner", "Lab common" if item.is_shared else item.owner), ("Vendor", item.vendor),
@@ -8218,8 +8221,7 @@ def plasmid_page(number: int):
         glycerol = {
             "rows": [{"label": m["item"].name or f"#{m['item'].number}", "number": m["item"].number,
                       "status": m["item"].status, "available": m["available"],
-                      "where": " ".join(x for x in ((m["item"].rack.name if m["item"].rack else ""), m["where"]) if x)
-                               or m["item"].location_note,
+                      "where": inventories.where_label(m["item"]) or m["item"].location_note,
                       "url": url_for("inventory.module", key=m["module"].key, open=m["item"].id)}
                      for m in inventories.made_from_plasmid(db_session, p.plasmid_id, kinds=("glycerol_stocks",))],
             "database": stocks_db.label if stocks_db else "",

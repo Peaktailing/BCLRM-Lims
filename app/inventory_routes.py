@@ -267,11 +267,12 @@ def _row_json(mv, item: InventoryItem) -> dict:
 
 def _grid_payload(mv, racks, items) -> dict:
     return {
-        "racks": [{"id": r.id, "name": r.name, "rows": r.rows, "cols": r.cols,
+        # "group": the fridge or cabinet it is kept in, the grid's first picker.
+        "racks": [{"id": r.id, "name": r.name, "rows": r.rows, "cols": r.cols, "group": (r.place or "").strip(),
                    "naming": positions.scheme(r.naming),
                    **({"edit": {"data-record-payload": json.dumps({
                        "id": r.id, "_label": r.name, "name": r.name, "rows": r.rows, "cols": r.cols,
-                       "kind": r.kind, "stored_at": r.stored_at,
+                       "kind": r.kind, "stored_at": r.stored_at, "place": r.place or "",
                        **{f"naming_{k}": v for k, v in positions.scheme(r.naming).items()}})}}
                       if _can_manage_rack(r) else {})}
                   for r in racks],
@@ -283,6 +284,7 @@ def _grid_payload(mv, racks, items) -> dict:
             "rack": i.rack_id_fk, "row": i.rack_row, "col": i.rack_col,
             "title": " · ".join(filter(None, [i.name, i.category, _tr(i.status or ""), i.owner, project_groups.label(i.is_shared, i.share_group_id, personal="", lab=gettext("lab common"))])),
             "search": " ".join(filter(None, [i.name, i.category, i.status, i.owner, i.vendor, i.catalog_number,
+                                             svc.box_label(i.rack),
                                              *[str(v) for v in i.attrs_dict.values() if isinstance(v, str)]])).lower(),
             "edit": {"data-record-edit": "item-dialog", "data-record-payload": json.dumps(_item_payload(mv, i))},
         } for i in items
@@ -293,6 +295,16 @@ def _grid_payload(mv, racks, items) -> dict:
                                "is_shared": "0"},
                    "rack_field": "rack_id", "text_field": "position"},
     }
+
+
+def _box_width(racks) -> int:
+    """The sheet's Box column, wide enough for "Explosion-proof cabinet ›
+    Flammables 1" when boxes say where they are kept (a Chinese character
+    is about twice a Latin letter); as before when none does."""
+    if not any((r.place or "").strip() for r in racks):
+        return 104
+    widest = max(sum(6 if ord(ch) < 0x2E80 else 12 for ch in svc.box_label(r)) for r in racks)
+    return max(104, min(widest + 36, 320))
 
 
 MOUSE_SOURCE_KINDS = ("mouse", "colony")
@@ -394,8 +406,9 @@ def module(key: str):
             kept = {i.id for i in listed}
             all_items = [i for i in items if i.id in kept or i.rack_id_fk]
             items = listed
+        # By the fridge or cabinet each is kept in, then by name.
         racks = sorted(session.scalars(select(InventoryRack).where(InventoryRack.module_id_fk == row.id)),
-                       key=lambda r: positions.place_order(r.name))
+                       key=svc.box_order)
         me = g.user.username
         source_fields = [f for f in mv.fields if f["type"] == "source"]
         sources = sample_sources(session) if source_fields else []
@@ -434,6 +447,9 @@ def module(key: str):
         context = {
             "module": mv, "rows": rows, "racks": racks, "low_stock": svc.tracks_low(mv), "col_sig": format(zlib.crc32(layout.encode()), "x"),
             "manageable_racks": {r.id for r in racks if _can_manage_rack(r)},
+            "places": svc.places_in_use(session) if mv.has("storage") else [],
+            "box_labels": {r.id: svc.box_label(r) for r in racks},
+            "box_width": _box_width(racks),
             "grid": _grid_payload(mv, racks, all_items) if mv.has("storage") else None,
             "hidden_old": hidden_old, "show_ended": show_ended, "recent_days": RECENT_DAYS,
             "usernames": current_lab_usernames(session), "sources": sources, "mouse_links": mouse_links,
@@ -900,11 +916,11 @@ def _create_many(session, row: InventoryModule, mv, form):
         flash(note, "warning")
     first, last = created[0].number, created[-1].number
     if count == 1:
-        made = (gettext("Created #%(number)s in %(box)s.", number=first, box=rack.name) if rack is not None
+        made = (gettext("Created #%(number)s in %(box)s.", number=first, box=svc.box_label(rack)) if rack is not None
                 else gettext("Created #%(number)s.", number=first))
     else:
         many = {"first": first, "last": last, "n": count, "nouns": _tr(mv.item_noun_plural)}
-        made = (gettext("Created #%(first)s–#%(last)s (%(n)s %(nouns)s) in %(box)s.", box=rack.name, **many)
+        made = (gettext("Created #%(first)s–#%(last)s (%(n)s %(nouns)s) in %(box)s.", box=svc.box_label(rack), **many)
                 if rack is not None else gettext("Created #%(first)s–#%(last)s (%(n)s %(nouns)s).", **many))
     flash(made, "success")
     unplaced = created[len(cells):] if rack is not None else []
@@ -1459,6 +1475,8 @@ def save_rack(key: str):
             session.add(rack)
         rack.name = (form.get("name") or "").strip()[:120] or "Box"
         rack.kind = (form.get("kind") or "box").strip()[:40]
+        if "place" in form:   # where it is kept; what is in it goes along
+            rack.place = (form.get("place") or "").strip()[:120]
         if "stored_at" in form:
             stored_at = form.get("stored_at", "").strip()[:40]
             moved = rack.id is not None and stored_at != (rack.stored_at or "")
@@ -1490,7 +1508,8 @@ def _create_boxes(session, row, mv, form, rows: int, cols: int, count: int):
             continue
         session.add(InventoryRack(module_id_fk=row.id, created_by=g.user.username, name=name,
                                   kind=(form.get("kind") or "box").strip()[:40], rows=rows, cols=cols, naming=naming,
-                                  stored_at=(form.get("stored_at") or "").strip()[:40]))
+                                  stored_at=(form.get("stored_at") or "").strip()[:40],
+                                  place=(form.get("place") or "").strip()[:120]))
         made.append(name)
     session.commit()
     flash(ngettext("Made %(num)s box: %(first)s to %(last)s.", "Made %(num)s boxes: %(first)s to %(last)s.", count,

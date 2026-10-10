@@ -501,10 +501,7 @@ def _supply_items(session, today, horizon) -> list[dict]:
         item = rows.get(a["id"])
         loc = None
         if item is not None and (item.rack is not None or item.location_note):
-            where = item.rack.name if item.rack is not None else ""
-            if item.rack is not None and item.rack_row and item.rack_col:
-                where += f" · {positions.label(item.rack_row, item.rack_col, item.rack.naming, item.rack.cols)}"
-            where = " · ".join(b for b in (where, item.location_note) if b)
+            where = " · ".join(b for b in (inventory_service.where_label(item), item.location_note) if b)
             loc = {"kind": "inventory", "rack_id": None, "row": None, "col": None, "text": where,
                    "order": (2, 0, where, 0, 0)}
         url = url_for("inventory.module", key=a["key"], q=a["name"])

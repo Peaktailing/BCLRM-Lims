@@ -203,6 +203,45 @@ def rack_label(item: InventoryItem) -> str:
     return positions.label(item.rack_row, item.rack_col, rack.naming, rack.cols)
 
 
+# Between the fridge or cabinet a box is kept in and the box: "Fridge 2 › Box A".
+PLACE_MARK = " › "
+
+
+def box_label(rack: InventoryRack | None) -> str:
+    """A box as people find it: "Fridge 2 › Box A" when it says where it is
+    kept, otherwise its name."""
+    if rack is None:
+        return ""
+    place = (rack.place or "").strip()
+    return f"{place}{PLACE_MARK}{rack.name}" if place else rack.name
+
+
+def where_label(item: InventoryItem) -> str:
+    """An item's place in its box: "Fridge 2 › Box A · B3"; "" when it is
+    in none."""
+    if item.rack is None:
+        return ""
+    return " · ".join(filter(None, [box_label(item.rack), rack_label(item)]))
+
+
+def box_order(rack: InventoryRack) -> tuple:
+    """Boxes by where they are kept, then by name; those that don't say last."""
+    place = (rack.place or "").strip()
+    return (not place, positions.place_order(place, rack.name))
+
+
+def places_in_use(session) -> list[str]:
+    """The fridges, freezers and cabinets this lab's boxes are kept in, in
+    every inventory it sees (a cabinet typed once in Chemicals is offered in
+    Reagents too) and the plasmid boxes' freezers."""
+    from .models import PlasmidBox
+    ids = [m.id for m in list_modules(session)]
+    found = set(session.scalars(select(InventoryRack.place).where(
+        InventoryRack.module_id_fk.in_(ids), InventoryRack.place != ""))) if ids else set()
+    found |= set(session.scalars(select(PlasmidBox.location).where(PlasmidBox.location != "")))
+    return sorted({p.strip() for p in found if p and p.strip()}, key=lambda p: positions.place_order(p))
+
+
 def expiry_state(item: InventoryItem, today: date | None = None) -> str:
     """"expired", "soon" (within 30 days) or ""."""
     if not item.expires_on:
@@ -303,7 +342,7 @@ def apply_status(mv, item: InventoryItem, new_status, today: date | None = None)
     else:
         attrs.pop(ENDED_ATTR, None)
     if new.lower() in GONE_FROM_BOX and item.rack is not None:
-        where = " · ".join(filter(None, [item.rack.name, rack_label(item)]))
+        where = where_label(item)
         if not (item.location_note or "").strip():
             item.location_note = f"was in {where}"[:200]
         item.rack_id_fk = item.rack_row = item.rack_col = None

@@ -301,7 +301,7 @@ def _inventory_cards(session, key: str) -> dict:
         attrs = item.attrs_dict
         values = {
             "category": item.category, "lot": item.lot, "owner": item.owner or "—",
-            "where": (item.rack.name + (" · " + place if place else "")) if item.rack else (item.location_note or "—"),
+            "where": isvc.where_label(item) or item.location_note or "—",
             "box": item.rack.name if item.rack else "", "position": place,
             "received": item.received_on.isoformat() if item.received_on else "",
             "expires": item.expires_on.isoformat() if item.expires_on else "",

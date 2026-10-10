@@ -384,6 +384,13 @@ database has a name of its own (one another database has is refused), so
   takes that as its *Stored at*; a tube put in a box with no position takes
   the next free one. **New box** can make several alike at once
   (*Tower A 1 … 13*).
+- **Boxes inside fridges and cabinets** — a box, shelf or drawer can say
+  what it is **Kept in**: *Fridge 2*, *Explosion-proof cabinet*. The sheet,
+  labels and search then read *Fridge 2 › Box A · B3*, the **Box grid**
+  picks the fridge or cabinet first, and typing a cabinet's name in the
+  search lists what is in it, so the solvents in the explosion-proof
+  cabinet are one search away. A place typed once is offered in every
+  inventory.
 - **From the box to the shelf** — when an order is marked received,
   BioManager asks **Add it to stock?**: a new reagent, chemical, antibody
   or virus with the name, vendor, catalogue number, lot, quantity and

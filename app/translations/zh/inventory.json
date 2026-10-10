@@ -445,5 +445,8 @@
   "When the quantity falls to this (in its unit), the status turns low; at 0, empty": "数量降到此数（同一单位）时，状态变为低库存；降到 0 时变为空",
   "e.g. 2": "例如 2",
   "Low at is a number, in the quantity's unit: “%(value)s” isn't one.": "低库存线须是数字（与数量同一单位）：“%(value)s”不是数字。",
-  "The arrows set the order these columns take on the sheet for the whole lab; anyone can still drag the columns of their own sheet into another order.": "箭头决定这些列在表格中的顺序，对全实验室生效；每个人仍可在自己的表格里把列拖成别的顺序。"
+  "The arrows set the order these columns take on the sheet for the whole lab; anyone can still drag the columns of their own sheet into another order.": "箭头决定这些列在表格中的顺序，对全实验室生效；每个人仍可在自己的表格里把列拖成别的顺序。",
+  "Kept in": "存放于",
+  "e.g. Fridge 2, explosion-proof cabinet": "如 2 号冰箱、防爆柜",
+  "The fridge, freezer or cabinet it is in. Its contents are found by it, in search too.": "它所在的冰箱、冻存柜或柜子。里面的东西可按此找到，搜索也能搜到。"
 }

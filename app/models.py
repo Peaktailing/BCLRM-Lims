@@ -1605,6 +1605,10 @@ class InventoryRack(Base):
     # Where the box is kept ("−80 °C", "LN₂"): what goes in takes it as its
     # "Stored at" (inventory_service.follow_box). Empty: not said.
     stored_at: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # "Kept in": the fridge, freezer or cabinet the box is in ("Fridge 2",
+    # "Explosion-proof cabinet"), shown before its name wherever an item's
+    # place is (inventory_service.box_label). Empty: not said.
+    place: Mapped[str] = mapped_column(String(120), default="", server_default="")
     created_by: Mapped[str] = mapped_column(String(80), default="")   # may resize or delete it (and admins)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

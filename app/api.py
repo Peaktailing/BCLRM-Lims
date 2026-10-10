@@ -710,6 +710,7 @@ def item_json(mv, i: InventoryItem) -> dict:
             "quantity": i.quantity or "", "unit": i.unit or "", "low_at": i.low_at,
             "vendor": i.vendor or "", "catalog_number": i.catalog_number or "", "lot": i.lot or "",
             "box": i.rack.name if i.rack else None, "position": (isvc.rack_label(i) or None) if i.rack else None,
+            "kept_in": (i.rack.place or None) if i.rack else None,
             "location_note": i.location_note or "", "received_on": _day(i.received_on),
             "expires_on": _day(i.expires_on), "notes": i.notes or "",
             "fields": {f["key"]: attrs.get(f["key"], "") for f in mv.fields},

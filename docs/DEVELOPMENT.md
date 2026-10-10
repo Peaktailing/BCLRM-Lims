@@ -325,6 +325,9 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
   and columns as shown, each cell put in and saved as if typed. A value
   that isn't one of a `<select>`'s options moves on to the next cell (at
   most two), and a toast names the first and last rows filled.
+- A sheet's search (`data-table.js`, `_rowText`) reads a menu by its chosen
+  option only; the row's `textContent` would hold every option, so a box
+  or status name matched every row.
 - `static/data-table.js` keeps a sheet's sort in `localStorage`
   (`dt:<id>:sort`, restored before the first render) and its chip in the
   address (`?chip=<spec>`; `?scope=mine` picks the chip reading *Mine*).
@@ -812,6 +815,20 @@ pages are in `app/lab_routes.py`.
   (`stored_at_field()`: key `storage_temp` or label "Stored at"), whichever
   path moved it. Saving a box with a new Stored at updates its items.
   `save_rack` with `count` > 1 makes numbered boxes (`_create_boxes`).
+- **Kept in:** `inventory_racks.place` (revision 0032, String(120), empty
+  by default) is the fridge, freezer or cabinet a box is in. Nothing on
+  the items changes when it does: `box_label()` ("Fridge 2 › Box A") and
+  `where_label()` ("Fridge 2 › Box A · B3") in `inventory_service` put it
+  first wherever an item's place is written (the sheet's Box menu, so its
+  search and export see it; labels, the notebook popover, Home, the
+  plasmid page, the was-in note, global search, which also matches items
+  by their box's place, and `kept_in` in the API's item JSON). `box_order`
+  sorts boxes by place, those without last; `_grid_payload` sends the place
+  as each rack's `group`, so the grid's first picker is **Kept in**
+  (shown only once a box has a place). `places_in_use()` fills the box
+  dialog's datalist from every inventory the person sees and the plasmid
+  boxes' freezers. Import from Excel finds a box by its name or by the
+  label the sheet exports.
 - **Primers:** the same listener fills a primer's `length`, `gc` and `tm`
   (`PRIMER_DERIVED`) from `attrs.sequence` in a `primers` inventory
   (`primer_numbers()`: SantaLucia 1998 nearest-neighbour stacks, 50 mM Na⁺

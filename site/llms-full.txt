@@ -858,6 +858,8 @@ Reagents, chemicals, antibodies, viruses and primers have a **Low at** column be
 
 - **Box grid** places items in freezer boxes; the same boxes as everywhere else. A box's *Stored at* (−80 °C, LN₂…) goes to what is put in it, and moving the box moves theirs. In a box with no position given, an item takes the next free one. Marking a tube used up, empty or discarded frees its position; its location note keeps where it was. **New box** has **How many**, for a whole tower at once.
 
+- **Kept in**, in a box's dialog, says which fridge, freezer or cabinet the box, shelf or drawer is in: *Fridge 2*, *Explosion-proof cabinet*. The **Box** column, labels and search then read *Fridge 2 › Box A · B3*, and the **Box grid** picks the fridge or cabinet first, then the box. Type a cabinet's name in the sheet's search to list everything in it, such as the solvents in the explosion-proof cabinet. A place typed once is offered again in every inventory.
+
 - **Used in notebook pages**, at the bottom of a record's dialog, lists the pages that link it (`@antibodies 5`; see [Notebook](https://biomanager.org/guide/notebook)).
 
 - **Configure** (its creator, or an admin): the name, what it tracks, the choices and statuses (renaming one relabels its items), your own columns, and which fields are **needed for a new item**.

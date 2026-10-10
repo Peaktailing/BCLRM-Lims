@@ -79,7 +79,7 @@ CONTAINERS: tuple[Kind, ...] = (
          lambda s, r: s.scalar(select(func.count(PlasmidRecord.id)).where(PlasmidRecord.box_id_fk == r.id)) or 0,
          "plasmids"),
     Kind("inventory_box", "Inventory boxes", "box", InventoryRack, "inventory_racks", _module_label(InventoryModule),
-         lambda s, r: r.kind or "",
+         lambda s, r: " · ".join(filter(None, [r.place, r.kind])),
          lambda s, r: s.scalar(select(func.count(InventoryItem.id)).where(InventoryItem.rack_id_fk == r.id)) or 0,
          "items"),
     Kind("stock_rack", "Fly & worm racks", "rack", StockRack, "stock_racks", _module_label(StockModule),

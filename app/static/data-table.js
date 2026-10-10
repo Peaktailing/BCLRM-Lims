@@ -389,7 +389,18 @@
        part of textContent, so an editable sheet would otherwise be
        unsearchable). */
     _rowText(tr) {
-      let blob = (tr.textContent || '').toLowerCase();
+      // Not every choice of a menu, only the one chosen (below): a row's Box
+      // or Status menu lists them all, so any box name matched every row.
+      let blob = '';
+      if (tr.querySelector('select, datalist')) {
+        const walk = document.createTreeWalker(tr, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          if (n.parentNode.nodeName !== 'OPTION') blob += n.nodeValue;
+        }
+      } else {
+        blob = tr.textContent || '';
+      }
+      blob = blob.toLowerCase();
       for (const key in tr.dataset) blob += ' ' + (tr.dataset[key] || '').toLowerCase();
       tr.querySelectorAll('input:not([type=checkbox]):not([type=hidden]), select, textarea').forEach((el) => {
         const shown = el.tagName === 'SELECT' && el.selectedOptions[0] ? el.selectedOptions[0].textContent : '';

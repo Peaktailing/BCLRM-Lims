@@ -115,7 +115,7 @@
       groups.forEach((name) => {
         const option = document.createElement('option');
         option.value = name;
-        option.textContent = name === NO_GROUP ? t('Not in one') : name;
+        option.textContent = name === NO_GROUP ? (root.dataset.noGroupText || t('Not in one')) : name;
         groupSelect.appendChild(option);
       });
       if (!groups.length) {
