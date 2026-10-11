@@ -36,6 +36,7 @@ from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool
                                  list_captures, list_records, proposal_status, propose_changes, resolve, whats_due)
 from app.assistant_tools import (availability, breeding_plan, experiment_summary, history, lab_checks,  # noqa: E402,F401
                                  lineage, power_analysis, randomize, reorder_forecast, search)
+from app.assistant_tools import animal_use, handover  # noqa: E402,F401
 
 
 def with_content(out: dict):
@@ -162,6 +163,15 @@ def build_server(api: Api):
     def experiment_summary_tool(experiment_id: int) -> dict:
         return call_tool(api, "experiment_summary", {"experiment_id": experiment_id})
 
+    # The write-ups: BioManager counts and lists (app/assistant_reports.py).
+    @server.tool(name="animal_use", description=description(api, "animal_use"))
+    def animal_use_tool(start: str | None = None, end: str | None = None, protocol: str | None = None) -> dict:
+        return call_tool(api, "animal_use", given(start=start, end=end, protocol=protocol))
+
+    @server.tool(name="handover", description=description(api, "handover"))
+    def handover_tool(username: str | None = None, days: int = 30) -> dict:
+        return call_tool(api, "handover", given(username=username, days=days))
+
     @server.tool(name="list_captures", description=description(api, "list_captures"))
     def list_captures_tool(status: str = "waiting") -> dict:
         return call_tool(api, "list_captures", {"status": status})
@@ -198,6 +208,14 @@ def build_server(api: Api):
     @server.prompt(name="write_methods", description=PROMPTS["write_methods"][0])
     def write_methods(experiment: str) -> str:
         return PROMPTS["write_methods"][2]({"experiment": experiment})
+
+    @server.prompt(name="animal_use_report", description=PROMPTS["animal_use_report"][0])
+    def animal_use_report(protocol: str = "", period: str = "") -> str:
+        return PROMPTS["animal_use_report"][2]({"protocol": protocol, "period": period})
+
+    @server.prompt(name="handover_report", description=PROMPTS["handover_report"][0])
+    def handover_report(person: str = "") -> str:
+        return PROMPTS["handover_report"][2]({"person": person})
 
     return server
 

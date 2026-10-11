@@ -731,8 +731,10 @@ database has a name of its own (one another database has is refused), so
       At the bench, a <b>Capture</b> (words, dictation or a photo) waits
       for it until later. It can also plan with you: breeding, animals per
       group, random groups, a whole experiment, worked out by BioManager
-      from your own records; review the week; and draft an experiment's
-      methods with its ARRIVE checklist.
+      from your own records; review the week; draft an experiment's
+      methods with its ARRIVE checklist, the animal-use report for your
+      annual review (animals per protocol, counted by BioManager), and a
+      handover when someone leaves.
     </td>
     <td valign="top">
       <h4>↕️ Your sidebar, your order</h4>
@@ -1326,7 +1328,9 @@ track.
   admin hands their racks to someone else there. **Set field → Owner** on
   each sheet puts their records in someone else's name, and **Disable the
   account** (the **···** beside them in **Settings → People & access**)
-  closes it; their records and history stay.
+  closes it; their records and history stay. An AI assistant can write
+  the handover first: everything in their name, by rack and box, with
+  what is due on it in the next 30 days.
 - **An API for scripts and instruments.** **Settings → AI assistant & tokens**
   makes a token for R, a Python script, a balance or another tool; it
   reads the lab's records as JSON, or changes them, as you and with your
@@ -1342,7 +1346,9 @@ track.
   (`/api/v1/search`), reads a record's history and family tree, and works
   things out from the lab's own records, changing nothing: animals available,
   a breeding plan, random groups, animals per group, when stock runs out, the
-  week's checks and an experiment's facts for its methods. A *Read and
+  week's checks, an experiment's facts for its methods, the animals used per
+  protocol over a year (`/api/v1/animal-use`) and everything one person
+  looks after (`/api/v1/handover`: your own, or an admin's of anyone). A *Read and
   propose* token, meant for an AI assistant, changes nothing itself: it
   sends its changes as one proposal, which BioManager checks as its pages
   would and keeps under **Proposed changes** (in your account menu and in

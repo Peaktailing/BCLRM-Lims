@@ -51,7 +51,8 @@ with get at the path resolve gives it.
 BioManager computes; you talk. Never work out a number yourself that a BioManager tool can: how many \
 animals fit (availability), breeding odds and matings (breeding_plan), group allocation (randomize), \
 animals per group (power_analysis), when stock runs out (reorder_forecast), the week's checks \
-(lab_checks), an experiment's facts (experiment_summary). Call the tool, give its numbers with the \
+(lab_checks), an experiment's facts (experiment_summary), animals used per protocol for a review \
+(animal_use), what someone leaving looks after (handover). Call the tool, give its numbers with the \
 assumptions it states, and say so when it can't answer rather than estimating."""
 
 
@@ -369,6 +370,14 @@ def experiment_summary(api: Api, experiment_id: int) -> dict:
     return api.request("GET", f"experiments/{int(experiment_id)}/summary")
 
 
+def animal_use(api: Api, a: dict) -> dict:
+    return api.request("GET", "animal-use", {k: a.get(k) for k in ("start", "end", "protocol")})
+
+
+def handover(api: Api, a: dict) -> dict:
+    return api.request("GET", "handover", {k: a.get(k) for k in ("username", "days")})
+
+
 _REF = {"type": "object", "description": "The record's reference, {\"kind\", \"id\"}, from resolve or search"}
 _KIND = {"type": "string", "description": "Instead of ref: what it is (mouse, cage, plasmid, stock_unit…)"}
 _CODE = {"type": "string", "description": "With kind: what the lab writes on it (1043, 88, FV12)"}
@@ -486,6 +495,32 @@ TOOLS.update({
         lambda api, a: experiment_summary(api, a["experiment_id"])),
 })
 
+# The write-ups (app/assistant_reports.py): BioManager counts and lists, the assistant writes.
+TOOLS.update({
+    "animal_use": (
+        "Animal use for an IACUC or animal-care annual review, counted by BioManager: for a period (the last twelve "
+        "months unless start and end are given) and optionally one protocol, the mice and zebrafish per protocol, "
+        "species and strain: born, added to the records, new (both), used in experiments, died or euthanized (with "
+        "each reason, died_by_reason), and breeding; each per protocol and in all. basis says what each count is "
+        "based on, flags what the records can't say (animals with no protocol, deaths with no reason). Use its "
+        "numbers as they are: an animal may be in several columns, so never add them up or estimate one.",
+        _obj({"start": {"type": "string", "description": "The first day, YYYY-MM-DD (default twelve months before end)"},
+              "end": {"type": "string", "description": "The last day, YYYY-MM-DD (default today)"},
+              "protocol": {"type": "string", "description": "Only this protocol, as the records write it"}}),
+        lambda api, a: animal_use(api, a)),
+    "handover": (
+        "Everything one person owns or looks after, for when they leave the lab: their cages and mice by rack and "
+        "position, breeding cages and what's due on them, fish tanks, fly and worm vials, inventory items (glycerol "
+        "stocks among them) with where each is, plasmids and their boxes, other animals, planned and running "
+        "experiments with their next steps, the racks and boxes they made, notebook pages not signed, proposals "
+        "waiting, and everything of theirs due in the next `days` (30) days; each with its link and reference. "
+        "username: whose (you if left out); only an admin may ask about someone else. owner_changes names, for "
+        "each kind of record, the action that hands it to someone else.",
+        _obj({"username": {"type": "string", "description": "Whose (default: you)"},
+              "days": {"type": "integer", "description": "What is due within this many days (default 30)"}}),
+        lambda api, a: handover(api, a)),
+})
+
 
 def propose_description(api: Api) -> str:
     try:
@@ -567,4 +602,30 @@ PROMPTS.update({
                    "Essential 10 checklist, each item with what the records say and what is missing, and ask me for "
                    "the missing facts. Never invent a fact, number, supplier or lot.\n\nThe experiment: "
                    + a.get("experiment", ""))),
+    "animal_use_report": (
+        "Draft the animal-use report for an annual review",
+        [{"name": "protocol", "description": "Only this protocol (all if left out)", "required": False},
+         {"name": "period", "description": "The dates it covers (the last twelve months if left out)",
+          "required": False}],
+        lambda a: ("Draft our animal-use report for the IACUC or animal-care annual review from BioManager's records: "
+                   "call animal_use for the period and protocol below. Give a table per protocol with the species and "
+                   "strains, and for each the animals born, added, used in experiments, died or euthanized (with the "
+                   "reasons) and breeding, exactly as animal_use counts them, then the totals. Under it, say in plain "
+                   "words what each count is based on (its basis) and what the records can't say (its flags), such as "
+                   "animals with no protocol recorded. Never invent, estimate or add up a number yourself. Say it is a "
+                   "draft for me to check against our institution's form, and don't propose any change."
+                   + (f"\n\nThe protocol: {a['protocol']}" if a.get("protocol") else "")
+                   + (f"\n\nThe period: {a['period']}" if a.get("period") else ""))),
+    "handover_report": (
+        "Write a handover for someone leaving the lab",
+        [{"name": "person", "description": "Who is leaving (you if left out)", "required": False}],
+        lambda a: ("Write a handover document from BioManager's records for someone leaving the lab: "
+                   + (a["person"] if a.get("person") else "me, unless I name someone else")
+                   + ". Find their username among lab_overview's people if it isn't mine, and call handover. "
+                   "Group it as it comes: animals and cages by rack and position, breeding cages and what is due on "
+                   "them, fish tanks, vials and plates, inventory items and glycerol stocks with where each is, "
+                   "plasmids, experiments with their next steps, racks and boxes, notebook pages not signed and "
+                   "proposals waiting, each record with its link; then everything due in the next 30 days, overdue "
+                   "first. Leave out empty groups and invent nothing. At the end, offer to propose handing the "
+                   "records to someone else (owner_changes' actions); propose them only if I ask and name who.")),
 })

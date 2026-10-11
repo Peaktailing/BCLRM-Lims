@@ -1242,6 +1242,32 @@ def experiment_summary(experiment_id: int):
         return _answer(ac.experiment_summary, s, experiment_id)
 
 
+@bp.get("/animal-use")
+def animal_use():
+    """Animals per protocol, species and strain over a period (the last
+    twelve months unless asked), for an annual review; the colony and
+    zebrafish are the lab's, so anyone may ask."""
+    from . import assistant_reports as ar
+    with SessionLocal() as s:
+        return _answer(ar.animal_use, s, start=request.args.get("start"), end=request.args.get("end"),
+                       protocol=request.args.get("protocol") or "")
+
+
+@bp.get("/handover")
+def handover():
+    """Everything a person owns or looks after, and what is due on it: your
+    own, or (an admin) anyone's."""
+    from . import assistant_reports as ar
+    with SessionLocal() as s:
+        try:
+            out = _answer(ar.handover, s, username=(request.args.get("username") or "").strip(),
+                          days=_int_arg("days", ar.AGENDA_DAYS, 1, 90))
+        except PermissionError as e:
+            abort(403, str(e))
+        s.commit()  # an organism schedule rebuilt on the way (as /due does)
+        return out
+
+
 @bp.get("/regimens")
 def regimens():
     """The lab's saved regimens (an experiment's manipulations and days)."""
@@ -1421,6 +1447,10 @@ ENDPOINTS = [
      ("scope", "weight_loss_pct", "breeder_weeks", "unsigned_days", "expiring_days")),
     ("GET", "/api/v1/experiments/{experiment_id}/summary", "read",
      "An experiment's facts for its methods, and the ARRIVE Essential 10", ()),
+    ("GET", "/api/v1/animal-use", "read", "Animals used per protocol, species and strain over a period",
+     ("start", "end", "protocol")),
+    ("GET", "/api/v1/handover", "read", "Everything a person owns or looks after, and what is due on it",
+     ("username", "days")),
     ("GET", "/api/v1/regimens", "read", "The lab's saved regimens", ("family",)),
     ("POST", "/api/v1/proposals", "propose",
      "Propose changes for your approval: {summary, source, changes: [{action, target, fields, evidence}], replaces, "
@@ -1434,7 +1464,8 @@ ENDPOINTS = [
     ("POST", "/api/v1/mcp", "propose", "MCP (streamable HTTP) for assistant apps: the tools of mcp/biomanager_mcp.py", ()),
 ]
 NOT_PAGED = {"/", "/me", "/resolve", "/vocabulary", "/due", "/actions", "/proposals", "/mcp", "/captures", "/search",
-             "/history", "/lineage", "/path", "/availability", "/reorder-forecast", "/lab-checks", "/regimens"}
+             "/history", "/lineage", "/path", "/availability", "/reorder-forecast", "/lab-checks", "/regimens",
+             "/animal-use", "/handover"}
 PARAM_HELP = {
     "limit": "How many a page (default 100, at most 1000)",
     "after": "Continue after this row (from `next`)",
@@ -1456,6 +1487,9 @@ PARAM_HELP = {
     "breeder_weeks": "Flag breeders this old (default 30)", "unsigned_days": "Flag pages unsigned this long (default 14)",
     "expiring_days": "Flag reagents expiring within (default 30)",
     "family": "mouse, fish, fly, worm or organism",
+    "start": "The first day (default: twelve months before end)", "end": "The last day (default today)",
+    "protocol": "Only this protocol (as the records write it)",
+    "username": "Whose (default you; an admin may ask about anyone)",
 }
 
 

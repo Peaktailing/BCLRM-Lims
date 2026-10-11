@@ -2006,6 +2006,44 @@ found wanting in the reads in `tests/test_assistant_fixes_read.py`.
 The prompts `weekly_review`, `design_experiment` and `write_methods` drive
 them.
 
+**Write-ups (`app/assistant_reports.py`).** BioManager counts and lists;
+the model writes. `GET /animal-use?start=&end=&protocol=` (the twelve months
+to `end`, today, unless asked; `year_before`) counts mice and zebrafish per
+protocol, species and strain: `born`, `added` (record made in the period,
+born before it or undated), `new`, `used_in_experiments` (in an experiment
+whose status isn't planned and which ran during the period), `died_or_euthanized`
+with `died_by_reason`, and `breeding`; per row, per protocol (`by_species`) and
+in `totals`, with `basis` (what each column is based on) and `flags` (no
+protocol, no reason, no birth date, transfers). The schema has no protocol on a
+mouse or a mouse strain, so a mouse's is the colony's own column (custom_fields)
+whose key or label matches `PROTOCOL_COLUMN` (`protocol_columns`,
+`protocol_of`); a zebrafish row's is its tank's such column, else its line's
+`iacuc_protocol`. A mouse's strain is the lab's Strain named in its genotype
+(`strain_of`), else the genotype. A death's reason is read from the words of
+the mouse's note or the sac log's reason (`REASONS`, in order), else its status
+(`death_reason`). Fish deaths are `fish_sac_log` rows by `recorded_at` (the sac
+date); a row's `born` adds back the fish sac'd from it by hand, which came off
+its count. Breeding is a parent (by number, `lookup._first_number`) of a litter
+born in the period, or a mouse now in a Breeder or Breeding cage: where a mouse
+was isn't kept. The pure parts (`counted`, `tally`) take plain dicts. Anyone
+may ask (the colony is the lab's); organism databases aren't counted and the
+notes say so.
+`GET /handover?username=&days=` is one person's records, their own or (an
+admin) anyone's (`PermissionError` → 403): cages in their name or holding their
+living mice, by rack and position (`yours`, `others_mice`), Breeding cages with
+the due items whose `ref` is the cage, tanks, vials and frozen lots, inventory
+items not used up (glycerol stocks counted apart), plasmids with their box
+position, organism housing and animals, planned/active/paused experiments with
+their next undone steps, the racks and boxes they made (`admin_racks.CONTAINERS`
+by `created_by`), unsigned notebook pages (named only where `role_for` lets the
+asker read them) and pending proposals (listed only to their owner), then
+`lookup.due` filtered to their name. Databases come from `list_modules(everyone=True)`
+filtered by `lab.can_see`, so an admin sees a member's own databases.
+`owner_changes` maps each kind to the `*_change` action with an `owner` field
+(`owner_actions()`, from the catalogue). The tools `animal_use` and `handover`
+and the prompts `animal_use_report` and `handover_report` drive them; tested
+in `tests/test_reports.py`.
+
 ### The plugin (`plugins/biomanager/`)
 
 What an assistant app installs once to know BioManager: the skill
