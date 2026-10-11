@@ -1371,6 +1371,694 @@ def _notebook_note(s, _target, v):
     return [Call("POST", "/notebook/api/notes", form=form)]
 
 
+def _drafted_line() -> str:
+    """The line that says who wrote a page or section an assistant drafted."""
+    from flask import g
+    source = g.get("proposal_source") or ""
+    said = gettext("Drafted by %(source)s", source=source) if source else gettext("Drafted by an assistant")
+    return f"_{said}_"
+
+
+def _readable_page(s, page):
+    """The page, if this person may open it (its title is not told otherwise)."""
+    from . import lab_notebook
+    if lab_notebook.role_for(s, page) is None:
+        raise ActionError(gettext("There is no %(kind)s %(ref)s.", kind="notebook page", ref=f"#{page.id}"))
+    return page
+
+
+def _templates_titled(s, title: str) -> list:
+    """Notebook templates this person may start a page from (their own, and
+    the lab's), by title."""
+    from . import access
+    from .models import NotebookTemplate
+    me = access.username()
+    usable = (NotebookTemplate.owner_username == me) | NotebookTemplate.lab.is_(True)
+    rows = list(s.scalars(select(NotebookTemplate).where(usable, func.lower(NotebookTemplate.title) == title.lower())))
+    return rows or ([s.scalar(select(NotebookTemplate).where(usable, NotebookTemplate.id == int(title)))]
+                    if title.isdigit() else [])
+
+
+def _template_kind():
+    from .models import NotebookTemplate
+    return (NotebookTemplate, None, _templates_titled)
+
+
+KINDS["notebook_template"] = _template_kind()
+
+
+def _starters() -> tuple[str, ...]:
+    from .lab_notebook import STARTERS
+    return tuple(k for k in STARTERS if k not in ("blank", "daily"))
+
+
+PAGE_KINDS = ("note", "experiment", "protocol", "meeting", "seminar")
+
+
+@action(name="notebook_page_new", area="notebook", title="New notebook page",
+        help="A new page in your notebook, with a title and Markdown text, optionally started from one of your or "
+             "the lab's templates (template) or a built-in starter (starter). Its first line says an assistant "
+             "drafted it; it is never signed.", target=None,
+        fields=(Field("title", "text", "Its title", required=True),
+                Field("body", "text", "Its text, in Markdown (after the template's, if there is one)"),
+                Field("template", "notebook_template", "A saved template to start from, by its title"),
+                Field("starter", "text", "Or a built-in starter to start from", choices=_starters()),
+                Field("kind", "text", "What kind of page it is (a note if left out)", choices=PAGE_KINDS),
+                Field("tags", "list", "Tags")),
+        describe=lambda s, _t, v: gettext("Notebook: new page “%(title)s”%(start)s", title=v["title"],
+                                          start=_page_from(s, v)))
+def _notebook_page_new(s, _target, v):
+    import io
+    from . import access, lab_notebook
+    if v.get("template") not in (None, "") and v.get("starter"):
+        raise ActionError(gettext("Start from a template or a starter, not both."))
+    parts, kind = [_drafted_line()], v.get("kind", "")
+    if v.get("template") not in (None, ""):
+        template = find(s, "notebook_template", v["template"])
+        if template.owner_username != access.username() and not template.lab:
+            raise ActionError(gettext("Template not found."))
+        parts.append((template.body or "").strip())
+        kind = kind or (template.kind if template.kind in PAGE_KINDS else "")
+    elif v.get("starter"):
+        starter = lab_notebook.STARTERS[v["starter"]]
+        parts.append(lab_notebook._fill(starter["body"], date=date.today().isoformat(), presenter="",
+                                        now=lab_notebook._clock()).strip())
+        kind = kind or starter["kind"]
+    if v.get("body"):
+        parts.append(v["body"].strip())
+    front = ["---", "title: " + " ".join(v["title"].split())]
+    if kind:
+        front.append(f"kind: {kind}")
+    tags = [t.replace(",", " ").strip() for t in v.get("tags", []) if t.strip()]
+    if tags:
+        front.append("tags: [" + ", ".join(tags) + "]")
+    text = "\n".join(front) + "\n---\n\n" + "\n\n".join(p for p in parts if p) + "\n"
+    # The notebook's Import (a Markdown file), the one page that takes a
+    # page's whole text at once.
+    return [Call("POST", "/notebook/api/import", form=[("file", (io.BytesIO(text.encode("utf-8")), "page.md"))])]
+
+
+def _page_from(s, v) -> str:
+    if v.get("template") not in (None, ""):
+        return gettext(", from the template “%(name)s”", name=find(s, "notebook_template", v["template"]).title)
+    if v.get("starter"):
+        return gettext(", from the starter “%(name)s”", name=v["starter"])
+    return ""
+
+
+@action(name="notebook_page_append", area="notebook", title="Add a section to a notebook page",
+        help="Add Markdown text at the end of a notebook page you may edit, under a heading if one is given, "
+             "with a line saying an assistant drafted it. Refused while someone has the page open in the editor "
+             "(for a line in its Log, use notebook_note).", target="notebook_page",
+        fields=(Field("text", "text", "What to add, in Markdown", required=True),
+                Field("heading", "text", "A heading for it")),
+        describe=lambda s, p, v: gettext("Notebook: a section%(heading)s added to “%(page)s”",
+                                         heading=f" “{v['heading']}”" if v.get("heading") else "",
+                                         page=_readable_page(s, p).title))
+def _notebook_page_append(s, page, v):
+    from datetime import datetime
+    from .lab_notebook import PRESENCE_TTL
+    from .models import NotebookPresence
+    _readable_page(s, page)
+    there = s.scalar(select(NotebookPresence.username).where(
+        NotebookPresence.page_id_fk == page.id,
+        NotebookPresence.updated_at >= datetime.utcnow() - PRESENCE_TTL).limit(1))
+    if there:
+        # The page's text is saved over by its open editor: what is added
+        # here could be lost, so it waits until the page is closed.
+        raise ActionError(gettext("“%(page)s” is open in the editor (%(who)s): add it there, or propose it again once the page is closed.", page=page.title, who=there))
+    section = [f"## {' '.join(v['heading'].split())}"] if v.get("heading") else []
+    section += [_drafted_line(), v["text"].strip()]
+    body = (page.body or "").rstrip("\n")
+    text = (f"{body}\n\n" if body else "") + "\n\n".join(section) + "\n"
+    # The page's own save, as its plain-text editor sends it: the live
+    # editors start again from the new text.
+    return [Call("POST", f"/notebook/pages/{page.id}/update", form=[("body", text)])]
+
+
+# ---------------------------------------------------------------- inventories
+
+def _inventory(s, key):
+    """An inventory this person can open, by its key or its name."""
+    from . import inventory_service as isvc
+    from . import lab
+    text = str(key or "").strip()
+    module = isvc.get_module(s, text) if text else None
+    if module is None and text:
+        named = [m for m in isvc.list_modules(s) if (m.label or "").lower() == text.lower()]
+        module = named[0] if len(named) == 1 else None
+    if module is None or not lab.can_see(module):
+        raise ActionError(gettext("There is no inventory “%(key)s”.", key=key))
+    return module
+
+
+def _inventory_items(s, code: str) -> list:
+    """Items written as their inventory and number (reagents:12, Reagents #12),
+    a number alone (#12, in whichever inventory has it), or their name."""
+    from . import inventory_service as isvc
+    from .models import InventoryItem
+    visible = [m.id for m in isvc.list_modules(s)] or [0]
+    match = re.fullmatch(r"(.*?)[\s:]*#?(\d+)", code)
+    if match:
+        prefix, number = match.group(1).strip(), int(match.group(2))
+        if not prefix:
+            return list(s.scalars(select(InventoryItem).where(InventoryItem.module_id_fk.in_(visible),
+                                                              InventoryItem.number == number)))
+        try:
+            module = _inventory(s, prefix)
+        except ActionError:
+            module = None
+        if module is not None:
+            return [s.scalar(select(InventoryItem).where(InventoryItem.module_id_fk == module.id,
+                                                         InventoryItem.number == number))]
+    return list(s.scalars(select(InventoryItem).where(InventoryItem.module_id_fk.in_(visible),
+                                                      func.lower(InventoryItem.name) == code.lower())))
+
+
+def _inventory_kinds():
+    from .models import Equipment, InventoryItem, PlasmidRecord
+    return {"inventory_item": (InventoryItem, None, _inventory_items),
+            "plasmid": (PlasmidRecord, None, _plasmids_named),
+            "equipment": (Equipment, "name", "name")}
+
+
+def _plasmids_named(s, code: str) -> list:
+    """A plasmid by its number (#42, 42) or its name."""
+    from .models import PlasmidRecord
+    number = code.lstrip("#").strip()
+    if number.isdigit():
+        return [s.scalar(select(PlasmidRecord).where(PlasmidRecord.plasmid_id == int(number)))]
+    return list(s.scalars(select(PlasmidRecord).where(func.lower(PlasmidRecord.name) == code.lower())))
+
+
+KINDS.update(_inventory_kinds())
+
+
+def _item_label(s, item) -> str:
+    from .i18n import translate_value
+    from .models import InventoryModule
+    module = s.get(InventoryModule, item.module_id_fk)
+    return f"{translate_value(module.label)} #{item.number}" + (f" · {item.name}" if item.name else "")
+
+
+def _value_said(value) -> str:
+    if isinstance(value, dict):
+        return ", ".join(f"{k}: {_value_said(x)}" for k, x in value.items()) or "-"
+    if isinstance(value, bool):
+        return gettext("yes") if value else gettext("no")
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, list):
+        return "; ".join(str(x) for x in value) or "-"
+    return str(value) if value not in (None, "") else "-"
+
+
+def _fields_said(v, skip=()) -> str:
+    return ", ".join(f"{k} → {_value_said(x)}" for k, x in v.items() if k not in skip)
+
+
+ITEM_FIELDS = (Field("name", "text", "Its name (the Sample ID, Item, Target… as the inventory calls it)"),
+               Field("category", "text", "Its category or type, from the inventory's list (see inventories)"),
+               Field("status", "text", "One of the inventory's statuses (see inventories)"),
+               Field("owner", "text", "Username of its owner"),
+               Field("shared", "bool", "true: lab common, anyone may use and edit it; false: personal"),
+               Field("quantity", "text", "How much there is; a number (12, 2.5) where the inventory follows Low at"),
+               Field("unit", "text", "The quantity's unit"),
+               Field("low_at", "number", "Low at: at or below this quantity it counts as low"),
+               Field("vendor", "text", "Who sells it"),
+               Field("catalog_number", "text", "Its catalogue number"),
+               Field("lot", "text", "Its lot"),
+               Field("box", "text", "The box it is in, by name"),
+               Field("position", "text", "Its position in the box (A1, 12…)"),
+               Field("location_note", "text", "Where it is kept, in words, when not in a box"),
+               Field("received_on", "date", "When it arrived"),
+               Field("expires_on", "date", "When it expires"),
+               Field("notes", "text", "Its notes (replaces them)"),
+               Field("fields", "object", "The inventory's own columns, by key: {\"host\": \"rabbit\"} (see inventories)"))
+
+
+def _item_body(v, skip=("database",)) -> dict:
+    """The API's item, from the fields given."""
+    body = {k: x for k, x in v.items() if k not in skip}
+    if "low_at" in body:
+        body["low_at"] = f"{body['low_at']:g}"
+    return body
+
+
+@action(name="inventory_item_new", area="inventory", title="New inventory item",
+        help="Add an item to an inventory (samples, orders, reagents, chemicals, antibodies, viruses, primers, "
+             "glycerol stocks, cell lines or the lab's own lists; their keys, statuses and columns are in "
+             "inventories). What the inventory needs for a new item must be given.", target=None,
+        fields=(Field("database", "text", "The inventory, by its key or name", required=True), *ITEM_FIELDS),
+        describe=lambda s, _t, v: gettext("New in %(database)s: %(fields)s", database=_inventory_said(s, v["database"]),
+                                          fields=_fields_said(v, skip=("database",)) or "-"))
+def _inventory_item_new(s, _target, v):
+    module = _inventory(s, v["database"])
+    return [Call("POST", f"/api/v1/inventories/{module.key}/items", json=_item_body(v))]
+
+
+def _inventory_said(s, key) -> str:
+    from .i18n import translate_value
+    return translate_value(_inventory(s, key).label)
+
+
+def _item_module(s, item):
+    from .models import InventoryModule
+    return s.get(InventoryModule, item.module_id_fk)
+
+
+@action(name="inventory_item_change", area="inventory", title="Change an inventory item",
+        help="Set any of these on one item; what is left out stays as it is. To take some of its quantity off, "
+             "use inventory_quantity_used; to receive an order, order_received.", target="inventory_item",
+        fields=ITEM_FIELDS,
+        describe=lambda s, i, v: gettext("%(item)s: %(fields)s", item=_item_label(s, i), fields=_fields_said(v)))
+def _inventory_item_change(s, item, v):
+    if not v:
+        raise ActionError(gettext("Say what to change on %(item)s.", item=_item_label(s, item)))
+    return [Call("PATCH", f"/api/v1/inventories/{_item_module(s, item).key}/items/{item.number}",
+                 json=_item_body(v))]
+
+
+def _left_after(s, item, used: float) -> tuple[str, str]:
+    """(what the quantity is, what it will be) once `used` is taken off."""
+    from . import inventory_service as isvc
+    now = isvc.amount(item.quantity)
+    if now is None:
+        raise ActionError(gettext("The quantity of %(item)s is “%(quantity)s”, not a number: set it with inventory_item_change.", item=_item_label(s, item), quantity=item.quantity or ""))
+    if used <= 0:
+        raise ActionError(gettext("%(field)s must be more than 0.", field="amount"))
+    if used > now:
+        raise ActionError(gettext("Only %(left)s %(unit)s of %(item)s is left.", left=isvc.number_text(now),
+                                  unit=item.unit or "", item=_item_label(s, item)))
+    return isvc.number_text(now), isvc.number_text(round(now - used, 6))
+
+
+@action(name="inventory_quantity_used", area="inventory", title="Some of an item used",
+        help="Take an amount off an item's quantity, in its unit. Where the inventory keeps Low at, its status "
+             "follows as on the page: low at or below Low at, empty (or used up) at 0.", target="inventory_item",
+        fields=(Field("amount", "number", "How much was used, in the item's unit", required=True),),
+        describe=lambda s, i, v: gettext("%(item)s: %(amount)s %(unit)s used (%(before)s → %(after)s)",
+                                         item=_item_label(s, i), amount=f"{v['amount']:g}", unit=i.unit or "",
+                                         before=_left_after(s, i, v["amount"])[0],
+                                         after=_left_after(s, i, v["amount"])[1]))
+def _inventory_quantity_used(s, item, v):
+    _now, left = _left_after(s, item, v["amount"])
+    return [Call("PATCH", f"/api/v1/inventories/{_item_module(s, item).key}/items/{item.number}",
+                 json={"quantity": left})]
+
+
+def _inventory_box(s, module, name) -> str:
+    from .i18n import translate_value
+    from .models import InventoryRack
+    rack = s.scalar(select(InventoryRack).where(InventoryRack.module_id_fk == module.id,
+                                                func.lower(InventoryRack.name) == str(name).strip().lower()))
+    if rack is None:
+        raise ActionError(gettext("%(database)s has no box “%(box)s”.", database=translate_value(module.label),
+                                  box=name))
+    return str(rack.id)
+
+
+STOCK_ONLY = ("shared", "expires_on", "box", "position", "location_note")
+
+
+@action(name="order_received", area="inventory", title="Order received",
+        help="Mark an order received. With to_stock, also add it to a reagents, chemicals, antibodies or viruses "
+             "inventory, as the order's Add to stock does: its name, vendor, catalogue number and quantity come "
+             "from the order; give the lot, when it expires and where it is kept.", target="inventory_item",
+        fields=(Field("received_on", "date", "When it arrived (today if left out)"),
+                Field("lot", "text", "Its lot"),
+                Field("to_stock", "text", "Add it to this inventory, by its key or name"),
+                Field("shared", "bool", "In stock as lab common (true, the page's first choice) or yours (false)"),
+                Field("expires_on", "date", "In stock: when it expires"),
+                Field("box", "text", "In stock: the box it goes in"),
+                Field("position", "text", "In stock: its position in the box"),
+                Field("location_note", "text", "In stock: where it is kept, in words")),
+        describe=lambda s, i, v: gettext("%(item)s received%(on)s%(stock)s", item=_item_label(s, i),
+                                         on=_on(v.get("received_on")),
+                                         stock=gettext(", added to %(database)s", database=_inventory_said(s, v["to_stock"]))
+                                         if v.get("to_stock") not in (None, "") else ""))
+def _order_received(s, order, v):
+    from . import inventory_service as isvc
+    module = _item_module(s, order)
+    if module.kind != "orders":
+        raise ActionError(gettext("%(item)s is not an order.", item=_item_label(s, order)))
+    received = isvc.match_status(isvc.view(module), "received")
+    if received is None:
+        raise ActionError(gettext("%(database)s has no status “received”.", database=module.label))
+    body = {"status": received, **{k: v[k] for k in ("received_on", "lot") if k in v}}
+    calls = [Call("PATCH", f"/api/v1/inventories/{module.key}/items/{order.number}", json=body)]
+    if v.get("to_stock") in (None, ""):
+        extra = [k for k in STOCK_ONLY if k in v]
+        if extra:
+            raise ActionError(gettext("%(fields)s only go with to_stock.", fields=", ".join(extra)))
+        return calls
+    stocked = order.attrs_dict.get("stocked_as")
+    if stocked:
+        raise ActionError(gettext("%(name)s is already in stock (%(where)s).", name=order.name or f"#{order.number}",
+                                  where=stocked.replace(":", " #")))
+    target = _inventory(s, v["to_stock"])
+    if target.kind not in isvc.RESTOCK_KINDS:
+        raise ActionError(gettext("Pick a reagents, chemicals, antibodies or viruses inventory to add it to."))
+    return calls + [Call("POST", f"/inventory/{target.key}/items/save", form=_stock_form(s, module, target, order, v))]
+
+
+def _stock_form(s, module, target, order, v) -> list[tuple[str, str]]:
+    """The stock inventory's new-item form as Add to stock fills it from the
+    order (inventory_routes._stock_from_order), with what was given over it.
+    `from_order` links the two, as when the page's dialog is saved."""
+    from . import inventory_service as isvc
+    from .inventory_routes import _stock_from_order
+    draft = _stock_from_order(s, isvc.view(module), isvc.view(target), order, shared=v.get("shared", True))
+    received = v.get("received_on") or (draft.received_on.isoformat() if draft.received_on else "")
+    expires = v.get("expires_on") or (draft.expires_on.isoformat() if draft.expires_on else "")
+    form = [("id", ""), ("from_order", f"{module.key}:{order.id}"), ("name", draft.name or ""),
+            ("is_shared", "1" if draft.is_shared else "0"), ("received_on", received), ("expires_on", expires),
+            ("lot", v.get("lot", draft.lot or ""))]
+    form += [(k, getattr(draft, k) or "") for k in ("quantity", "unit", "vendor", "catalog_number", "notes")]
+    form += [(f"attr_{k}", str(x)) for k, x in json.loads(draft.attrs or "{}").items() if not isinstance(x, dict)]
+    if "location_note" in v:
+        form.append(("location_note", v["location_note"]))
+    if v.get("box") not in (None, ""):
+        form += [("rack_id", _inventory_box(s, target, v["box"])), ("position", str(v.get("position", "")))]
+    elif v.get("position"):
+        raise ActionError(gettext("A position needs a box."))
+    return form
+
+
+def _source(s, v) -> dict:
+    """A sample's Source, as the page keeps it: which colony, and the ID in it."""
+    given = [k for k in ("mouse", "tank", "animal") if v.get(k) not in (None, "")]
+    if len(given) != 1:
+        raise ActionError(gettext("Say which one animal it came from: a mouse, a tank or an animal."))
+    if given[0] == "mouse":
+        return {"kind": "mouse", "ref": str(find(s, "mouse", v["mouse"]).mouse_id)}
+    if given[0] == "tank":
+        return {"kind": "fish", "ref": find(s, "tank", v["tank"]).tank_id}
+    animal = find(s, "org_animal", v["animal"])
+    return {"kind": f"organism:{s.get(OrganismModule, animal.module_id_fk).key}", "ref": animal.code or str(animal.id)}
+
+
+def _kind_inventory(s, kind: str, what: str, key=None):
+    """The inventory named, or the lab's own of this kind."""
+    from . import inventory_service as isvc
+    from . import lab
+    if key not in (None, ""):
+        return _inventory(s, key)
+    module = isvc.first_of_kind(s, kind)
+    if module is None or not module.enabled or not lab.can_see(module):
+        raise ActionError(gettext("There is no %(what)s inventory to add it to.", what=what))
+    return module
+
+
+ITEM_PLACE = ("owner", "shared", "box", "position", "location_note", "notes")
+
+
+@action(name="sample_from_animal", area="inventory", title="Sample from an animal",
+        help="A new sample (tissue, blood, DNA…) whose Source is the mouse, zebrafish tank or other animal it came "
+             "from, in the lab's Samples (or another inventory with a Source column).", target=None,
+        fields=(Field("mouse", "mouse", "The mouse it came from"),
+                Field("tank", "tank", "Or the zebrafish tank it came from"),
+                Field("animal", "org_animal", "Or the animal (or group) in another organism database"),
+                Field("database", "text", "The inventory, by its key or name (the lab's Samples if left out)"),
+                Field("name", "text", "Its sample ID"),
+                Field("category", "text", "What it is: tissue, blood, serum, DNA, RNA… as the inventory's list has them"),
+                Field("collected_on", "date", "When it was collected"),
+                Field("amount", "text", "How much"),
+                Field("status", "text", "One of the inventory's statuses (its first if left out)"),
+                *(f for f in ITEM_FIELDS if f.name in ITEM_PLACE),
+                Field("fields", "object", "Its other columns, by key (see inventories)")),
+        describe=lambda s, _t, v: gettext("Sample from %(source)s in %(database)s: %(fields)s",
+                                          source=_source_said(s, v),
+                                          database=_inventory_said(s, v.get("database") or _samples(s).key),
+                                          fields=_fields_said(v, skip=("mouse", "tank", "animal", "database")) or "-"))
+def _sample_from_animal(s, _target, v):
+    module = _samples(s, v.get("database"))
+    from . import inventory_service as isvc
+    source = next((f["key"] for f in isvc.view(module).fields if f["type"] == "source"), None)
+    if source is None:
+        raise ActionError(gettext("%(database)s has no Source column.", database=module.label))
+    body = _item_body(v, skip=("database", "mouse", "tank", "animal", "collected_on", "amount", "fields"))
+    body["fields"] = {**v.get("fields", {}), source: _source(s, v),
+                      **{k: v[k] for k in ("collected_on", "amount") if k in v}}
+    return [Call("POST", f"/api/v1/inventories/{module.key}/items", json=body)]
+
+
+def _samples(s, key=None):
+    return _kind_inventory(s, "samples", gettext("Samples"), key)
+
+
+def _source_said(s, v) -> str:
+    src = _source(s, v)
+    if src["kind"] == "mouse":
+        return gettext("mouse %(mouse)s", mouse=f"#{src['ref']}")
+    if src["kind"] == "fish":
+        return gettext("tank %(tank)s", tank=src["ref"])
+    return gettext("animal %(animal)s", animal=src["ref"])
+
+
+# ---------------------------------------------------------------- plasmids
+
+PLASMID_FIELDS = (Field("name", "text", "Its name"),
+                  Field("backbone", "text", "Its backbone"),
+                  Field("insert", "text", "Its insert"),
+                  Field("resistance", "text", "Its resistance (Amp, Kan…)"),
+                  Field("owner", "text", "Username of its owner"),
+                  Field("location", "text", "Where it is kept, in words"),
+                  Field("box", "text", "The plasmid box it is in, by name (\"\" takes it out of its box)"),
+                  Field("position", "text", "Its position in the box (D7…; its first free cell if left out)"),
+                  Field("concentration", "text", "DNA concentration, ng/µL"),
+                  Field("a260_280", "text", "A260/280"),
+                  Field("shared", "bool", "true: lab common, anyone may edit it; false: personal"),
+                  Field("notes", "text", "Its notes (replaces them)"),
+                  Field("sequence", "text", "Its sequence, pasted: GenBank, FASTA or the bases alone (replaces any "
+                                            "sequence and map it has)"))
+PLASMID_FORM = {"name": "name", "backbone": "backbone", "insert": "insert_seq", "resistance": "resistance",
+                "owner": "owner", "location": "location", "concentration": "concentration", "a260_280": "a260_280",
+                "notes": "notes", "position": "position"}
+
+
+def _plasmid_form(s, v) -> list[tuple[str, str]]:
+    from .models import PlasmidBox
+    form = [(PLASMID_FORM[k], str(v[k])) for k in PLASMID_FORM if k in v]
+    if "shared" in v:
+        form.append(("is_shared", "1" if v["shared"] else "0"))
+    if "box" in v:
+        box = None
+        if v["box"] not in (None, ""):
+            box = s.scalar(select(PlasmidBox).where(func.lower(PlasmidBox.name) == str(v["box"]).strip().lower()))
+            if box is None:
+                raise ActionError(gettext("There is no plasmid box “%(box)s”.", box=v["box"]))
+        form.append(("box_id", str(box.id) if box else ""))
+    for key, value in (v.get("fields") or {}).items():
+        form.append((f"attr_{key}", "" if value is None else str(value)))
+    return form
+
+
+def _plasmid_label(p) -> str:
+    return f"#{p.plasmid_id}" + (f" {p.name}" if p.name else "")
+
+
+def _seq_said(v) -> dict:
+    return {k: (gettext("%(n)s letters", n=len(x)) if k == "sequence" else x) for k, x in v.items()}
+
+
+@action(name="plasmid_new", area="plasmids", title="New plasmid",
+        help="Add a plasmid; its number is the next free one unless number is given (and free). A pasted "
+             "GenBank or FASTA sequence gives it its map.", target=None,
+        fields=(Field("number", "int", "Its number, when the lab numbers it by hand"), *PLASMID_FIELDS),
+        describe=lambda _s, _t, v: gettext("New plasmid %(name)s: %(fields)s", name=v.get("name", ""),
+                                           fields=_fields_said(_seq_said(v), skip=("name",)) or "-"))
+def _plasmid_new(s, _target, v):
+    form = [("count", "1"), ("plasmid_id", str(v.get("number", ""))), *_plasmid_form(s, v)]
+    if v.get("sequence"):
+        form.append(("sequence_text", v["sequence"]))
+    return [Call("POST", "/plasmids", form=form)]
+
+
+@action(name="plasmid_change", area="plasmids", title="Change a plasmid",
+        help="Set any of these on one plasmid; what is left out stays as it is. sequence replaces its sequence "
+             "(the old one stays in its versions).", target="plasmid",
+        fields=(*PLASMID_FIELDS,
+                Field("fields", "object", "The lab's own Plasmids columns, by key")),
+        describe=lambda _s, p, v: gettext("Plasmid %(plasmid)s: %(fields)s", plasmid=_plasmid_label(p),
+                                          fields=_fields_said(_seq_said(v))))
+def _plasmid_change(s, plasmid, v):
+    if not v:
+        raise ActionError(gettext("Say what to change on plasmid %(plasmid)s.", plasmid=_plasmid_label(plasmid)))
+    calls = []
+    form = _plasmid_form(s, v)
+    if form:
+        calls.append(Call("POST", f"/plasmids/{plasmid.id}/update", form=form))
+    if v.get("sequence"):
+        calls.append(Call("POST", f"/plasmids/{plasmid.id}/upload-sequence", form=[("sequence_text", v["sequence"])]))
+    return calls
+
+
+def _plasmid_number(s, ref) -> str:
+    return str(find(s, "plasmid", ref).plasmid_id)
+
+
+def _in_brackets(text: str) -> str:
+    return f" ({text})" if text else ""
+
+
+@action(name="glycerol_stock_new", area="plasmids", title="New glycerol stock",
+        help="Bacteria carrying a plasmid, frozen in glycerol, in the lab's Glycerol stocks: it then shows on the "
+             "plasmid's page with the box it is in.", target=None,
+        fields=(Field("plasmid", "plasmid", "The plasmid it carries", required=True),
+                Field("name", "text", "Its name"),
+                Field("strain", "text", "The bacterial strain (DH5α, Stbl3…)"),
+                Field("colony", "text", "The colony or clone"),
+                Field("resistance", "text", "Its resistance"),
+                Field("verified", "text", "How it was checked: not checked, digest, colony PCR, Sanger, whole plasmid"),
+                Field("frozen_on", "date", "When it was frozen"),
+                Field("glycerol", "number", "Glycerol %"),
+                Field("status", "text", "One of the inventory's statuses (its first if left out)"),
+                *(f for f in ITEM_FIELDS if f.name in ITEM_PLACE),
+                Field("database", "text", "The inventory, by its key or name (the lab's Glycerol stocks if left out)")),
+        describe=lambda s, _t, v: gettext("New glycerol stock of plasmid %(plasmid)s%(what)s",
+                                          plasmid=_plasmid_label(find(s, "plasmid", v["plasmid"])),
+                                          what=_in_brackets(_fields_said(v, skip=("plasmid", "database")))))
+def _glycerol_stock_new(s, _target, v):
+    module = _kind_inventory(s, "glycerol_stocks", gettext("Glycerol stocks"), v.get("database"))
+    own = ("colony", "resistance", "verified", "frozen_on", "glycerol")
+    body = _item_body(v, skip=("database", "plasmid", "strain", *own))
+    if "strain" in v:
+        body["category"] = v["strain"]
+    body["fields"] = {"plasmid": _plasmid_number(s, v["plasmid"]),
+                      **{k: (f"{v[k]:g}" if isinstance(v[k], float) else v[k]) for k in own if k in v}}
+    return [Call("POST", f"/api/v1/inventories/{module.key}/items", json=body)]
+
+
+PRIMER_OWN = ("direction", "target", "pair", "modification", "stock_um", "purification")
+
+
+@action(name="primer_new", area="plasmids", title="New primer",
+        help="A primer or oligo in the lab's Primers, by its sequence (length, GC and Tm are worked out from it). "
+             "With reverse, a pair: <name>-F and <name>-R, each the other's Pair, as Add primer pair makes them.",
+        target=None,
+        fields=(Field("name", "text", "Its name (a pair's, without -F and -R)", required=True),
+                Field("sequence", "text", "Its sequence, 5′→3′ (a pair's forward)", required=True),
+                Field("reverse", "text", "A pair's reverse sequence, 5′→3′"),
+                Field("direction", "text", "forward, reverse or probe", choices=("forward", "reverse", "probe")),
+                Field("use", "text", "What it is for: PCR, qPCR, sequencing, cloning, genotyping…"),
+                Field("target", "text", "What it targets"),
+                Field("plasmid", "plasmid", "The plasmid it binds"),
+                Field("pair", "text", "The name of its partner"),
+                Field("modification", "text", "A modification"),
+                Field("stock_um", "number", "Stock concentration, µM"),
+                Field("purification", "text", "desalted, cartridge, HPLC or PAGE"),
+                Field("status", "text", "One of the inventory's statuses (its first, to order, if left out)"),
+                Field("vendor", "text", "Who makes it"),
+                *(f for f in ITEM_FIELDS if f.name in ITEM_PLACE),
+                Field("database", "text", "The inventory, by its key or name (the lab's Primers if left out)")),
+        describe=lambda s, _t, v: (gettext("New primer pair %(name)s-F / %(name)s-R", name=v["name"]) if v.get("reverse")
+                                   else gettext("New primer %(name)s (%(n)s nt)", name=v["name"],
+                                                n=len(re.sub(r"[^A-Za-z]", "", v["sequence"])))))
+def _primer_new(s, _target, v):
+    module = _kind_inventory(s, "primers", gettext("Primers"), v.get("database"))
+    own = {k: (f"{v[k]:g}" if isinstance(v[k], float) else v[k]) for k in PRIMER_OWN if k in v}
+    if "plasmid" in v:
+        own["template"] = _plasmid_number(s, v["plasmid"])
+    if not v.get("reverse"):
+        body = _item_body(v, skip=("database", "sequence", "reverse", "use", "plasmid", *PRIMER_OWN))
+        if "use" in v:
+            body["category"] = v["use"]
+        body["fields"] = {"sequence": v["sequence"], **own}
+        return [Call("POST", f"/api/v1/inventories/{module.key}/items", json=body)]
+    if "direction" in v or "pair" in v:
+        raise ActionError(gettext("A pair is a forward and a reverse, each the other's Pair: leave out direction and pair."))
+    form = [("name", v["name"]), ("forward", v["sequence"]), ("reverse", v["reverse"])]
+    form += [(k, str(v[k])) for k in ("status", "owner", "vendor", "location_note", "notes") if k in v]
+    if "use" in v:
+        form.append(("category", v["use"]))
+    if "shared" in v:
+        form.append(("is_shared", "1" if v["shared"] else "0"))
+    if v.get("box") not in (None, ""):
+        form += [("rack_id", _inventory_box(s, module, v["box"])), ("position", str(v.get("position", "")))]
+    form += [(f"attr_{k}", str(x)) for k, x in own.items()]
+    return [Call("POST", f"/inventory/{module.key}/items/pair", form=form)]
+
+
+# ---------------------------------------------------------------- calendar
+
+TIME = re.compile(r"([01]?\d|2[0-3]):([0-5]\d)")
+
+
+def _time(name: str, value) -> str:
+    match = TIME.fullmatch(str(value or "").strip())
+    if not match:
+        raise ActionError(gettext("%(field)s is a time of day, like 14:30, not “%(value)s”.", field=name, value=value))
+    return f"{int(match.group(1)):02d}:{match.group(2)}"
+
+
+def _span(v) -> tuple[str, str | None]:
+    """(start, end) as the calendar's pages send them: a day, or a day and a time."""
+    if "time" not in v:
+        if "end_time" in v or "end_date" in v:
+            raise ActionError(gettext("end_time and end_date go with a start time."))
+        return v["date"], None
+    start = f"{v['date']}T{_time('time', v['time'])}"
+    if "end_time" not in v:
+        if "end_date" in v:
+            raise ActionError(gettext("end_date goes with end_time."))
+        return start, None
+    return start, f"{v.get('end_date', v['date'])}T{_time('end_time', v['end_time'])}"
+
+
+def _when_said(v) -> str:
+    start, end = _span(v)
+    start = start.replace("T", " ")
+    if end is None:
+        return start
+    end = end.replace("T", " ")
+    return f"{start}–{end[11:] if end[:10] == start[:10] else end}"
+
+
+@action(name="calendar_event_new", area="calendar", title="New calendar event",
+        help="An event on the lab's calendar, which everyone sees (or, with personal, only you). All day unless it "
+             "has a time.", target=None,
+        fields=(Field("title", "text", "What it is", required=True),
+                Field("date", "date", "The day", required=True),
+                Field("time", "text", "When it starts, like 14:30 (all day if left out)"),
+                Field("end_time", "text", "When it ends, like 16:00"),
+                Field("end_date", "date", "The day it ends, when not the same day (with end_time)"),
+                Field("description", "text", "More about it"),
+                Field("personal", "bool", "true: only you see it")),
+        describe=lambda _s, _t, v: gettext("Calendar: “%(title)s”, %(when)s%(whose)s", title=v["title"],
+                                           when=_when_said(v),
+                                           whose=gettext(" (only you)") if v.get("personal") else ""))
+def _calendar_event_new(_s, _target, v):
+    start, end = _span(v)
+    body = {"kind": "event", "title": v["title"], "start": start, "end": end, "isAllday": "time" not in v,
+            "description": v.get("description", ""), "audience": "0" if v.get("personal") else "1"}
+    return [Call("POST", "/calendar/items", json=body)]
+
+
+@action(name="equipment_booking_new", area="calendar", title="Book an instrument",
+        help="Book time on a shared instrument (a confocal, a rig); refused if someone has it then. With repeat, "
+             "the same time each day, weekday or week until a date, each a booking of its own.", target="equipment",
+        fields=(Field("date", "date", "The day", required=True),
+                Field("time", "text", "When it starts, like 09:00", required=True),
+                Field("end_time", "text", "When it ends, like 11:30", required=True),
+                Field("end_date", "date", "The day it ends, when not the same day"),
+                Field("purpose", "text", "What it is for"),
+                Field("repeat", "text", "Repeat it: daily, weekdays or weekly", choices=("daily", "weekdays", "weekly")),
+                Field("until", "date", "With repeat: the last day it repeats")),
+        describe=lambda _s, e, v: gettext("Book %(instrument)s, %(when)s%(repeat)s", instrument=e.name,
+                                          when=_when_said(v),
+                                          repeat=f" ({v['repeat']}, {gettext('until %(day)s', day=v.get('until', '-'))})"
+                                          if v.get("repeat") else ""))
+def _equipment_booking_new(_s, equipment, v):
+    start, end = _span(v)
+    body = {"equipment_id": equipment.id, "start": start, "end": end, "purpose": v.get("purpose", "")}
+    if v.get("repeat"):
+        body["repeat"] = {"freq": v["repeat"], "until": v.get("until", "")}
+    elif "until" in v:
+        raise ActionError(gettext("until goes with repeat."))
+    return [Call("POST", "/calendar/bookings", json=body)]
+
+
 # ---------------------------------------------------------------- running them
 
 @dataclass

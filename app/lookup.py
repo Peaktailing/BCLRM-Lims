@@ -34,7 +34,14 @@ KIND_WORDS = {"cage": ["cage"], "mouse": ["mouse"], "mice": ["mouse"], "litter":
               "tank": ["tank", "org_housing"], "rack": ["rack", "fish_rack", "stock_rack", "org_location"],
               "clutch": ["clutch"], "line": ["fish_line", "org_line"], "vial": ["stock_unit"],
               "plate": ["stock_unit"], "fish": ["fish_line", "tank"], "cross": ["org_cross"],
-              "cohort": ["org_cohort"], "experiment": ["experiment"], "page": ["notebook_page"]}
+              "cohort": ["org_cohort"], "experiment": ["experiment"], "page": ["notebook_page"],
+              "plasmid": ["plasmid"], "item": ["inventory_item"], "instrument": ["equipment"],
+              "equipment": ["equipment"], "template": ["notebook_template"]}
+# Words that name a kind of inventory ("primer 12"): only its items.
+INVENTORY_WORDS = {"sample": "samples", "order": "orders", "reagent": "reagents", "chemical": "chemicals",
+                   "antibody": "antibodies", "virus": "viruses", "primer": "primers", "oligo": "primers",
+                   "glycerol": "glycerol_stocks"}
+KIND_WORDS.update({word: ["inventory_item"] for word in INVENTORY_WORDS})
 
 
 def _hit(kind: str, row, label: str, database: str, exact: bool) -> dict:
@@ -62,9 +69,11 @@ def _ranked(rows, exact) -> list:
 def resolve(session, q: str, kinds: set[str] | None = None) -> list[dict]:
     q = (q or "").strip()
     words = q.split()
+    inventory_kind = None
     if len(words) > 1 and words[0].lower() in KIND_WORDS:
         narrowed = set(KIND_WORDS[words[0].lower()])
         kinds = (kinds & narrowed) if kinds else narrowed
+        inventory_kind = INVENTORY_WORDS.get(words[0].lower())
         q = " ".join(words[1:])
     if not q:
         return []
@@ -146,7 +155,73 @@ def resolve(session, q: str, kinds: set[str] | None = None) -> list[dict]:
                                  .limit(PER_KIND))
         for p in session.scalars(stmt):
             out.append(_hit("notebook_page", p, f"Page {p.title}", "Notebook", p.title.lower() == q.lower()))
+    out += _resolve_inventories(session, q, want, inventory_kind)
+    if features.get("plasmids", True):
+        out += _resolve_plasmids(session, q, want)
+    if features.get("calendar", True) and want("equipment"):
+        from .models import Equipment
+        for e in session.scalars(select(Equipment).where(Equipment.active.is_(True), _match(Equipment.name, q))
+                                 .limit(PER_KIND)):
+            out.append(_hit("equipment", e, " · ".join(b for b in (f"Instrument {e.name}", e.location or "") if b),
+                            "Calendar", e.name.lower() == q.lower()))
+    if want("notebook_template") and features.get("notebook", True):
+        from .actions import _templates_titled
+        from .models import NotebookTemplate
+        rows = [t for t in session.scalars(select(NotebookTemplate).where(_match(NotebookTemplate.title, q))
+                                           .limit(50)) if _templates_titled(session, str(t.id))]
+        for t in rows[:PER_KIND]:
+            out.append(_hit("notebook_template", t, f"Template {t.title}" + (" · lab" if t.lab else ""), "Notebook",
+                            t.title.lower() == q.lower()))
     out.sort(key=lambda h: not h["exact"])
+    return out
+
+
+def _resolve_inventories(session, q: str, want, only_kind: str | None = None) -> list[dict]:
+    """Items in the inventories this person can open: by number (#12) or by
+    name, catalogue number or lot."""
+    from . import inventory_service as isvc
+    from .models import InventoryItem
+    if not want("inventory_item"):
+        return []
+    out = []
+    number = q.lstrip("#")
+    for module in isvc.list_modules(session):
+        if not lab.can_see(module) or (only_kind and module.kind != only_kind):
+            continue
+        mv = isvc.view(module)
+        stmt = select(InventoryItem).where(InventoryItem.module_id_fk == module.id)
+        if number.isdigit():
+            stmt = stmt.where(InventoryItem.number == int(number))
+        else:
+            stmt = stmt.where(or_(_match(InventoryItem.name, q), _match(InventoryItem.catalog_number, q),
+                                  _match(InventoryItem.lot, q))).order_by(InventoryItem.number.desc())
+        for i in session.scalars(stmt.limit(PER_KIND)):
+            where = _rack_where(i.rack, i.rack_row, i.rack_col) or i.location_note or ""
+            bits = [f"{mv.item_noun.capitalize()} #{i.number}", i.name or "", i.category or "", i.status or "",
+                    " ".join(b for b in (i.quantity or "", i.unit or "") if b), where, i.owner or ""]
+            out.append(_hit("inventory_item", i, " · ".join(b for b in bits if b), module.label,
+                            number.isdigit() or (i.name or "").lower() == q.lower()))
+    return out
+
+
+def _resolve_plasmids(session, q: str, want) -> list[dict]:
+    from .models import PlasmidRecord
+    if not want("plasmid"):
+        return []
+    number = q.lstrip("#")
+    if number.isdigit():
+        rows = session.scalars(select(PlasmidRecord).where(PlasmidRecord.plasmid_id == int(number))).all()
+    else:
+        rows = _ranked(session.scalars(select(PlasmidRecord).where(or_(_match(PlasmidRecord.name, q),
+                                                                       _match(PlasmidRecord.insert_seq, q)))
+                                       .order_by(PlasmidRecord.plasmid_id.desc()).limit(50)).all(),
+                       lambda p: (p.name or "").lower() == q.lower())
+    out = []
+    for p in rows:
+        bits = [f"Plasmid #{p.plasmid_id}", p.name or "", p.backbone or "", p.storage_box or p.location or "",
+                f"{len(p.full_sequence)} bp" if p.full_sequence else "", p.owner or ""]
+        out.append(_hit("plasmid", p, " · ".join(b for b in bits if b), "Plasmids",
+                        number.isdigit() or (p.name or "").lower() == q.lower()))
     return out
 
 
@@ -271,6 +346,41 @@ def vocabulary(session) -> dict:
             "locations": [n for (n,) in session.execute(select(OrgLocation.name)
                                                         .where(OrgLocation.module_id_fk == module.id)
                                                         .order_by(OrgLocation.name))]})
+    out["databases"] += _inventory_vocabulary(session)
+    if features.get("plasmids", True):
+        from .models import PlasmidBox
+        out["plasmid_boxes"] = [n for (n,) in session.execute(select(PlasmidBox.name).order_by(PlasmidBox.name))]
+    if features.get("calendar", True):
+        from .models import Equipment
+        out["instruments"] = [n for (n,) in session.execute(select(Equipment.name).where(Equipment.active.is_(True))
+                                                            .order_by(Equipment.name))]
+    if features.get("notebook", True):
+        from . import access
+        from .models import NotebookTemplate
+        out["notebook_templates"] = [n for (n,) in session.execute(
+            select(NotebookTemplate.title).where(or_(NotebookTemplate.owner_username == access.username(),
+                                                     NotebookTemplate.lab.is_(True)))
+            .order_by(NotebookTemplate.title))]
+    return out
+
+
+def _inventory_vocabulary(session) -> list[dict]:
+    """Each inventory this person can open: its key, kind, statuses, the
+    categories it offers, its own columns and its boxes."""
+    from . import inventory_service as isvc
+    from .models import InventoryRack
+    out = []
+    for module in isvc.list_modules(session):
+        if not lab.can_see(module):
+            continue
+        mv = isvc.view(module)
+        out.append({"kind": "inventory", "inventory_kind": module.kind, "key": module.key, "label": module.label,
+                    "noun": mv.item_noun, "statuses": list(mv.statuses), "categories": list(mv.categories),
+                    "fields": [{"key": f["key"], "label": f["label"], "type": f["type"]} for f in mv.fields],
+                    "required": list(mv.required),
+                    "boxes": [n for (n,) in session.execute(select(InventoryRack.name)
+                                                            .where(InventoryRack.module_id_fk == module.id)
+                                                            .order_by(InventoryRack.name))]})
     return out
 
 
