@@ -21,11 +21,13 @@ from . import assistant_tools as tools
 
 # The newest first: an unknown version asked for gets the newest we speak.
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
-READ_ONLY = {"lab_overview", "resolve", "get", "list", "whats_due", "list_actions", "proposal_status"}
+READ_ONLY = {"lab_overview", "resolve", "get", "list", "whats_due", "list_actions", "proposal_status",
+             "list_captures", "get_capture"}
 TITLES = {"lab_overview": "Lab overview", "resolve": "Find records", "get": "Read a record",
           "list": "List records", "whats_due": "What's due", "list_actions": "What can be proposed",
           "propose_changes": "Propose changes", "proposal_status": "A proposal's status",
-          "discard_proposal": "Withdraw a proposal"}
+          "discard_proposal": "Withdraw a proposal", "list_captures": "Captures from the bench",
+          "get_capture": "Read a capture"}
 
 
 class InProcessApi(tools.Api):
@@ -79,7 +81,10 @@ def _call(params: dict) -> dict:
         # Proposals are signed with the connection's name ("Claude").
         args["_source"] = (g.api_token.label or "AI assistant") if g.get("api_token") else "AI assistant"
     out = tools.call_tool(_api(), name, args)
-    return {"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False, default=str)}],
+    # A tool may add MCP content of its own after the text: get_capture's
+    # photo, as {"type": "image", "data", "mimeType"} (assistant_tools).
+    extra = out.pop("_content", []) if isinstance(out, dict) else []
+    return {"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False, default=str)}, *extra],
             "structuredContent": out, "isError": "error" in out}
 
 

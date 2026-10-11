@@ -58,7 +58,8 @@ class Endpoint(Base):
         self.assertEqual(self.rpc(tok, "notifications/initialized", msg_id=None).status_code, 202)
         tools = {t["name"]: t for t in self.rpc(tok, "tools/list").get_json()["result"]["tools"]}
         self.assertEqual(set(tools), {"lab_overview", "resolve", "get", "list", "whats_due", "list_actions",
-                                      "propose_changes", "proposal_status", "discard_proposal"})
+                                      "propose_changes", "proposal_status", "discard_proposal", "list_captures",
+                                      "get_capture"})
         self.assertIn("litter_born", tools["propose_changes"]["description"])     # the lab's own actions
         self.assertTrue(tools["resolve"]["annotations"]["readOnlyHint"])
         self.assertEqual(tools["resolve"]["inputSchema"]["required"], ["q"])

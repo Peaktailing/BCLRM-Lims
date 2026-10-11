@@ -28,6 +28,9 @@ BioManager"), don't explain BioManager or ask how to begin: call lab_overview, s
 today from its due_today (overdue first), and ask which of those they did, or what else they did, in their \
 own words or as a photo of their notes.
 
+When the person says "process my captures", call list_captures and read each with get_capture: they are \
+what the person wrote down or photographed at the bench, waiting to become records.
+
 How to work:
 1. Call lab_overview once to learn this lab's databases and its own words (strains, statuses, \
 racks, people, each database's fields).
@@ -36,8 +39,9 @@ phrase matches several records, or none, ask the person; never guess.
 3. Call list_actions to see what can be proposed and the fields each takes. Use the lab's own \
 values (from lab_overview) for statuses, purposes and the like.
 4. Put everything from one conversation in one propose_changes call, with a short summary in the \
-person's words. If BioManager reports errors, fix them and propose again with replaces set to the \
-earlier proposal's id.
+person's words, and give each change its evidence: the words of their notes it comes from, or what \
+the photo shows (and the capture's id). If BioManager reports errors, or the person sends it back \
+with a reason, fix it and propose again with replaces set to the earlier proposal's id.
 5. End by telling the person what you proposed and giving them the review link: nothing has \
 changed until they press Approve there.
 Dates are YYYY-MM-DD; "today" is in lab_overview. Never invent animals, numbers or results."""
@@ -131,16 +135,36 @@ def list_actions(api: Api) -> list:
 
 
 def propose_changes(api: Api, summary: str, changes: list, replaces: int | None = None,
-                    source: str | None = None) -> dict:
+                    source: str | None = None, captures: list | None = None) -> dict:
     body = {"summary": summary, "changes": changes,
             "source": source or os.environ.get("BIOMANAGER_ASSISTANT") or "AI assistant"}
     if replaces is not None:
         body["replaces"] = replaces
+    if captures:
+        body["captures"] = captures
     out = api.request("POST", "proposals", body=body)
     out["next"] = ("Nothing has changed yet. Give the person the review_url: they approve or discard it there."
                    if out.get("status") == "pending" else
                    "BioManager can't apply this as it is: fix the errors and propose again, with replaces set "
                    "to this id.")
+    return out
+
+
+def list_captures(api: Api, status: str = "waiting") -> dict:
+    out = api.request("GET", "captures", {"status": status or "waiting"})
+    return {"captures": out["data"],
+            "next": ("Read each with get_capture, resolve its records, then send one proposal with captures set to "
+                     "their ids and each change's evidence." if out["data"] else "Nothing is waiting.")}
+
+
+def get_capture(api: Api, capture_id: int) -> dict:
+    """A capture; a photo comes back as MCP image content (`_content`,
+    which both servers send after the text) rather than in the JSON."""
+    out = api.request("GET", f"captures/{int(capture_id)}")
+    image = out.pop("image", None)
+    if isinstance(image, dict) and image.get("data"):
+        out["photo"] = "Attached below as an image."
+        out["_content"] = [{"type": "image", "data": image["data"], "mimeType": image.get("mimeType") or "image/jpeg"}]
     return out
 
 
@@ -165,9 +189,12 @@ def describe_actions(actions: list) -> str:
 
 PROPOSE_HELP = """\
 Send changes to BioManager as one proposal for the person to approve. Nothing changes until they \
-press Approve in BioManager. changes is a list of {"action", "target", "fields"}: target is a \
+press Approve in BioManager. changes is a list of {"action", "target", "fields", "evidence"}: target is a \
 reference from resolve ({"kind": "cage", "id": 412}) or what the lab writes on the record (cage \
-88, mouse 1043, FV12); fields as below (* required; list_actions has each field's details). The \
+88, mouse 1043, FV12); fields as below (* required; list_actions has each field's details). Give each \
+change its evidence, shown to the person beside it: {"quote": the words of their notes it comes from, or \
+what the photo shows (at most 300 characters), "capture": the capture's id, "where": where in it}. Made \
+from captures? Set captures to their ids: they are marked used when the person approves. The \
 reply has each change's summary, warnings and errors, and the review_url to give the person."""
 
 
@@ -215,19 +242,33 @@ TOOLS = {
         None,  # PROPOSE_HELP and the lab's own actions: propose_description()
         _obj({"summary": {"type": "string", "description": "What this proposal records, in the person's words"},
               "changes": {"type": "array", "items": {"type": "object"},
-                          "description": "Each {action, target, fields}"},
-              "replaces": {"type": "integer", "description": "The id of an earlier proposal this corrects"}},
+                          "description": "Each {action, target, fields, evidence}"},
+              "replaces": {"type": "integer", "description": "The id of an earlier proposal this corrects"},
+              "captures": {"type": "array", "items": {"type": "integer"},
+                           "description": "The ids of the captures this was made from"}},
              ("summary", "changes")),
-        lambda api, a: propose_changes(api, a["summary"], a["changes"], a.get("replaces"), a.get("_source"))),
+        lambda api, a: propose_changes(api, a["summary"], a["changes"], a.get("replaces"), a.get("_source"),
+                                       a.get("captures"))),
     "proposal_status": (
-        "A proposal's status (pending, approved, discarded, superseded, expired, invalid) and each change as "
-        "BioManager previewed it.",
+        "A proposal's status (pending, approved, discarded, superseded, expired, invalid, sent_back) and each "
+        "change as BioManager previewed it. Sent back: its reason says what to correct; propose again with "
+        "replaces.",
         _obj({"proposal_id": {"type": "integer"}}, ("proposal_id",)),
         lambda api, a: proposal_status(api, a["proposal_id"])),
     "discard_proposal": (
         "Withdraw a proposal that is still waiting (the person asked, or you sent a wrong one).",
         _obj({"proposal_id": {"type": "integer"}}, ("proposal_id",)),
         lambda api, a: discard_proposal(api, a["proposal_id"])),
+    "list_captures": (
+        "The person's captures: what they wrote down or photographed at the bench (text, a photo or a small "
+        "file, and the record it was taken at), waiting to be turned into records. Call it when they say "
+        "\"process my captures\".",
+        _obj({"status": {"type": "string", "description": "waiting (default), used, dismissed or all"}}),
+        lambda api, a: list_captures(api, a.get("status") or "waiting")),
+    "get_capture": (
+        "Read one capture: its text, its photo (as an image) or its file's text (a CSV), and where it was taken.",
+        _obj({"capture_id": {"type": "integer"}}, ("capture_id",)),
+        lambda api, a: get_capture(api, a["capture_id"])),
 }
 
 
@@ -270,6 +311,12 @@ PROMPTS = {
                    "BioManager: resolve every record, read numbers carefully and ask me about any you can't read, "
                    "then send one proposal and give me the link to approve it." +
                    (f"\n\nIt shows: {a['what_it_shows']}" if a.get("what_it_shows") else ""))),
+    "process_captures": (
+        "Turn my captures from the bench into records", [],
+        lambda a: ("Process my captures in BioManager: read each one that is waiting (my notes and photos from the "
+                   "bench), resolve every record it mentions, read numbers carefully and ask me about any you can't "
+                   "read, then send one proposal made from them, each change with its evidence, and give me the "
+                   "link to approve it.")),
     "plan_tomorrow": (
         "Plan tomorrow from what's due", [],
         lambda a: ("Look at what is due in BioManager over the next two days and plan my tomorrow: group the work by "

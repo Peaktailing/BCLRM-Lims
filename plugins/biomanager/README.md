@@ -28,8 +28,9 @@ today and asks what you did.
 - **A skill** that teaches the assistant how to work with BioManager: look
   up every record, never guess, send everything as one proposal, give you
   the link.
-- **Three commands**: *Log today's work from my notes*, *Log from a photo of
-  my notebook, whiteboard or cage card*, and *Plan tomorrow from what's due*.
+- **Four commands**: *Log today's work from my notes*, *Log from a photo of
+  my notebook, whiteboard or cage card*, *Turn my captures from the bench
+  into records*, and *Plan tomorrow from what's due*.
 - **The connection to your BioManager**, in Claude Code: it asks for your
   BioManager's MCP address when the plugin is enabled.
 

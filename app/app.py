@@ -428,6 +428,9 @@ app.register_blueprint(public_api.pages)
 # Proposed changes: what an assistant proposed, approved here (app/proposals.py).
 from . import proposals as lab_proposals  # noqa: E402
 app.register_blueprint(lab_proposals.bp)
+# Captures: what someone wrote down or photographed at the bench, for an assistant (app/captures.py).
+from . import captures as lab_captures  # noqa: E402
+app.register_blueprint(lab_captures.bp)
 # Assistant apps signing in to use BioManager as a connector (app/oauth.py).
 from . import oauth as lab_oauth  # noqa: E402
 app.register_blueprint(lab_oauth.bp)

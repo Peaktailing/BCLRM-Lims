@@ -255,7 +255,9 @@ OWN_ROWS = {"notifications": "recipient_username", "calendar_subscriptions": "ow
             "google_calendar_links": "owner", "calendar_feeds": "owner", "notebook_templates": "owner_username",
             # Batch history: a member's own, as the Batches page shows them
             # (a description can name someone's personal database or file).
-            "batches": "actor"}
+            "batches": "actor",
+            # What someone wrote down or photographed at the bench (app/captures.py).
+            "captures": "owner_username"}
 PAGE_ROWS = ("notebook_comments", "notebook_page_info", "notebook_presence", "notebook_shares",
              "notebook_sync_updates", "notebook_versions", "record_signatures", "notebook_pending_inserts")
 PERSONAL_DATABASES = ("inventory_modules", "stock_modules", "organism_modules")

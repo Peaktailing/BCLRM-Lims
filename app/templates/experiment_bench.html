@@ -9,6 +9,8 @@
 {% endblock %}
 {% block page_actions %}
   <a class="btn" href="{{ page_url }}">{{ icon('back') }} {{ _('The experiment') }}</a>
+  {# Write a line or take a photo for an assistant to record later (app/captures.py). #}
+  <a class="btn" href="{{ url_for('captures.new', kind='experiment', id=request.view_args.experiment_id, back=request.path) }}">{{ icon('note') }} {{ _('Capture') }}</a>
 {% endblock %}
 {% block content %}
 <div class="xb" data-xb>

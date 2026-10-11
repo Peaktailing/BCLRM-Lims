@@ -102,9 +102,9 @@ be more than one, and replies with a link to the proposal. Open it in
 BioManager (or from the bell), read the summary, and press **Approve** or
 **Discard**.
 
-It also comes with three prompts: *Log today's work from my notes*, *Log from
-a photo of my notebook, whiteboard or cage card*, and *Plan tomorrow from
-what's due*.
+It also comes with four prompts: *Log today's work from my notes*, *Log from
+a photo of my notebook, whiteboard or cage card*, *Turn my captures from the
+bench into records*, and *Plan tomorrow from what's due*.
 
 ## Tools
 
@@ -115,8 +115,9 @@ what's due*.
 | `get`, `list` | Read a record or a list from the API |
 | `whats_due` | What is due, as Home lists it, with the change that records each done |
 | `list_actions` | Everything a proposal may contain, with its fields |
-| `propose_changes` | Send one proposal; returns each change's summary, warnings and errors, and the review link |
-| `proposal_status`, `discard_proposal` | Follow a proposal up, or withdraw it |
+| `propose_changes` | Send one proposal, each change with its evidence; returns each change's summary, warnings and errors, and the review link |
+| `proposal_status`, `discard_proposal` | Follow a proposal up (sent back: the person's reason), or withdraw it |
+| `list_captures`, `get_capture` | What the person wrote down or photographed at the bench, waiting to become records; a photo comes back as an image |
 
 What may be proposed comes from your BioManager (`/api/v1/actions`), so an
 update to BioManager reaches the assistant without changing this program.
