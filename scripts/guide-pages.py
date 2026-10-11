@@ -88,7 +88,10 @@ PAGES = [
         ("your-data", "Your data and backups", "数据与备份"),
         ("restore-a-backup", "Restore a backup", "从备份恢复"),
         ("scripts-and-api", "Scripts and the API", "脚本与 API"),
+    ]),
+    (("AI assistants", "AI 助手"), [
         ("ai-assistants", "AI assistants", "AI 助手"),
+        ("connect-an-ai-assistant", "Connect an AI assistant", "连接 AI 助手"),
     ]),
     (("Help", "帮助"), [
         ("troubleshooting", "Troubleshooting", "疑难解答"),

@@ -711,7 +711,7 @@ database has a name of its own (one another database has is refused), so
       photo of your notebook, and it sends one proposal: you <b>Approve</b>
       it whole in BioManager, or <b>Discard</b> it. It never changes
       anything itself, and an approved proposal can be undone like any batch.
-      Add the <b>BioManager plugin</b> once (Claude, Codex, Cursor, VS Code)
+      Add the <b>BioManager plugin</b> once (Claude, Codex, VS Code, Qwen Code)
       and "I want to change something in BioManager" is all you need to say.
     </td>
     <td valign="top">
@@ -1309,7 +1309,7 @@ track.
   the Claude phone apps and ChatGPT add the same address as a custom
   connector and sign in with a one-time connection code. The **BioManager
   plugin** (`plugins/biomanager/`, added from the `gaspolymerase/biomanager`
-  marketplace in Claude, Codex, Cursor, VS Code, Qwen Code or Kimi) teaches an
+  marketplace in Claude, Codex, VS Code or Qwen Code) teaches an
   assistant how to work with BioManager, so nobody has to explain it first.
   Changes are in the change history
   under your name, marked with the token's name. The reference, with

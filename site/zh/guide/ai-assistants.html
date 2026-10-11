@@ -118,7 +118,11 @@
             <li><a href="your-data.html">数据与备份</a></li>
             <li><a href="restore-a-backup.html">从备份恢复</a></li>
             <li><a href="scripts-and-api.html">脚本与 API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI 助手</span>
+          <ol>
             <li><a href="ai-assistants.html" aria-current="page">AI 助手</a></li>
+            <li><a href="connect-an-ai-assistant.html">连接 AI 助手</a></li>
           </ol></li>
         <li class="docs-group"><span>帮助</span>
           <ol>
@@ -130,7 +134,7 @@
   </aside>
   <main class="docs-main" data-pagefind-body>
     <!-- page -->
-    <p class="eyebrow">数据与帮助</p>
+    <p class="eyebrow">AI 助手</p>
     <h1>AI 助手</h1>
     <p class="summary">把你做了什么告诉 AI 助手；它提出记录，你在 BioManager 里批准。</p>
     <div class="badges"><span class="badge">实验室服务器或桌面版</span></div>
@@ -142,6 +146,7 @@
         由你在 BioManager 里批准。它自己什么都不会改。</p>
 
       <h2 id="connect">连接助手</h2>
+      <p>每个应用的详细步骤，以及要先确认的事：<a href="connect-an-ai-assistant.html">连接 AI 助手</a>。简单说：</p>
       <p>打开 <b>帮助 → 连接 AI 助手</b> （Connect an AI assistant；也在 <b>设置 → AI 助手与令牌</b> 里，以及空的 <b>修改提议</b> 页上）。
         它会列出连接你的 BioManager 的几种方式，地址已经填好。都不用安装任何东西，只有在实验室网络里用 Claude Desktop 时例外（见下文）。</p>
 
@@ -152,7 +157,7 @@
         <li><b>Claude</b>（网页版、各应用和 Claude Code）：<b>Customize → Plugins → Add marketplace</b>，输入
           <code>gaspolymerase/biomanager</code>，然后添加 <b>BioManager</b>。在 Claude Code 里它还会问你的 BioManager 地址，顺便连接好。</li>
         <li><b>Codex</b>：运行 <code>codex plugin marketplace add gaspolymerase/biomanager</code>，然后在它的插件里安装 BioManager。</li>
-        <li><b>VS Code</b>（GitHub Copilot）、<b>Cursor</b>、<b>Qwen Code</b> 和 <b>Kimi</b> 也能从 GitHub 添加插件：从
+        <li><b>VS Code</b>（GitHub Copilot）和 <b>Qwen Code</b> 也能从 GitHub 添加插件：从
           <code>gaspolymerase/biomanager</code> 添加。</li>
       </ul>
 
@@ -163,8 +168,7 @@
         <li>用这个地址把 BioManager 添加为自定义连接器。Claude：<b>Settings → Connectors → Add custom connector</b>
           （Team 或 Enterprise 套餐需要先由所有者添加）。ChatGPT 网页版：<b>Plugins → + → Add custom MCP server</b>，
           使用 OAuth。ChatGPT 只允许 Business、Enterprise 或 Edu 工作区这样修改记录，且要由管理员打开开发者模式；其他套餐只能读取。</li>
-        <li>要求连接时，会打开一个 BioManager 页面，要你输入 <b>连接码</b>。在连接页面（在实验室网络里）按
- <b>获取连接码</b>，把它输进去，再按 <b>允许</b>。连接码只能用一次，10 分钟内有效。</li>
+        <li>要求连接时，会打开一个 BioManager 页面，要你输入 <b>连接码</b>。在连接页面（在实验室网络里）按 <b>获取连接码</b>，把它输进去，再按 <b>允许</b>。连接码只能用一次，10 分钟内有效。</li>
         <li>这样就好了，网页版和手机应用都一样。这个连接会以应用的名字列在 <b>设置 → AI 助手与令牌</b> 里；在那里撤销就能断开。</li>
       </ol>
 
@@ -232,8 +236,7 @@
     <section class="trouble">
       <h2 id="troubleshooting">故障排除</h2>
       <h3>助手说连不上 BioManager</h3>
-      <p>Claude Code、Cursor 或 Cherry Studio：确认 BioManager 正在运行，设置里的地址是它的地址（桌面版的地址在
- <b>设置 → AI 助手与令牌</b> 里），并且令牌没有被撤销或过期。claude.ai、Claude 应用或 ChatGPT：用不连实验室 Wi-Fi 的手机
+      <p>Claude Code、Cursor 或 Cherry Studio：确认 BioManager 正在运行，设置里的地址是它的地址（桌面版的地址在 <b>设置 → AI 助手与令牌</b> 里），并且令牌没有被撤销或过期。claude.ai、Claude 应用或 ChatGPT：用不连实验室 Wi-Fi 的手机
         打开连接器地址，确认能打开（应该显示一条要求 API 令牌的简短消息），并且地址以 <code>/api/v1/mcp</code> 结尾。</p>
       <h3>连接时说连接码不对</h3>
       <p>连接码只能用一次，10 分钟内有效。再按一次 <b>获取连接码</b>，用新的连接码。</p>
@@ -241,7 +244,7 @@
       <p>有人（或你自己）在这期间改过它，提议可能已经过时。<b>丢弃</b> 它，让助手重新提议。</p>
     </section>
     <!-- /page -->
-      <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="scripts-and-api.html"><small>上一页</small>脚本与 API</a><a class="next" href="troubleshooting.html"><small>下一页</small>疑难解答</a></nav>
+      <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="scripts-and-api.html"><small>上一页</small>脚本与 API</a><a class="next" href="connect-an-ai-assistant.html"><small>下一页</small>连接 AI 助手</a></nav>
       <div class="helpful" data-pagefind-ignore>
         <span>这一页对你有帮助吗？</span>
         <button type="button" data-helpful="yes" aria-pressed="false">有</button>

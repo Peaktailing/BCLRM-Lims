@@ -1506,6 +1506,8 @@ BioManager has no AI inside it. If you already use an assistant (Claude, ChatGPT
 
 ### Connect an assistant
 
+Step by step for each app, with what to check first: [Connect an AI assistant](https://biomanager.org/guide/connect-an-ai-assistant). In short:
+
 Open **Help → Connect an AI assistant** (it is also under **Settings → AI assistant & tokens**, and on an empty **Proposed changes**). It shows the ways in for your BioManager, with its address filled in. Nothing needs installing, except for Claude Desktop on the lab network (below).
 
 #### Teach it BioManager once: the plugin
@@ -1516,7 +1518,7 @@ Add the **BioManager plugin** to your assistant, once, and you never need to exp
 
 - **Codex**: run `codex plugin marketplace add gaspolymerase/biomanager`, then install BioManager from its plugins.
 
-- **VS Code** (GitHub Copilot), **Cursor**, **Qwen Code** and **Kimi** add plugins from GitHub too: add it from `gaspolymerase/biomanager`.
+- **VS Code** (GitHub Copilot) and **Qwen Code** add plugins from GitHub too: add it from `gaspolymerase/biomanager`.
 
 #### From claude.ai, the Claude apps or ChatGPT
 
@@ -1601,6 +1603,182 @@ A code works once and for 10 minutes. Press **Get a connection code** again and 
 Someone (or you) changed it meanwhile, so the proposal may be out of date. **Discard** it and ask the assistant to propose again.
 
 Source: https://biomanager.org/guide/ai-assistants
+
+---
+
+## Connect an AI assistant
+
+Step by step for each assistant app: add the BioManager plugin once, connect it to your lab, sign in, and try it.
+
+Who and where: Lab server or desktop
+
+Connecting takes a few minutes, once. Whatever app you use, it is the same four steps:
+
+1. **Check that your app can reach BioManager** (the table below).
+
+2. **Add the BioManager plugin**, where your app takes plugins. It teaches the assistant how to work with BioManager, so you never have to explain it.
+
+3. **Connect it to your lab** with your BioManager's address, and **sign in**: BioManager opens in your browser and you press **Allow**. There is no password or token to give the assistant.
+
+4. **Try it**: say *I want to change something in BioManager*.
+
+Everything you need is on **Help → Connect an AI assistant** in BioManager (also under **Settings → AI assistant & tokens**), with your lab's address filled in, buttons for some apps and commands to copy for others. Keep it open beside this page.
+
+### Can your app reach BioManager?
+
+An assistant app connects either from your own computer or from its company's servers on the internet. Which one decides what it can reach:
+
+| Your BioManager | Apps on your computer | Apps in the cloud |
+|---|---|---|
+| The desktop app, on this computer | Yes | No |
+| A lab server, on the lab network only | Yes, from a computer on the lab network | No |
+| A lab server on the internet | Yes | Yes |
+
+- **On your computer**: Claude Code, Codex, Cursor, VS Code, Cherry Studio, QwenWork (千问办公), Trae, Doubao (豆包) on the computer, Qwen Code, Kimi Code, and Claude Desktop with a token.
+
+- **In the cloud**: claude.ai with the Claude desktop and phone apps' chats, and ChatGPT. They need the lab's server on the internet; its admin turns that on (the server's runbook, *internet access*). Until then, the Connect page says so and shows only the other ways.
+
+The Connect page shows two addresses, both ending in `/api/v1/mcp`: the **connector address** (on the internet, for the cloud apps) and the address for apps **on this computer or the lab network**.
+
+### Claude
+
+#### Claude on the web, the desktop app and the phone
+
+Needs the lab's server on the internet. Do these on claude.ai or in the desktop app; the phone app then has it too.
+
+1. **Add the plugin.** Open **Customize → Plugins**, choose **Add → Add marketplace**, enter `gaspolymerase/biomanager`, then open **BioManager** and press **Add**. Once BioManager is listed in Claude's directory, you can find it under **Discover** instead.
+
+2. **Add the connector.** Open the plugin's **Connectors** tab (or **Customize → Connectors**), choose **Add custom connector**, name it *BioManager*, and paste the **connector address** from the Connect page.
+
+3. **Connect.** Press **Connect**. A BioManager page opens asking for a **connection code**. On the Connect page (on the lab network), press **Get a connection code**, type the code in, and press **Allow**. A code works once, for 10 minutes.
+
+4. **Try it.** In a new chat, check BioManager is on in the chat's tools menu, and say *I want to change something in BioManager*. The first time, Claude asks before it uses each tool; choose **Always allow** for BioManager's tools. They can only read and propose: nothing changes until you approve it in BioManager.
+
+> **On a Team or Enterprise plan** An owner adds the connector for the organization, and can install the plugin for everyone (**Installed by default**). Each person then only connects, with their own connection code, so the assistant works as them.
+
+#### Claude Code
+
+Works with the desktop app and with a server on the lab network. In Claude Code:
+
+1. Type `/plugin marketplace add gaspolymerase/biomanager`, then `/plugin install biomanager@biomanager`.
+
+2. It asks for **BioManager's MCP address**: paste the address for **this computer or the lab network** from the Connect page.
+
+3. Type `/mcp`, choose *biomanager* and **Authenticate**. BioManager opens in your browser: press **Allow**.
+
+4. Say *I want to change something in BioManager*.
+
+Without the plugin, the Connect page's one command connects it (`claude mcp add …`), or press **Copy the message** and send it to Claude Code: it sets itself up.
+
+#### Claude Desktop, with a desktop app or a lab-network server
+
+Claude Desktop's own connectors come from the internet, so for a BioManager it can't reach that way, it runs a small program from BioManager's source instead. On the Connect page, press **Make a token**: the next page shows the setup to paste into Claude Desktop (**Settings → Developer → Edit Config**), with your address and token in it. The steps, and the one command that installs what it needs, are in `mcp/README.md`. Claude Desktop's **Code** tab is Claude Code, and connects as above.
+
+### ChatGPT and Codex
+
+#### ChatGPT
+
+Needs the lab's server on the internet, and ChatGPT on the web: ChatGPT's phone apps don't take your own servers. ChatGPT lets a **Business, Enterprise or Edu** workspace make changes this way, once its admin turns on developer mode; on other plans it can only read.
+
+1. Open **Plugins**, press **+** and choose **Add custom MCP server**.
+
+2. Name it *BioManager*, paste the **connector address**, choose **OAuth**, and confirm with **I understand and want to continue**, then **Create as a plugin** and install it.
+
+3. When it asks you to sign in, a BioManager page asks for a **connection code**: get one on the Connect page, type it in, and press **Allow**.
+
+4. In a chat, choose BioManager (type `@`) and say *I want to change something in BioManager*. Under its permissions, **Allow read actions** stops it asking before every look-up.
+
+#### Codex
+
+1. Add the plugin: `codex plugin marketplace add gaspolymerase/biomanager`, then install *BioManager* from its plugins.
+
+2. Connect: `codex mcp add biomanager --url <address>` with the address for **this computer or the lab network** (the Connect page has the command with it filled in).
+
+3. Sign in: `codex mcp login biomanager`. BioManager opens in your browser: press **Allow**.
+
+### Cursor and VS Code
+
+1. On the Connect page, press **Add to Cursor** or **Add to VS Code**. The app opens and asks before adding BioManager: accept.
+
+2. Sign in: the app shows that BioManager *needs login*, or asks you to allow it; BioManager opens in your browser, press **Allow**.
+
+3. In VS Code, also add the plugin: run **Chat: Install Plugin From Source** with `https://github.com/gaspolymerase/biomanager`.
+
+### Assistants used in China
+
+The DeepSeek, Qwen (千问) and Kimi chat apps can't connect to other apps yet. These can, from a computer that reaches BioManager.
+
+#### Cherry Studio, with DeepSeek, Qwen, Kimi or GLM
+
+1. Set up Cherry Studio with your model's key (DeepSeek, Qwen, Kimi or Zhipu GLM), as Cherry Studio describes.
+
+2. On the Connect page, press **Add to Cherry Studio**. Cherry Studio opens with BioManager added, switched off: switch it on in **Settings → MCP**.
+
+3. Sign in when BioManager opens in your browser: press **Allow**.
+
+4. In a chat, turn on the BioManager tools and say *I want to change something in BioManager*.
+
+#### QwenWork (千问办公), Trae and Doubao (豆包)
+
+These take your BioManager's address with a token. On the Connect page, press **Make a token**; the next page shows the setup, with the address and token filled in.
+
+- **QwenWork**: **扩展 → 连接器 → + 添加 → 粘贴 JSON 配置**, and paste the JSON.
+
+- **Trae**: **设置 → MCP → 添加 → 手动添加**, and paste the same JSON.
+
+- **Doubao** on the computer: **技能 · 连接器 → 新建 → 新建自定义连接器**, transport **HTTP**, the address, and a header `Authorization` with the value `Bearer` and the token.
+
+The token is shown once: keep it in the app, not in a note. Revoke it under **Settings → AI assistant & tokens** when you stop using the app.
+
+#### Qwen Code and Kimi Code
+
+- **Qwen Code**: add the plugin with `qwen extensions install https://github.com/gaspolymerase/biomanager:biomanager`, then connect with `qwen mcp add --transport http biomanager <address>`. It signs in by itself in your browser.
+
+- **Kimi Code**: `kimi mcp add -t http biomanager <address> --auth oauth`, then `kimi mcp auth biomanager`.
+
+#### Claude Code on DeepSeek or GLM
+
+DeepSeek and Zhipu (GLM) both offer an address that speaks Claude's API, so Claude Code, with the BioManager plugin, can run on a DeepSeek or Zhipu key. Set Claude Code up as their own pages say (DeepSeek's *Anthropic API* guide, Zhipu's *Claude Code* guide), then follow [Claude Code](https://biomanager.org/guide/connect-an-ai-assistant#claude-code) above.
+
+### Any other app
+
+An app that takes an MCP server (Goose, OpenCode, LobeHub, Chatbox and others) needs the address, as a **streamable HTTP** server. If it signs in with OAuth, leave the headers empty and sign in in the browser; if it doesn't, press **Make a token** and give it the header the next page shows. An app that only starts commands runs `mcp/biomanager_mcp.py`, as for Claude Desktop.
+
+### Check that it works
+
+1. Say *I want to change something in BioManager*. It should show you what's due today and ask what you did, without asking you how BioManager works.
+
+2. Tell it one small real thing, e.g. *weighed mouse 1043, 24.1 g*. It looks the mouse up, sends one proposal, and gives you a link.
+
+3. Open the link (or the bell) in BioManager: the proposal waits under **Proposed changes**. Read it, and press **Approve** or **Discard**.
+
+The connection is listed under **Settings → AI assistant & tokens** with the app's name. Revoke it there to end it; the assistant then can't read anything.
+
+### Troubleshooting
+
+#### The assistant doesn't seem to know BioManager
+
+Check that BioManager is on in the chat's tools (Claude, ChatGPT, Cherry Studio switch tools per chat), and that the plugin is added and turned on. Without the plugin, say *use BioManager's lab_overview first*.
+
+#### It can't reach BioManager
+
+For apps on your computer: check that BioManager is running and that the address is the one for **this computer or the lab network**. For claude.ai and ChatGPT: the **connector address** should open from a phone off the lab's Wi-Fi, showing a short message asking for an API token. If it doesn't, the server isn't on the internet yet.
+
+#### Connecting says the connection code isn't right
+
+A code works once and for 10 minutes. Press **Get a connection code** again and use the new one.
+
+#### ChatGPT can read but not propose
+
+On ChatGPT plans other than Business, Enterprise and Edu, your own servers can only read. Use another app to propose, or ask your workspace's admin about developer mode.
+
+#### Every few weeks it asks me to sign in again
+
+A sign-in lasts 90 days without use. Sign in again the same way; nothing else is lost.
+
+Related: [AI assistants](https://biomanager.org/guide/ai-assistants) [Scripts and the API](https://biomanager.org/guide/scripts-and-api) [Run it for your lab](https://biomanager.org/server)
+
+Source: https://biomanager.org/guide/connect-an-ai-assistant
 
 ---
 

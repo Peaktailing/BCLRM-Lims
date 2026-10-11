@@ -181,7 +181,7 @@
   "Add the BioManager plugin to your assistant and you never need to explain BioManager again: say what you did, or just “I want to change something in BioManager”. The plugin teaches it how to work; connect it to this lab below.": "给助手添加 BioManager 插件，以后就不必再向它解释 BioManager：直接说你做了什么，或者只说“我想在 BioManager 里改点东西”。插件教它怎么做；再在下面把它连接到这个实验室。",
   "Claude (the apps and Claude Code): Customize → Plugins → Add marketplace, enter %(repo)s, then add BioManager.": "Claude（各应用和 Claude Code）：Customize → Plugins → Add marketplace，输入 %(repo)s，然后添加 BioManager。",
   "Codex: run %(command)s, then install BioManager from its plugins.": "Codex：运行 %(command)s，然后在它的插件里安装 BioManager。",
-  "VS Code (GitHub Copilot), Cursor, Qwen Code and Kimi take plugins from GitHub too: add it from %(repo)s.": "VS Code（GitHub Copilot）、Cursor、Qwen Code 和 Kimi 也能从 GitHub 添加插件：从 %(repo)s 添加。",
+  "VS Code (GitHub Copilot) and Qwen Code take plugins from GitHub too: add it from %(repo)s.": "VS Code（GitHub Copilot）和 Qwen Code 也能从 GitHub 添加插件：从 %(repo)s 添加。",
   "In Codex, run: %(command)s, then %(login)s.": "在 Codex 里，运行：%(command)s，然后运行 %(login)s。",
   "One click, in Cursor, VS Code or Cherry Studio": "一键添加：Cursor、VS Code 或 Cherry Studio",
   "Each button opens the app, which asks before adding BioManager. Then sign in: BioManager opens in your browser, and you press Allow.": "每个按钮会打开对应的应用，添加 BioManager 前它会先问你。然后登录：BioManager 会在浏览器里打开，按“允许”。",

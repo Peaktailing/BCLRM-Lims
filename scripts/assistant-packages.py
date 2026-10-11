@@ -18,9 +18,10 @@ One folder, plugins/biomanager/, with a manifest for each family of apps:
     plugin.json                  Agent Plugins 1.0: ChatGPT and Codex, VS Code (GitHub Copilot)
     .cursor-plugin/plugin.json   Cursor
 
-and two marketplaces that list it: .claude-plugin/marketplace.json (Claude
-Code, VS Code; Codex reads it too) and .agents/plugins/marketplace.json
-(Codex and ChatGPT's own).
+and three marketplaces that list it: .claude-plugin/marketplace.json
+(Claude Code, VS Code, Qwen Code; Codex reads it too),
+.agents/plugins/marketplace.json (Codex and ChatGPT's own) and
+.cursor-plugin/marketplace.json (Cursor's, for its marketplace).
 
 The words come from app/assistant_tools.py (INSTRUCTIONS and PROMPTS), the
 same the MCP servers send, so they can't drift apart: run this after
@@ -205,6 +206,7 @@ def files() -> dict[Path, str]:
     out = {
         ROOT / ".claude-plugin" / "marketplace.json": _json(marketplace_json()),
         ROOT / ".agents" / "plugins" / "marketplace.json": _json(codex_marketplace_json()),
+        ROOT / ".cursor-plugin" / "marketplace.json": _json(marketplace_json()),
         PLUGIN / ".claude-plugin" / "plugin.json": _json(plugin_json()),
         PLUGIN / "plugin.json": _json(portable_json()),
         PLUGIN / ".cursor-plugin" / "plugin.json": _json(cursor_json()),
