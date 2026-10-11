@@ -40,7 +40,13 @@ person's words. If BioManager reports errors, fix them and propose again with re
 earlier proposal's id.
 5. End by telling the person what you proposed and giving them the review link: nothing has \
 changed until they press Approve there.
-Dates are YYYY-MM-DD; "today" is in lab_overview. Never invent animals, numbers or results."""
+Dates are YYYY-MM-DD; "today" is in lab_overview. Never invent animals, numbers or results.
+
+BioManager computes; you talk. Never work out a number yourself that a BioManager tool can: how many \
+animals fit (availability), breeding odds and matings (breeding_plan), group allocation (randomize), \
+animals per group (power_analysis), when stock runs out (reorder_forecast), the week's checks \
+(lab_checks), an experiment's facts (experiment_summary). Call the tool, give its numbers with the \
+assumptions it states, and say so when it can't answer rather than estimating."""
 
 
 class ApiError(Exception):
@@ -81,7 +87,7 @@ class Api:
 
 # What `get` and `list_records` may read: the API's own read paths.
 READABLE = ("mice", "cages", "litters", "strains", "tanks", "fish", "plasmids", "stocks", "inventories",
-            "experiments", "proposals", "me")
+            "experiments", "proposals", "me", "regimens")
 
 
 def _readable(path: str) -> str:
@@ -231,6 +237,178 @@ TOOLS = {
 }
 
 
+# ---------------------------------------------------------------- looking up and working out
+#
+# BioManager computes; the model talks. Each of these reads, or works
+# something out from the lab's records (app/assistant_compute.py), and
+# changes nothing.
+
+def _record(a: dict) -> dict:
+    """A record as asked for: ref ({"kind", "id"}), or kind and code."""
+    ref = a.get("ref") or {}
+    if ref:
+        return {"kind": ref.get("kind"), "id": ref.get("id")}
+    if not a.get("kind") or a.get("code") in (None, ""):
+        raise ValueError("give ref (from resolve or search), or kind and code (kind mouse, code 1043)")
+    return {"kind": a["kind"], "code": a["code"]}
+
+
+def search(api: Api, q: str, limit: int = 5) -> list:
+    return api.request("GET", "search", {"q": q, "limit": limit})["data"]
+
+
+def history(api: Api, record: dict, limit: int = 50) -> dict:
+    return api.request("GET", "history", {**record, "limit": limit})
+
+
+def lineage(api: Api, record: dict) -> dict:
+    return api.request("GET", "lineage", record)
+
+
+def _flag(value) -> str | None:
+    return None if value is None else ("true" if value else "false")
+
+
+def availability(api: Api, a: dict) -> dict:
+    query = {k: a.get(k) for k in ("species", "genotype", "sex", "age_min_days", "age_max_days", "on", "limit")}
+    query.update(include_in_experiments=_flag(a.get("include_in_experiments")),
+                 include_breeders=_flag(a.get("include_breeders")))
+    return api.request("GET", "availability", query)
+
+
+def breeding_plan(api: Api, a: dict) -> dict:
+    return api.request("POST", "breeding-plan", body=a)
+
+
+def randomize(api: Api, a: dict) -> dict:
+    return api.request("POST", "randomize", body=a)
+
+
+def power_analysis(api: Api, a: dict) -> dict:
+    return api.request("POST", "power", body=a)
+
+
+def reorder_forecast(api: Api, days: int = 30, lead_days: int = 14) -> dict:
+    return api.request("GET", "reorder-forecast", {"days": days, "lead_days": lead_days})
+
+
+def lab_checks(api: Api, a: dict) -> dict:
+    return api.request("GET", "lab-checks", {k: a.get(k) for k in (
+        "scope", "weight_loss_pct", "breeder_weeks", "unsigned_days", "expiring_days")})
+
+
+def experiment_summary(api: Api, experiment_id: int) -> dict:
+    return api.request("GET", f"experiments/{int(experiment_id)}/summary")
+
+
+_REF = {"type": "object", "description": "The record's reference, {\"kind\", \"id\"}, from resolve or search"}
+_KIND = {"type": "string", "description": "Instead of ref: what it is (mouse, cage, plasmid, stock_unit…)"}
+_CODE = {"type": "string", "description": "With kind: what the lab writes on it (1043, 88, FV12)"}
+_LOCI = {"type": "object", "description": "Each locus as the lab writes it in genotypes (lab_overview's "
+                                          "transgenes_in_use: Cre, Foxp3…) → wt, het, hom or carrier"}
+
+TOOLS.update({
+    "search": (
+        "Search BioManager as its search box does: records in every database the person can open, and the notebook "
+        "pages they may read, by words in names, genotypes, notes and page text. Each match has its kind, ref (for "
+        "get, history and proposals), title, a snippet and its link. To pin down a record the person names "
+        "(cage 88, #1043), use resolve instead.",
+        _obj({"q": {"type": "string", "description": "The words to look for"},
+              "limit": {"type": "integer", "description": "At most this many of each kind (default 5)"}}, ("q",)),
+        lambda api, a: {"matches": search(api, a["q"], a.get("limit", 5))}),
+    "history": (
+        "A record's change history, newest first: who changed what and when (field: before → after). An admin "
+        "sees everyone's changes; anyone else only their own (the full history is for admins).",
+        _obj({"ref": _REF, "kind": _KIND, "code": _CODE,
+              "limit": {"type": "integer", "description": "At most this many (default 50)"}}),
+        lambda api, a: history(api, _record(a), a.get("limit", 50))),
+    "lineage": (
+        "Family: a plasmid's parents and what was made from it (the tree both ways), or a mouse's parents and "
+        "grandparents, its litter and littermates, and the litters it had.",
+        _obj({"ref": _REF, "kind": {"type": "string", "enum": ["mouse", "plasmid"],
+                                    "description": "Instead of ref: mouse or plasmid"}, "code": _CODE}),
+        lambda api, a: lineage(api, _record(a))),
+    "availability": (
+        "How many living animals fit, and which, as BioManager counts them: genotype (words that must all be in "
+        "it, ';'-separated), sex, and an age window in days on a day (default today). Mice in an active or paused "
+        "experiment, and in Breeder or Breeding cages, are left out unless asked. Use its numbers; don't count.",
+        _obj({"species": {"type": "string", "enum": ["mouse", "zebrafish"], "description": "Default mouse"},
+              "genotype": {"type": "string", "description": "e.g. Cre; Ai14"},
+              "sex": {"type": "string", "enum": ["F", "M"]},
+              "age_min_days": {"type": "integer"}, "age_max_days": {"type": "integer"},
+              "on": {"type": "string", "description": "The day, YYYY-MM-DD (default today)"},
+              "include_in_experiments": {"type": "boolean"}, "include_breeders": {"type": "boolean"},
+              "limit": {"type": "integer", "description": "List at most this many (default 200)"}}),
+        lambda api, a: availability(api, a)),
+    "breeding_plan": (
+        "Plan breeding for a genotype, worked out by BioManager: Mendelian odds for each mating type among the "
+        "lab's own breeders (or the crosses given), the lab's own litter size, weaning at P21, and how many matings "
+        "to set up by which date for `count` mice of that genotype and sex, aged within the window on `by`. Tell "
+        "the person the assumptions it lists, and which breeders it was unsure how to read.",
+        _obj({"want": _LOCI, "sex": {"type": "string", "enum": ["F", "M"]},
+              "count": {"type": "integer", "description": "How many mice are wanted"},
+              "age_min_days": {"type": "integer"}, "age_max_days": {"type": "integer"},
+              "by": {"type": "string", "description": "When they are needed, YYYY-MM-DD"},
+              "crosses": {"type": "array", "items": {"type": "object"},
+                          "description": "Instead of the lab's breeders: [{female: {locus: state}, male: {…}}]"},
+              "confidence": {"type": "number", "description": "How sure to be of having enough (default 0.9)"}},
+             ("want",)),
+        lambda api, a: breeding_plan(api, a)),
+    "randomize": (
+        "Allocate mice to named groups, balanced by sex, litter (or cage) and weight, from a seed that gives the "
+        "same allocation again; returns the groups, the seed and a balance table. Changes nothing: with experiment "
+        "it also returns the experiment_add_animals changes to propose.",
+        _obj({"animals": {"type": "array", "items": {}, "description": "The mice: numbers or references"},
+              "groups": {"type": "array", "items": {},
+                         "description": "Group names, or {name, size} for each when the sizes differ"},
+              "seed": {"type": "integer", "description": "To repeat an allocation; left out, BioManager picks one"},
+              "by": {"type": "string", "enum": ["litter", "cage"], "description": "Balance across (default litter)"},
+              "experiment": {"type": "integer", "description": "The experiment's id, for the changes to propose"}},
+             ("animals", "groups")),
+        lambda api, a: randomize(api, a)),
+    "power_analysis": (
+        "Animals per group, computed exactly by BioManager: two groups (t-test) or more (one-way ANOVA), from the "
+        "smallest difference worth detecting and the SD (or each group's expected mean, or Cohen's d), alpha, "
+        "power and the share expected to be lost. With experiment (and day), the SD is that experiment's own "
+        "readouts'. Never work out a sample size yourself.",
+        _obj({"groups": {"type": "integer", "description": "How many groups (default 2)"},
+              "difference": {"type": "number", "description": "The smallest difference worth detecting, in the "
+                                                              "readout's units"},
+              "sd": {"type": "number"}, "means": {"type": "array", "items": {"type": "number"}},
+              "d": {"type": "number", "description": "Cohen's d, instead of difference and sd"},
+              "alpha": {"type": "number", "description": "Default 0.05"},
+              "power": {"type": "number", "description": "Default 0.8"},
+              "attrition": {"type": "number", "description": "Share lost before the end, e.g. 0.1"},
+              "experiment": {"type": "integer", "description": "A past experiment whose readouts give the SD"},
+              "day": {"type": "string", "description": "Its day number or date (default: the day with most readings)"}}),
+        lambda api, a: power_analysis(api, a)),
+    "reorder_forecast": (
+        "Inventory kept as a number that runs out within `days`: how much is used a week (from the changes to its "
+        "quantity), days left, when it runs out and the date to reorder by, given how long an order takes.",
+        _obj({"days": {"type": "integer", "description": "Running out within this many days (default 30)"},
+              "lead_days": {"type": "integer", "description": "Days an order takes to arrive (default 14)"}}),
+        lambda api, a: reorder_forecast(api, a.get("days", 30), a.get("lead_days", 14))),
+    "lab_checks": (
+        "The weekly review's checks, done by BioManager: overdue jobs, mice down 15% or more from their peak weight "
+        "in an active experiment, empty cages still set up, breeders 30 weeks or older, your notebook pages unsigned "
+        "for 14 days (once you sign pages), reagents expired, expiring or low, and your proposals waiting. Each check "
+        "has a severity, a count and items with links; an item's propose is the change that fixes it, where one "
+        "exists. scope mine: only your own records.",
+        _obj({"scope": {"type": "string", "enum": ["lab", "mine"]},
+              "weight_loss_pct": {"type": "number"}, "breeder_weeks": {"type": "integer"},
+              "unsigned_days": {"type": "integer"}, "expiring_days": {"type": "integer"}}),
+        lambda api, a: lab_checks(api, a)),
+    "experiment_summary": (
+        "What the records say about an experiment, for its methods: the animals (species, genotypes, sex, age and "
+        "weight at the start, n per group), procedures (agent, dose, route, days, lots used), the readout, the tests "
+        "used and the last day's comparison, dates; and arrive, the ARRIVE 2.0 Essential 10, each with what is "
+        "recorded and what is missing. Never fill in what is missing yourself.",
+        _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"}},
+             ("experiment_id",)),
+        lambda api, a: experiment_summary(api, a["experiment_id"])),
+})
+
+
 def propose_description(api: Api) -> str:
     try:
         catalogue = describe_actions(list_actions(api))
@@ -276,3 +454,33 @@ PROMPTS = {
                    "room and time, say what each needs, and flag anything overdue. Don't propose changes unless I "
                    "ask.")),
 }
+
+# The prompts over the compute tools: BioManager works the numbers out.
+PROMPTS.update({
+    "weekly_review": (
+        "Review the lab this week", [],
+        lambda a: ("Review the lab this week with BioManager's weekly checks (lab_checks). Summarise what needs "
+                   "attention by severity, highest first, naming each record with its link, and say which checks "
+                   "found nothing. Then offer one proposal that clears the items that come with a fix (their "
+                   "propose changes); send it only if I say yes, and give me the link to approve it.")),
+    "design_experiment": (
+        "Design an experiment",
+        [{"name": "goal", "description": "What the experiment should find out", "required": True}],
+        lambda a: ("Help me design this experiment from the lab's records in BioManager. Find the animals we have "
+                   "(availability) and, if there aren't enough, how to breed them in time (breeding_plan); the "
+                   "animals per group (power_analysis, with the SD from a past experiment's readouts if we have "
+                   "one); a balanced, seeded allocation (randomize); and the procedures from the lab's saved "
+                   "regimens (list regimens). Take doses only from the lab's regimens or a source you cite, and "
+                   "leave the check against our animal protocol (IACUC) to me. Give me the design with every number "
+                   "as BioManager worked it out and every assumption it made. Don't propose any change unless I ask."
+                   "\n\nThe goal: " + a.get("goal", ""))),
+    "write_methods": (
+        "Write the methods for an experiment",
+        [{"name": "experiment", "description": "The experiment's name or id", "required": True}],
+        lambda a: ("Write the methods for this experiment from BioManager's records: resolve it, call "
+                   "experiment_summary, and write the animals, procedures, outcome measure and statistics as a "
+                   "methods paragraph in the past tense, using only what it returns. Then give the ARRIVE 2.0 "
+                   "Essential 10 checklist, each item with what the records say and what is missing, and ask me for "
+                   "the missing facts. Never invent a fact, number, supplier or lot.\n\nThe experiment: "
+                   + a.get("experiment", ""))),
+})

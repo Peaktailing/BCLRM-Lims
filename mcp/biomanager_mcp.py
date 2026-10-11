@@ -33,6 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool, description,  # noqa: E402,F401
                                  describe_actions, discard_proposal, get, lab_overview, list_actions, list_records,
                                  proposal_status, propose_changes, resolve, whats_due)
+from app.assistant_tools import (availability, breeding_plan, experiment_summary, history, lab_checks,  # noqa: E402,F401
+                                 lineage, power_analysis, randomize, reorder_forecast, search)
 
 
 def build_server(api: Api):
@@ -76,6 +78,70 @@ def build_server(api: Api):
     def discard_proposal_tool(proposal_id: int) -> dict:
         return call_tool(api, "discard_proposal", {"proposal_id": proposal_id})
 
+    # Looking up and working out: BioManager computes (app/assistant_compute.py).
+    def given(**kwargs) -> dict:
+        return {k: v for k, v in kwargs.items() if v is not None}
+
+    @server.tool(name="search", description=description(api, "search"))
+    def search_tool(q: str, limit: int = 5) -> dict:
+        return call_tool(api, "search", {"q": q, "limit": limit})
+
+    @server.tool(name="history", description=description(api, "history"))
+    def history_tool(ref: dict | None = None, kind: str | None = None, code: str | None = None,
+                     limit: int = 50) -> dict:
+        return call_tool(api, "history", given(ref=ref, kind=kind, code=code, limit=limit))
+
+    @server.tool(name="lineage", description=description(api, "lineage"))
+    def lineage_tool(ref: dict | None = None, kind: str | None = None, code: str | None = None) -> dict:
+        return call_tool(api, "lineage", given(ref=ref, kind=kind, code=code))
+
+    @server.tool(name="availability", description=description(api, "availability"))
+    def availability_tool(species: str = "mouse", genotype: str = "", sex: str | None = None,
+                          age_min_days: int | None = None, age_max_days: int | None = None, on: str | None = None,
+                          include_in_experiments: bool = False, include_breeders: bool = False,
+                          limit: int = 200) -> dict:
+        return call_tool(api, "availability", given(
+            species=species, genotype=genotype, sex=sex, age_min_days=age_min_days, age_max_days=age_max_days, on=on,
+            include_in_experiments=include_in_experiments, include_breeders=include_breeders, limit=limit))
+
+    @server.tool(name="breeding_plan", description=description(api, "breeding_plan"))
+    def breeding_plan_tool(want: dict, sex: str | None = None, count: int = 1, age_min_days: int | None = None,
+                           age_max_days: int | None = None, by: str | None = None, crosses: list[dict] | None = None,
+                           confidence: float = 0.9) -> dict:
+        return call_tool(api, "breeding_plan", given(
+            want=want, sex=sex, count=count, age_min_days=age_min_days, age_max_days=age_max_days, by=by,
+            crosses=crosses, confidence=confidence))
+
+    @server.tool(name="randomize", description=description(api, "randomize"))
+    def randomize_tool(animals: list, groups: list, seed: int | None = None, by: str = "litter",
+                       experiment: int | None = None) -> dict:
+        return call_tool(api, "randomize", given(animals=animals, groups=groups, seed=seed, by=by,
+                                                 experiment=experiment))
+
+    @server.tool(name="power_analysis", description=description(api, "power_analysis"))
+    def power_analysis_tool(groups: int = 2, difference: float | None = None, sd: float | None = None,
+                            means: list[float] | None = None, d: float | None = None, alpha: float = 0.05,
+                            power: float = 0.8, attrition: float = 0.0, experiment: int | None = None,
+                            day: str | None = None) -> dict:
+        return call_tool(api, "power_analysis", given(
+            groups=groups, difference=difference, sd=sd, means=means, d=d, alpha=alpha, power=power,
+            attrition=attrition, experiment=experiment, day=day))
+
+    @server.tool(name="reorder_forecast", description=description(api, "reorder_forecast"))
+    def reorder_forecast_tool(days: int = 30, lead_days: int = 14) -> dict:
+        return call_tool(api, "reorder_forecast", {"days": days, "lead_days": lead_days})
+
+    @server.tool(name="lab_checks", description=description(api, "lab_checks"))
+    def lab_checks_tool(scope: str = "lab", weight_loss_pct: float | None = None, breeder_weeks: int | None = None,
+                        unsigned_days: int | None = None, expiring_days: int | None = None) -> dict:
+        return call_tool(api, "lab_checks", given(scope=scope, weight_loss_pct=weight_loss_pct,
+                                                  breeder_weeks=breeder_weeks, unsigned_days=unsigned_days,
+                                                  expiring_days=expiring_days))
+
+    @server.tool(name="experiment_summary", description=description(api, "experiment_summary"))
+    def experiment_summary_tool(experiment_id: int) -> dict:
+        return call_tool(api, "experiment_summary", {"experiment_id": experiment_id})
+
     @server.prompt(name="log_today", description=PROMPTS["log_today"][0])
     def log_today(notes: str) -> str:
         return PROMPTS["log_today"][2]({"notes": notes})
@@ -87,6 +153,18 @@ def build_server(api: Api):
     @server.prompt(name="plan_tomorrow", description=PROMPTS["plan_tomorrow"][0])
     def plan_tomorrow() -> str:
         return PROMPTS["plan_tomorrow"][2]({})
+
+    @server.prompt(name="weekly_review", description=PROMPTS["weekly_review"][0])
+    def weekly_review() -> str:
+        return PROMPTS["weekly_review"][2]({})
+
+    @server.prompt(name="design_experiment", description=PROMPTS["design_experiment"][0])
+    def design_experiment(goal: str) -> str:
+        return PROMPTS["design_experiment"][2]({"goal": goal})
+
+    @server.prompt(name="write_methods", description=PROMPTS["write_methods"][0])
+    def write_methods(experiment: str) -> str:
+        return PROMPTS["write_methods"][2]({"experiment": experiment})
 
     return server
 

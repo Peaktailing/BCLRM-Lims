@@ -61,6 +61,9 @@ SCOPES = {"read": "Read", "write": "Read and change", "propose": "Read and propo
 # What a Propose-only token may send besides reading (app/proposals.py): it
 # never changes a record itself; its person approves in BioManager.
 PROPOSING = {"api.proposal_create", "api.proposal_discard", "api.mcp"}
+# POSTs that only work something out from what they are sent and change
+# nothing (app/assistant_compute.py): any token may send them.
+COMPUTING = {"api.breeding_plan", "api.randomize", "api.power"}
 EXPIRY_DAYS = {"30": "In 30 days", "90": "In 90 days", "365": "In a year", "": "Never"}
 PER_MINUTE = 600
 MAX_LIMIT = 1000
@@ -149,8 +152,8 @@ def _gate():
     wait = rate.wait(g.api_token.id) if g.api_token.id else 0  # 0: a proposal being applied
     if wait:
         return _error(429, f"Too many requests: at most {PER_MINUTE} a minute.") + ({"Retry-After": str(wait)},)
-    if request.endpoint == "api.mcp":
-        return None                   # its tools check the scope as the API does (app/mcp_http.py)
+    if request.endpoint == "api.mcp" or request.endpoint in COMPUTING:
+        return None                   # MCP's tools check the scope as the API does (app/mcp_http.py)
     if request.method not in ("GET", "HEAD", "OPTIONS") and g.api_token.scope != "write":
         if g.api_token.scope == "propose" and request.endpoint in PROPOSING:
             return None
@@ -982,6 +985,193 @@ def action_list():
     return jsonify({"data": actions.catalogue(), "kinds": list(actions.KINDS), "next": None})
 
 
+# ---------------------------------------------------------------- looked up and worked out (app/assistant_compute.py)
+
+def _answer(fn, *args, **kwargs):
+    """What a lookup or computation gives, or its refusal: 404 for a record
+    this person can't open, 400 for what it was asked."""
+    try:
+        return jsonify(fn(*args, **kwargs))
+    except KeyError:
+        raise
+    except LookupError as e:
+        abort(404, str(e))
+    except (ValueError, TypeError) as e:
+        abort(400, str(e))
+
+
+def _whole(value, default: int | None = None) -> int | None:
+    """A whole number sent in JSON (or as text); a ValueError otherwise."""
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise ValueError(f"{value} isn't a whole number.")
+    return int(value)
+
+
+def _number_arg(name: str, default: float | None = None) -> float | None:
+    raw = (request.args.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        abort(400, f"{name} must be a number.")
+
+
+def _ref_arg():
+    """The record asked about: ?kind=mouse&id=412 (a reference's id) or
+    ?kind=mouse&code=1043 (what the lab writes on it)."""
+    kind = (request.args.get("kind") or "").strip()
+    if not kind:
+        abort(400, "Send kind (mouse, cage, plasmid…) and id (a reference's) or code (mouse 1043, cage 88).")
+    if (request.args.get("id") or "").strip():
+        return kind, {"kind": kind, "id": _int_arg("id", 0, 1)}
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        abort(400, "Send id (a reference's) or code (what the lab writes on it).")
+    return kind, code
+
+
+@bp.get("/search")
+def search():
+    """The app's own search, across records and the notebook pages you may
+    read: each match's kind, reference, title, a snippet and its address."""
+    from . import lookup
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        abort(400, "Send q: the words to look for.")
+    with SessionLocal() as s:
+        return jsonify({"data": lookup.search(s, q, _int_arg("limit", 5, 1, 20)), "next": None})
+
+
+@bp.get("/history")
+def history():
+    """A record's change history, newest first: everyone's for an admin,
+    your own changes for anyone else (as the pages show them)."""
+    from . import lookup
+    kind, ref = _ref_arg()
+    with SessionLocal() as s:
+        try:
+            row = lookup.record(s, kind, ref)
+        except LookupError as e:
+            abort(404, str(e))
+        return jsonify(lookup.history(s, kind, row, _int_arg("limit", 50, 1, 200)))
+
+
+@bp.get("/lineage")
+def lineage():
+    """A plasmid's family tree, or a mouse's parents, litter and offspring."""
+    from . import lookup
+    kind, ref = _ref_arg()
+    if kind not in ("mouse", "plasmid"):
+        abort(400, "kind is mouse or plasmid.")
+    with SessionLocal() as s:
+        try:
+            row = lookup.record(s, kind, ref)
+        except LookupError as e:
+            abort(404, str(e))
+        if kind == "mouse":
+            return jsonify(lookup.mouse_lineage(s, row, _int_arg("generations", 2, 1, 4)))
+        return jsonify(lookup.plasmid_lineage(s, row))
+
+
+@bp.get("/availability")
+def availability():
+    """Living animals that fit a genotype, sex and age window on a day."""
+    from . import assistant_compute as ac
+    age_min, age_max = _number_arg("age_min_days"), _number_arg("age_max_days")
+    with SessionLocal() as s:
+        return _answer(ac.availability, s, species=(request.args.get("species") or "mouse").strip().lower(),
+                       genotype=request.args.get("genotype") or "", sex=request.args.get("sex") or "",
+                       age_min_days=int(age_min) if age_min is not None else None,
+                       age_max_days=int(age_max) if age_max is not None else None, on=request.args.get("on"),
+                       include_in_experiments=bool(_bool_arg("include_in_experiments")),
+                       include_breeders=bool(_bool_arg("include_breeders")), limit=_int_arg("limit", 200, 1, 1000))
+
+
+@bp.post("/breeding-plan")
+def breeding_plan():
+    """{want: {locus: wt|het|hom|carrier}, sex, count, age_min_days,
+    age_max_days, by, crosses, confidence}: matings to set up, and when."""
+    from . import assistant_compute as ac
+    data = _json()
+    with SessionLocal() as s:
+        return _answer(lambda: ac.breeding_plan(
+            s, data.get("want"), sex=data.get("sex") or "", count=_whole(data.get("count"), 1),
+            age_min_days=_whole(data.get("age_min_days")), age_max_days=_whole(data.get("age_max_days")),
+            by=data.get("by"), crosses=data.get("crosses"), confidence=float(data.get("confidence") or 0.9)))
+
+
+@bp.post("/randomize")
+def randomize():
+    """{animals: [mice], groups: [names or {name, size}], seed, by, experiment}:
+    a balanced allocation; nothing changes."""
+    from . import assistant_compute as ac
+    data = _json()
+    with SessionLocal() as s:
+        return _answer(ac.randomize, s, data.get("animals"), data.get("groups"), seed=data.get("seed"),
+                       by=data.get("by") or "litter", experiment=data.get("experiment"))
+
+
+@bp.post("/power")
+def power():
+    """{groups, difference, sd, means, d, alpha, power, attrition, experiment,
+    day}: animals per group."""
+    from . import assistant_compute as ac
+    data = _json()
+
+    def number(key, default=None):
+        value = data.get(key)
+        return default if value in (None, "") else float(value)
+    with SessionLocal() as s:
+        return _answer(lambda: ac.power_analysis(
+            s, k=_whole(data.get("groups"), 2), difference=number("difference"), sd=number("sd"),
+            means=[float(m) for m in data["means"]] if data.get("means") else None, d=number("d"),
+            alpha=number("alpha", 0.05), target=number("power", 0.8), attrition=number("attrition", 0.0),
+            experiment=_whole(data.get("experiment")), day=data.get("day")))
+
+
+@bp.get("/reorder-forecast")
+def reorder_forecast():
+    """Stock kept as a number that runs out within `days`, from its use."""
+    from . import assistant_compute as ac
+    with SessionLocal() as s:
+        return _answer(ac.reorder_forecast, s, within_days=_int_arg("days", 30, 1, 365),
+                       lead_days=_int_arg("lead_days", 14, 0, 180), window_days=_int_arg("window_days", 180, 14, 730))
+
+
+@bp.get("/lab-checks")
+def lab_checks():
+    """The weekly review's checks, each with its items and their fixes."""
+    from . import assistant_compute as ac
+    with SessionLocal() as s:
+        out = _answer(ac.lab_checks, s, weight_loss_pct=_number_arg("weight_loss_pct", 15),
+                      breeder_weeks=_int_arg("breeder_weeks", 0, 0, 200) or None,
+                      unsigned_days=_int_arg("unsigned_days", 14, 1, 365),
+                      expiring_days=_int_arg("expiring_days", 30, 1, 365),
+                      scope=(request.args.get("scope") or "lab").strip())
+        s.commit()  # an organism schedule rebuilt on the way (as /due does)
+        return out
+
+
+@bp.get("/experiments/<int:experiment_id>/summary")
+def experiment_summary(experiment_id: int):
+    """The facts of an experiment for its methods, and ARRIVE's Essential 10."""
+    from . import assistant_compute as ac
+    with SessionLocal() as s:
+        return _answer(ac.experiment_summary, s, experiment_id)
+
+
+@bp.get("/regimens")
+def regimens():
+    """The lab's saved regimens (an experiment's manipulations and days)."""
+    from . import experiment_steps as xs
+    family = (request.args.get("family") or "mouse").strip()
+    with SessionLocal() as s:
+        return jsonify({"data": xs.regimens_for(s, family), "next": None})
+
+
 # ---------------------------------------------------------------- proposals (app/proposals.py)
 
 @bp.post("/proposals")
@@ -1099,6 +1289,27 @@ ENDPOINTS = [
     ("GET", "/api/v1/vocabulary", "read", "What this lab calls things", ()),
     ("GET", "/api/v1/due", "read", "What is due (Home's list), with the change that records each done", ("days",)),
     ("GET", "/api/v1/actions", "read", "What a proposal may contain", ()),
+    ("GET", "/api/v1/search", "read", "Search records and the notebook pages you may read", ("q", "limit")),
+    ("GET", "/api/v1/history", "read", "A record's change history (yours; everyone's for an admin)",
+     ("kind", "id", "code", "limit")),
+    ("GET", "/api/v1/lineage", "read", "A plasmid's family tree, or a mouse's parents, litter and offspring",
+     ("kind", "id", "code", "generations")),
+    ("GET", "/api/v1/availability", "read", "Living animals that fit a genotype, sex and age on a day",
+     ("species", "genotype", "sex", "age_min_days", "age_max_days", "on", "include_in_experiments",
+      "include_breeders", "limit")),
+    ("POST", "/api/v1/breeding-plan", "read",
+     "Work out matings: {want, sex, count, age_min_days, age_max_days, by, crosses, confidence}", ()),
+    ("POST", "/api/v1/randomize", "read", "Allocate animals to groups, balanced: {animals, groups, seed, by, experiment}",
+     ()),
+    ("POST", "/api/v1/power", "read",
+     "Animals per group: {groups, difference, sd, means, d, alpha, power, attrition, experiment, day}", ()),
+    ("GET", "/api/v1/reorder-forecast", "read", "Stock that runs out soon, from its use", ("days", "lead_days",
+                                                                                           "window_days")),
+    ("GET", "/api/v1/lab-checks", "read", "The weekly review's checks",
+     ("scope", "weight_loss_pct", "breeder_weeks", "unsigned_days", "expiring_days")),
+    ("GET", "/api/v1/experiments/{experiment_id}/summary", "read",
+     "An experiment's facts for its methods, and the ARRIVE Essential 10", ()),
+    ("GET", "/api/v1/regimens", "read", "The lab's saved regimens", ("family",)),
     ("POST", "/api/v1/proposals", "propose",
      "Propose changes for your approval: {summary, source, changes: [{action, target, fields}], replaces}", ()),
     ("GET", "/api/v1/proposals", "read", "Your proposals, newest first", ("status",)),
@@ -1106,7 +1317,8 @@ ENDPOINTS = [
     ("POST", "/api/v1/proposals/{proposal_id}/discard", "propose", "Withdraw a proposal still waiting", ()),
     ("POST", "/api/v1/mcp", "propose", "MCP (streamable HTTP) for assistant apps: the tools of mcp/biomanager_mcp.py", ()),
 ]
-NOT_PAGED = {"/", "/me", "/resolve", "/vocabulary", "/due", "/actions", "/proposals", "/mcp"}
+NOT_PAGED = {"/", "/me", "/resolve", "/vocabulary", "/due", "/actions", "/proposals", "/mcp", "/search", "/history",
+             "/lineage", "/availability", "/reorder-forecast", "/lab-checks", "/regimens"}
 PARAM_HELP = {
     "limit": "How many a page (default 100, at most 1000)",
     "after": "Continue after this row (from `next`)",
@@ -1116,6 +1328,18 @@ PARAM_HELP = {
     "q": "Part of the name", "genotype": "Part of the genotype",
     "kinds": "Only these kinds, comma-separated (cage,mouse; see /actions)",
     "days": "How many days ahead (default 7, at most 60)",
+    "kind": "What the record is: mouse, cage, plasmid, stock_unit, inventory_item… (a reference's kind)",
+    "id": "A reference's id (from resolve or search)", "code": "What the lab writes on it: 1043, 88, FV12",
+    "generations": "How many generations of parents (default 2)",
+    "species": "mouse (default) or zebrafish", "sex": "F or M",
+    "age_min_days": "At least this many days old on the day", "age_max_days": "At most this many days old on the day",
+    "on": "The day (default today)", "include_in_experiments": "true: count animals in active experiments too",
+    "include_breeders": "true: count mice in Breeder and Breeding cages too",
+    "lead_days": "Days an order takes (default 14)", "window_days": "Days of history to read (default 180)",
+    "scope": "lab (default) or mine", "weight_loss_pct": "Flag a loss from peak weight this big (default 15)",
+    "breeder_weeks": "Flag breeders this old (default 30)", "unsigned_days": "Flag pages unsigned this long (default 14)",
+    "expiring_days": "Flag reagents expiring within (default 30)",
+    "family": "mouse, fish, fly, worm or organism",
 }
 
 
