@@ -505,7 +505,8 @@ def _cage_said(s, key, value) -> str:
 
 
 @action(name="litter_born", area="mice", title="Litter born",
-        help="A litter was born in this mating (Breeding) cage (the cage keeps one birth date; weaning is due from it).",
+        help="A litter was born in this mating (Breeding) cage (the cage keeps one birth date; weaning is due from it). "
+             "To add only a count to a birth already recorded, give the cage's own birth date with pups.",
         target="cage",
         fields=(Field("date", "date", "The day they were born (today if left out)"),
                 Field("pups", "int", "How many pups were born (1–40): added to the cage's notes until the litter is "

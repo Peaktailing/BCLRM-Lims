@@ -242,3 +242,26 @@ class Fixes(Compute):
         self.assertIn("same SD", out["test"])
         self.assertIn("Welch's t-test", " ".join(out["assumptions"]))
         self.assertNotIn("Welch", " ".join(ac.power(3, difference=1, sd=1)["assumptions"]))
+
+
+class BreedingPlanAfterTheSecondRun(Compute):
+    """What the second end-to-end run found: a mate carrying another
+    transgene counted as suitable, one male for many matings, and a
+    planned experiment's mice counted as free."""
+
+    def test_a_mate_carrying_more_comes_after_one_that_doesnt_and_males_can_run_short(self):
+        cre, other = uniq("Dat"), uniq("Ai")
+        cage = uniq("C")
+        self.make_cage(self.m, cage, purpose="Breeder")
+        self.make_mouse(self.m, self.member, cage=cage, litter=uniq("L"), date_of_birth=days_ago(70), gender="M",
+                        transgene_1=f"{cre}/+")
+        self.make_mouse(self.m, self.member, cage=cage, litter=uniq("L"), date_of_birth=days_ago(70), gender="F")
+        self.make_mouse(self.m, self.member, cage=cage, litter=uniq("L"), date_of_birth=days_ago(70), gender="F",
+                        transgene_1=f"{other}/{other}")
+        out = self.ok(self.post_json("/breeding-plan", {"want": {cre: "het"}, "sex": "M", "count": 12}))
+        mine = [c for c in out["crosses"] if c["male"].startswith(cre)]
+        self.assertEqual([c["also_carries"] for c in mine], [[], [f"{other}/{other}"]])
+        self.assertGreater(mine[0]["males_short"], 0)                  # one male, more matings than two females
+
+    def test_a_planned_experiments_mice_are_taken(self):
+        self.assertIn("planned", ac.BUSY)
