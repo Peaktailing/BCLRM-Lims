@@ -1,16 +1,30 @@
 #!/usr/bin/env bash
 # Put a backup back. Stop the app first (docker compose stop app).
 #
-#   restore.sh /backups/db/biomanager-X.dump [/backups/files/biomanager-files-X.tar.gz]
+#   restore.sh /backups/db/biomanager-X.dump.age [/backups/files/biomanager-files-X.tar.gz.age]
+#
+# A backup locked with the lab's key (.age) is opened with the key in
+# /labkey, or with the lab's recovery key given as BIOMANAGER_RECOVERY_KEY
+# (a new server, before the lab is back: labkey.sh).
 #
 # Nothing is deleted: the current database is renamed biomanager_before_<time>
 # and the current files are moved into /appdata/.before-restore-<time>/, so a
 # wrong restore can itself be undone.
 set -euo pipefail
 : "${APPDATA_DIR:=/appdata}" "${PGDATABASE:=biomanager}"
+# shellcheck source=labkey.sh
+. "$(dirname "$0")/labkey.sh"
 dump=${1:?usage: restore.sh DUMP [FILES_TARBALL]}
 files=${2:-}
 stamp=$(date -u +%Y%m%d%H%M%S)
+opened=$(mktemp -d)
+trap 'rm -rf -- "$opened"' EXIT
+[ -f "$dump" ] || { echo "no such dump: $dump — nothing was changed"; exit 1; }
+dump=$(labkey_open "$dump" "$opened/db.dump") || { echo "nothing was changed"; exit 1; }
+if [ -n "$files" ]; then
+  [ -f "$files" ] || { echo "no such files archive: $files — nothing was changed"; exit 1; }
+  files=$(labkey_open "$files" "$opened/files.tar.gz") || { echo "nothing was changed"; exit 1; }
+fi
 # Both backups are checked before anything changes: a mistyped files path
 # found only after the database was replaced left the app with no files
 # (and a new signing key).

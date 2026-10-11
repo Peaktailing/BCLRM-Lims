@@ -23,6 +23,7 @@ from .formutil import form_changed
 # Importing this registers the SQLAlchemy flush listener that writes
 # audit_log rows for every tracked change; nothing here calls into it.
 from . import audit  # noqa: F401
+from . import sync_clock  # noqa: F401  (numbers each change to what devices keep)
 from . import undo as undo_service
 from . import custom_fields, feature_library, feature_pack, plannotate, plasmid_lineage, plasmid_versions, primer_records  # noqa: E402
 from .models import (

@@ -142,7 +142,11 @@ class TheLabFile(AppTestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 made = self.make(Path(tmp))
-                manifest, database, _ = lab_transfer.open_file(made, Path(tmp) / "open")
+                from app import lab_key
+                from app.db import SessionLocal
+                with SessionLocal() as s:
+                    keys = lab_key.identities(s)
+                manifest, database, _ = lab_transfer.open_file(made, Path(tmp) / "open", keys)
                 self.assertEqual((manifest["format"], manifest["lab"]), ("biomanager-lab", "Rivera Lab"))
                 with sqlite3.connect(database) as conn:
                     keys = {r[0] for r in conn.execute("SELECT key FROM app_settings")}
@@ -154,6 +158,24 @@ class TheLabFile(AppTestCase):
                 self.assertTrue(data["users"])
         finally:
             execute("delete from app_settings where key='devices:state'")
+
+    def test_it_is_locked_with_the_lab_s_key(self):
+        from pyrage import x25519
+        from app import lab_key
+        from app.db import SessionLocal
+        with tempfile.TemporaryDirectory() as tmp:
+            made = self.make(Path(tmp))
+            self.assertTrue(lab_key.is_locked(made))
+            self.assertNotIn(b"lab.db", made.read_bytes())
+            with self.assertRaises(lab_transfer.LabFileError):
+                lab_transfer.open_file(made, Path(tmp) / "a")
+            with self.assertRaises(lab_transfer.LabFileError):
+                lab_transfer.open_file(made, Path(tmp) / "b", [x25519.Identity.generate()])
+            with SessionLocal() as s:
+                recovery = lab_key.parse_recovery(lab_key.grouped(lab_key.current(s).secret).lower())
+            manifest, database, _ = lab_transfer.open_file(made, Path(tmp) / "c", [recovery])
+            self.assertTrue(database.is_file())
+            self.assertEqual(str(manifest["__key__"]), str(recovery))
 
     def test_what_is_not_a_lab_file_is_refused_before_anything(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -203,11 +225,16 @@ MAKE = textwrap.dedent("""
     Path(os.environ["UPLOADS"], "gel.png").write_bytes(b"png")
     with app.app_context():
         lab_transfer.build(Path(os.environ["OUT"]), Path(os.environ["OUT"]).parent / "work")
+        open_copy = Path(os.environ["OUT"]).parent / "open.zip"
+        lab_transfer.build(open_copy, Path(os.environ["OUT"]).parent / "work2", lock=False)
+    from app import lab_key
+    with SessionLocal() as s:
+        Path(os.environ["KEY"]).write_text(lab_key.current(s).secret)
     # A broken copy: a key belonging to an account the file doesn't hold.
     import hashlib, json, sqlite3, zipfile
     work = Path(os.environ["OUT"]).parent / "broken"
     work.mkdir()
-    with zipfile.ZipFile(os.environ["OUT"]) as zf:
+    with zipfile.ZipFile(open_copy) as zf:
         zf.extractall(work)
     with sqlite3.connect(work / "lab.db") as conn:
         required = [r[1] for r in conn.execute("PRAGMA table_info(lab_copy_keys)") if r[3] and not r[5]]
@@ -239,9 +266,17 @@ TAKE = textwrap.dedent("""
     out["dialect"] = engine.dialect.name
     r = c.post("/lab/import", data=body, headers={"Content-Type": "application/zip", "X-BioManager-Setup-Code": "wrong"})
     out["wrong_code"] = [r.status_code, r.get_json()["error"]]
+    out["locked"] = body.startswith(b"age-encryption.org/v1")
+    r = c.post("/lab/import", data=body, headers={"Content-Type": "application/zip", "X-BioManager-Setup-Code": code})
+    out["no_key"] = [r.status_code, r.get_json()["error"]]
+    lab_key_secret = Path(os.environ["KEY"]).read_text()
     r = c.post("/lab/import", data=body, headers={"Content-Type": "application/zip", "X-BioManager-Setup-Code": code,
-                                                   "X-BioManager-Admin": "pi"})
+                                                   "X-BioManager-Admin": "pi", "X-BioManager-Lab-Key": lab_key_secret})
     out["answer"] = r.get_json()
+    from app import lab_key
+    from app.db import SessionLocal
+    with SessionLocal() as s:
+        out["kept_key"] = lab_key.current(s, create=False).secret == lab_key_secret
     with engine.connect() as conn:
         out["users"] = conn.execute(text("select count(*) from users")).scalar()
         out["lab"] = conn.execute(text("select value from app_settings where key='lab_name'")).scalar()
@@ -293,8 +328,9 @@ class ANewServerTakesALab(unittest.TestCase):
                 raise AssertionError(done.stderr[-3000:])
             return done.stdout
         lab_file = tmp / "rivera.biomanager"
-        run(MAKE, "desktop", OUT=str(lab_file), BROKEN=str(tmp / "broken.biomanager"))
+        run(MAKE, "desktop", OUT=str(lab_file), BROKEN=str(tmp / "broken.biomanager"), KEY=str(tmp / "lab.key"))
         cls.result = json.loads(run(TAKE, "server", FILE=str(lab_file), BROKEN=str(tmp / "broken.biomanager"),
+                                    KEY=str(tmp / "lab.key"),
                                     **server_db).strip().splitlines()[-1])
 
     @classmethod
@@ -331,6 +367,15 @@ class ANewServerTakesALab(unittest.TestCase):
 
     def test_a_second_lab_is_refused(self):
         self.assertEqual(self.result["again"], 409)
+
+    def test_the_file_is_locked_and_the_lab_keeps_its_key(self):
+        # Locked with the desktop lab's key: without it the server can't
+        # read the file; with the key the desktop sends, it keeps that key,
+        # so files the desktop saved before still open here.
+        self.assertTrue(self.result["locked"])
+        self.assertEqual(self.result["no_key"][0], 409)
+        self.assertIn("recovery key", self.result["no_key"][1])
+        self.assertTrue(self.result["kept_key"])
 
 
 class MovingToAServer(AppTestCase):

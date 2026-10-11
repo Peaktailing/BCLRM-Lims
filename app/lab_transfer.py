@@ -10,6 +10,10 @@ The file (`<lab>.biomanager`, a zip) holds:
                   encrypted with the key of the machine that made it)
   uploads/…       the uploaded files
 
+The file is locked with the lab's own key (app/lab_key.py): it opens only
+where that key is, a device of the lab, or with the lab's recovery key. A
+lab brought in keeps its key, so its earlier files open on the new server.
+
 The desktop app makes one (Settings → Your data → Save the whole lab), or
 sends one straight to a new server (Move this lab to a server,
 app/devices.py). A server with no account yet takes one in (`/lab/import`,
@@ -40,6 +44,11 @@ SUFFIX = ".biomanager"
 BATCH = 1000
 # app_settings keys that are the machine's, not the lab's.
 MACHINE_KEYS = ("devices:", "lab_copy_", "updates:", "telemetry:", "signed_out:")
+# Tables that are the machine's: its devices and their sign-ins, and the lab
+# key as this machine stored it (blank in the file; the key comes with the
+# file instead, app/lab_key.py). A device that joined the old machine joins
+# the new one again.
+MACHINE_TABLES = ("lab_devices", "device_pairings", "lab_keys")
 
 
 class LabFileError(ValueError):
@@ -70,9 +79,9 @@ def _version() -> str:
 
 # ---------------------------------------------------------------- making one
 
-def build(target: Path, work: Path) -> dict:
-    """Write the whole lab to `target` (a zip); `work` is a scratch folder.
-    Returns the manifest."""
+def build(target: Path, work: Path, lock: bool = True) -> dict:
+    """Write the whole lab to `target` (a zip, locked with the lab's key
+    unless `lock` is False); `work` is a scratch folder. Returns the manifest."""
     from . import lab_copy
     from .db import SessionLocal
 
@@ -96,6 +105,10 @@ def build(target: Path, work: Path) -> dict:
         zf.write(database, "lab.db")
         for f in files:
             zf.write(f, "uploads/" + f.relative_to(uploads).as_posix(), compress_type=zipfile.ZIP_STORED)
+    if lock:
+        from . import lab_key
+        with SessionLocal() as s:
+            lab_key.lock_in_place(target, s)
     return manifest
 
 
@@ -106,8 +119,27 @@ def file_name(manifest: dict) -> str:
 
 # ---------------------------------------------------------------- reading one
 
-def open_file(source: Path, work: Path) -> tuple[dict, Path, Path]:
-    """Check and unpack a lab file into `work`: (manifest, database, uploads)."""
+def open_file(source: Path, work: Path, keys=()) -> tuple[dict, Path, Path]:
+    """Check and unpack a lab file into `work`: (manifest, database, uploads).
+    A locked file is opened with one of `keys` (age identities); the one that
+    opened it is the manifest's "__key__", for the lab to keep."""
+    from . import lab_key
+    work.mkdir(parents=True, exist_ok=True)
+    opened_with = None
+    if lab_key.is_locked(source):
+        opened = work / "lab.zip"
+        for key in keys:
+            try:
+                lab_key.unlock_file(source, opened, [key])
+            except lab_key.LockedFileError:
+                continue
+            opened_with = key
+            break
+        if opened_with is None:
+            raise LabFileError(gettext("This lab file is locked with its lab's key. Enter that lab's recovery key (Settings → Your data → Lab key, where the lab was) to bring it in.")
+                               if not keys else
+                               gettext("That recovery key doesn't open this lab file: it is locked with another lab's key."))
+        source = opened
     try:
         zf = zipfile.ZipFile(source)
     except (zipfile.BadZipFile, OSError) as error:
@@ -143,6 +175,7 @@ def open_file(source: Path, work: Path) -> tuple[dict, Path, Path]:
     database = work / "lab.db"
     if manifest.get("sha256") and _sha256(database) != manifest["sha256"]:
         raise LabFileError(gettext("The lab file arrived damaged (its database doesn't match its checksum). Make it again."))
+    manifest["__key__"] = opened_with
     return manifest, database, uploads
 
 
@@ -262,9 +295,14 @@ def apply(data: dict, uploads: Path) -> int:
             if conn.dialect.name == "postgresql":
                 conn.execute(text("SET CONSTRAINTS ALL DEFERRED"))
             for table in reversed(tables):
-                conn.execute(table.delete())
+                if table.name != "lab_keys":      # this machine's keyring stays (app/lab_key.py)
+                    conn.execute(table.delete())
             for table in tables:
                 rows = data.get(table.name) or []
+                if table.name in MACHINE_TABLES:
+                    rows = []
+                elif table.name == "sync_ops":
+                    rows = [{**r, "device_id_fk": None} for r in rows]
                 if table.name == "app_settings":
                     rows = rows + kept
                 for start in range(0, len(rows), BATCH):
@@ -285,7 +323,9 @@ def apply(data: dict, uploads: Path) -> int:
                         conn.execute(text("SELECT setval(:s, :v)"), {"s": seq, "v": highest})
                 conn.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
             for table in tables:
-                want = len(data.get(table.name) or [])
+                if table.name == "lab_keys":
+                    continue
+                want = 0 if table.name in MACHINE_TABLES else len(data.get(table.name) or [])
                 if table.name == "app_settings":
                     # This machine's own keys are left out: a background job
                     # (the update check) may write one meanwhile, and on

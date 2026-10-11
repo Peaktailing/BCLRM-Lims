@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, TypeDecorator, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, TypeDecorator, UniqueConstraint
 from sqlalchemy import event
 from sqlalchemy import false as sa_false
 from sqlalchemy import true as sa_true
@@ -130,6 +130,10 @@ class TaskItem(Base):
     __tablename__ = "tasks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     title: Mapped[str] = mapped_column(String(200))
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Optional timed due window. When null, falls back to due_date.
@@ -230,6 +234,10 @@ class LitterRecord(Base):
     __tablename__ = "litters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     litter_id: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     cohort_name: Mapped[str] = mapped_column(String(120), default="")
@@ -252,6 +260,10 @@ class MouseRack(Base):
     __tablename__ = "mouse_racks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     name: Mapped[str] = mapped_column(String(60), unique=True, index=True)
     rows: Mapped[int] = mapped_column(Integer, default=8)
     cols: Mapped[int] = mapped_column(Integer, default=10)
@@ -273,6 +285,10 @@ class CageRecord(Base):
     __table_args__ = (Index("uq_mouse_cages_place", "rack_id_fk", "rack_row", "rack_col", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     cage_id: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     cage_location: Mapped[str] = mapped_column(String(120), default="")
     purpose: Mapped[str] = mapped_column(String(80), default="")
@@ -320,6 +336,10 @@ class MouseRecord(Base):
     __tablename__ = "mice"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     mouse_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
     # What is written on the animal: an ear tag's number, a notch (RF, LB),
     # a tattoo. Free text, because every lab marks them differently, and not
@@ -932,6 +952,10 @@ class MouseWeight(Base):
     __tablename__ = "mouse_weights"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     mouse_id_fk: Mapped[int] = mapped_column(ForeignKey("mice.id"), index=True)
     weigh_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     grams: Mapped[float] = mapped_column(Float)
@@ -940,6 +964,12 @@ class MouseWeight(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     mouse: Mapped["MouseRecord"] = relationship()
+
+    @property
+    def audit_label(self) -> str:
+        """For the Audit log and Batch history: whose weight, which day."""
+        mouse = self.mouse.mouse_id if self.mouse is not None else self.mouse_id_fk
+        return f"mouse {mouse}, {self.weigh_date}"
 
 
 # ---------------------------------------------------------------------------
@@ -1027,6 +1057,10 @@ class TankRecord(Base):
     __tablename__ = "tanks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     tank_id: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     # Columns the lab added to this built-in database (app/custom_fields.py),
     # as an inventory item has always carried its own (0025).
@@ -1795,6 +1829,10 @@ class StockUnit(Base, _JsonAttrs):
     __table_args__ = (UniqueConstraint("module_id_fk", "number", name="uq_stock_unit_number"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # every change gives it the next number, so a phone can ask what changed
+    # since it last looked, and tell whether the record changed since it read it.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     module_id_fk: Mapped[int] = mapped_column(ForeignKey("stock_modules.id"), index=True)
     number: Mapped[int] = mapped_column(Integer, index=True)
     genotype: Mapped[str] = mapped_column(String(400), default="", index=True)
@@ -2423,3 +2461,127 @@ _autoincrement_everywhere(Base.metadata.tables.values())
 @_event.listens_for(Base.metadata, "before_create")
 def _autoincrement_before_create(metadata, connection, tables=(), **kw) -> None:
     _autoincrement_everywhere(tables or metadata.tables.values())
+
+
+# ---------------------------------------------------------------------------
+# Devices that work on the lab, and what they did while offline (app/devices.py,
+# app/sync.py, app/lab_key.py).
+# ---------------------------------------------------------------------------
+
+class LabDevice(Base):
+    """A device someone uses the lab from: the desktop app on a computer,
+    the iPhone or Android app, or a browser. An app joins with a device token
+    (only its hash is kept); a browser is its sign-in. Signing one out
+    (revoked_at) ends it alone."""
+    __tablename__ = "lab_devices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    user_id_fk: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80), default="")
+    platform: Mapped[str] = mapped_column(String(20), default="")      # mac, windows, linux, ios, android, web
+    kind: Mapped[str] = mapped_column(String(12), default="app")        # app | browser
+    app_version: Mapped[str] = mapped_column(String(40), default="")
+    user_agent: Mapped[str] = mapped_column(String(300), default="")
+    token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_ip: Mapped[str] = mapped_column(String(64), default="")
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_copy_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_by: Mapped[str] = mapped_column(String(80), default="")
+
+
+class DevicePairing(Base):
+    """An app asking to join with a code instead of a password (an account
+    that signs in with Google or Microsoft): someone signed in enters the
+    code under Settings → Devices & copies, and the app, asking with its
+    secret, gets its device token once."""
+    __tablename__ = "device_pairings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    secret_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(80), default="")
+    platform: Mapped[str] = mapped_column(String(20), default="")
+    app_version: Mapped[str] = mapped_column(String(40), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    device_id_fk: Mapped[int | None] = mapped_column(ForeignKey("lab_devices.id", ondelete="CASCADE"), nullable=True)
+    token_once: Mapped[str] = mapped_column(EncryptedText, default="")   # handed to the app once, then cleared
+
+
+class SyncClock(Base):
+    """The lab's count of changes to the records a phone keeps (one row)."""
+    __tablename__ = "sync_clock"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    value: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class SyncDeletion(Base):
+    """A record a phone keeps that was deleted, and at which change."""
+    __tablename__ = "sync_deletions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    table_name: Mapped[str] = mapped_column(String(60), index=True)
+    record_id: Mapped[int] = mapped_column(Integer)
+    sync_version: Mapped[int] = mapped_column(BigInteger, index=True)
+    deleted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SyncOp(Base):
+    """One change a device made offline and sent later (app/sync.py), kept
+    so a resend is answered with the same result instead of applied twice."""
+    __tablename__ = "sync_ops"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    op_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    device_id_fk: Mapped[int | None] = mapped_column(ForeignKey("lab_devices.id", ondelete="SET NULL"), nullable=True)
+    user_id_fk: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(60), default="")
+    result: Mapped[str] = mapped_column(String(20), default="")        # applied | merged | held | refused | waiting
+    message: Mapped[str] = mapped_column(Text, default="")
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    batch_id_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    made_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class HeldChange(Base):
+    """A change made offline that clashed with one made meanwhile: it waits
+    under Needs your decision until its person (or an admin) chooses."""
+    __tablename__ = "held_changes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    op_id_fk: Mapped[int | None] = mapped_column(ForeignKey("sync_ops.id", ondelete="SET NULL"), nullable=True)
+    user_id_fk: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(60), default="")
+    table_name: Mapped[str] = mapped_column(String(60), default="")
+    record_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    record_label: Mapped[str] = mapped_column(String(200), default="")
+    change_json: Mapped[str] = mapped_column(Text, default="{}")      # the op as the device sent it
+    clash_json: Mapped[str] = mapped_column(Text, default="{}")       # per field: what it saw, what is there now
+    message: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)   # open | mine | theirs | dismissed
+    made_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    decided_by: Mapped[str] = mapped_column(String(80), default="")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class LabKey(Base):
+    """The lab's own key, which locks its backups and lab files (app/lab_key.py).
+    Stored encrypted with this device's secret; the newest active one locks
+    new files, older ones still open what they locked."""
+    __tablename__ = "lab_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key_id: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    secret: Mapped[str] = mapped_column(EncryptedText, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    recovery_shown_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recovery_shown_to: Mapped[str] = mapped_column(String(80), default="")

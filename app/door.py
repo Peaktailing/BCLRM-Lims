@@ -358,17 +358,28 @@ def _may_take_a_lab(code: str) -> str:
     return ""
 
 
-def take_in(source: Path, admin: str = "") -> dict:
+def take_in(source: Path, admin: str = "", lab_keys: tuple[str, ...] = ()) -> dict:
     """Check and take in the lab file at `source`. Returns {"ok", "lab",
-    "accounts", "files", "rows"} or {"ok": False, "error", "problems"}."""
+    "accounts", "files", "rows"} or {"ok": False, "error", "problems"}.
+    `lab_keys` open a locked file: a recovery key typed in, or the key the
+    desktop moving its lab sent with it. The lab keeps the one that opened it."""
     import tempfile
 
-    from . import lab_transfer, paths
+    from . import lab_key, lab_transfer, paths
+    keys = []
+    for text in lab_keys:
+        if (text or "").strip():
+            try:
+                keys.append(lab_key.parse_recovery(text))
+            except ValueError as error:
+                return {"ok": False, "error": str(error), "problems": []}
+    with SessionLocal() as s:
+        keys += lab_key.identities(s)     # a file this machine's own lab locked
     with tempfile.TemporaryDirectory(prefix="lab-import-", dir=paths.data_dir()) as tmp:
         try:
-            manifest, database, uploads = lab_transfer.open_file(source, Path(tmp))
+            manifest, database, uploads = lab_transfer.open_file(source, Path(tmp), keys)
         except lab_transfer.LabFileError as error:
-            return {"ok": False, "error": str(error), "problems": []}
+            return {"ok": False, "error": str(error), "problems": [], "needs_key": lab_key.is_locked(source)}
         data, problems = lab_transfer.check(manifest, database)
         if problems:
             return {"ok": False, "error": gettext("The lab can't go in as it is; nothing was changed."), "problems": problems[:50]}
@@ -385,6 +396,9 @@ def take_in(source: Path, admin: str = "") -> dict:
                 return {"ok": False, "problems": [str(error.orig).splitlines()[0][:300]],
                         "error": gettext("The lab file’s records don’t fit together (a record in %(table)s points to one that isn’t in the file), so nothing was changed. Save the lab again in the desktop app and bring the new file.", table=where or "?")}
             return {"ok": False, "error": gettext("Taking the lab in failed, and nothing was changed: %(reason)s", reason=str(error)[:300]), "problems": []}
+    if manifest.get("__key__") is not None:
+        with SessionLocal() as s:
+            lab_key.adopt(s, manifest["__key__"])
     security.clear_setup_code()
     result = {"ok": True, "lab": manifest.get("lab") or "", "accounts": manifest.get("accounts", 0),
               "files": manifest.get("files", 0), "rows": rows}
@@ -430,7 +444,7 @@ def bring():
         with tempfile.TemporaryDirectory(prefix="lab-upload-", dir=paths.data_dir()) as tmp:
             source = Path(tmp) / "lab.biomanager"
             upload.save(source)
-            result = take_in(source)
+            result = take_in(source, lab_keys=(request.form.get("recovery_key", ""),))
         if not result["ok"]:
             flash(result["error"], "error")
             return render("door/bring.html", needs_setup_code=_needs_code(), problems=result["problems"])
@@ -463,5 +477,6 @@ def import_lab():
                 if not chunk:
                     break
                 out.write(chunk)
-        result = take_in(source, admin=request.headers.get("X-BioManager-Admin", "")[:40])
+        result = take_in(source, admin=request.headers.get("X-BioManager-Admin", "")[:40],
+                         lab_keys=(request.headers.get("X-BioManager-Lab-Key", ""),))
     return jsonify(result), (200 if result["ok"] else 409)

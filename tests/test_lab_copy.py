@@ -408,12 +408,28 @@ class DesktopTests(CopyCase):
         self.addCleanup((uploads_dir() / name).unlink)
         result = self.pull()
         self.assertTrue(result["ok"], result)
-        [db] = list((self.folder() / "db").glob("biomanager-*.db"))
-        with sqlite3.connect(db) as con:
-            self.assertIn(self.admin, {u for (u,) in con.execute("select username from users")})
-        info = json.loads(db.with_suffix(".json").read_text())
+        from app import lab_copy, lab_key
+        from app.db import SessionLocal
+        [db] = list((self.folder() / "db").glob("biomanager-*.db.age"))
+        # Kept locked with the lab's key: a leaked copy is unreadable.
+        self.assertTrue(lab_key.is_locked(db))
+        self.assertEqual(list((self.folder() / "db").glob("biomanager-*.db")), [])
+        self.assertTrue(lab_key.is_locked(self.folder() / "uploads" / (name + ".age")))
+        self.assertFalse((self.folder() / "uploads" / name).exists())
+        with SessionLocal() as s:
+            keys = lab_key.identities(s)
+        with tempfile.TemporaryDirectory() as tmp:
+            opened = lab_copy.open_copy(db, Path(tmp) / "copy.db", keys)
+            with sqlite3.connect(opened) as con:
+                self.assertIn(self.admin, {u for (u,) in con.execute("select username from users")})
+            files = lab_copy.open_uploads(self.server, Path(tmp) / "uploads", keys)
+            self.assertEqual((files / name).read_text(), "plasmid map")
+        info = json.loads(lab_copy._sidecar(db).read_text())
         self.assertEqual(info["server"], self.server)
-        self.assertEqual((self.folder() / "uploads" / name).read_text(), "plasmid map")
+        self.assertTrue(info["locked"])
+        # A second copy doesn't fetch the unchanged file again.
+        self.fresh(self.key)
+        self.assertEqual(self.pull()["files_fetched"], 0)
         page = self.get_ok(self.a, "/settings")
         self.assertIn("Last copy:", page)
         self.assertIn(db.name, page)
@@ -427,8 +443,8 @@ class DesktopTests(CopyCase):
         for _ in range(4):
             self.fresh(self.key)
             self.assertTrue(self.pull(tamper=stamp)["ok"])
-        names = sorted(p.name for p in (self.folder() / "db").glob("biomanager-*.db"))
-        self.assertEqual(names, [f"biomanager-2026010{d}-000000Z.db" for d in (2, 3, 4)])
+        names = sorted(p.name for p in (self.folder() / "db").glob("biomanager-*.db.age"))
+        self.assertEqual(names, [f"biomanager-2026010{d}-000000Z.db.age" for d in (2, 3, 4)])
         self.assertEqual(len(lab_copy.list_copies(self.server)), 3)
 
     def test_a_damaged_copy_is_thrown_away(self):

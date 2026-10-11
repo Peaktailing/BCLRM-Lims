@@ -121,13 +121,22 @@ def init_database() -> None:
         with SessionLocal() as session:
             lab.start_empty(session)
             session.commit()
+    # Nothing is numbered for devices (app/sync_clock.py) until Alembic has
+    # given the records their sync_version: the steps before it save records.
+    from . import sync_clock
+    sync_clock.enabled = False
     ensure_schema_updates()
     rebuild_samples_table()
     ensure_integrity()  # ids never reused, foreign keys enforced (app/integrity.py)
     migrate_cage_locations()
     backfill_cage_owners()
     upgrade.migrate(engine, the_plan)
+    sync_clock.enabled = True
     warn_if_database_is_synced()
+    # A lab server's backup service locks each backup with the lab's key
+    # (deploy/compose.yaml: the labkey volume; app/lab_key.py).
+    from . import lab_key
+    lab_key.export_if_asked()
     seed_organism_modules()
     seed_inventories()
     seed_stocks()
@@ -791,7 +800,8 @@ def migrate_cage_locations() -> int:
     pattern = re.compile(r"^\s*(?P<rack>.+?)\s*[-/: ]\s*(?P<pos>[A-Za-z]\s*\d{1,2})\s*$")
     moved = 0
     with SessionLocal() as session:
-        racks = {r.name.lower(): r for r in session.scalars(select(MouseRack))}
+        racks = {r.name.lower(): r for r in session.scalars(select(MouseRack).options(load_only(
+            MouseRack.id, MouseRack.name, MouseRack.naming, MouseRack.rows, MouseRack.cols)))}
         if not racks:
             return 0
         # Only the columns it uses: this runs before Alembic adds newer ones.
@@ -1860,13 +1870,13 @@ def backfill_cage_owners() -> None:
         ).all()
         if not cages:
             return
+        held: dict[int, list[str]] = {}
+        for cage_id, owner in session.execute(select(MouseRecord.cage_id_fk, MouseRecord.owner).where(
+                MouseRecord.cage_id_fk.in_([c.id for c in cages]))):
+            held.setdefault(cage_id, []).append(owner or "")
         changed = 0
         for cage in cages:
-            owners = Counter(
-                (mouse.owner or "").strip()
-                for mouse in cage.mice
-                if (mouse.owner or "").strip()
-            )
+            owners = Counter(owner.strip() for owner in held.get(cage.id, []) if owner.strip())
             if len(owners) == 1:
                 cage.owner = next(iter(owners))
                 changed += 1

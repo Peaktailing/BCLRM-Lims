@@ -17,7 +17,11 @@ own copy of the whole lab, refreshed every day while it runs:
            key. While the app is open it fetches a snapshot a day (or on
            Copy now), checks it arrived whole (its SHA-256 and SQLite's own
            integrity check) and keeps the newest KEEP; uploaded files are
-           mirrored, only new ones downloaded, never deleted.
+           mirrored, only new ones downloaded, never deleted. Each copy and
+           each file is kept locked with the lab's key (app/lab_key.py: the
+           server sends its public half, X-BioManager-Lab-Recipient), so a
+           copy that leaks from the computer can't be read; the lab's admins
+           and its recovery key open them.
 
 A snapshot is a complete BioManager database in the desktop app's own
 format, read in one transaction so it is one moment of the lab, and so it is
@@ -250,7 +254,9 @@ def write_snapshot(path: Path, user: UserAccount | None = None) -> dict[str, int
 # tests/test_lab_copy.py checks that each table holding someone's own rows
 # is named here, or in MEMBER_SEES_WHOLE, so a new one is decided on.
 ADMIN_ONLY = ("api_tokens", "lab_copy_keys", "guest_passes", "user_identities", "feedback", "audit_log",
-              "proposal_changes", "proposals", "oauth_clients", "oauth_codes", "oauth_grants", "oauth_link_codes")
+              "proposal_changes", "proposals", "oauth_clients", "oauth_codes", "oauth_grants", "oauth_link_codes",
+              # Devices, their sign-ins and what they did offline, and the lab's key.
+              "lab_devices", "device_pairings", "sync_ops", "held_changes", "lab_keys")
 OWN_ROWS = {"notifications": "recipient_username", "calendar_subscriptions": "owner",
             "google_calendar_links": "owner", "calendar_feeds": "owner", "notebook_templates": "owner_username",
             # Batch history: a member's own, as the Batches page shows them
@@ -391,6 +397,9 @@ def snapshot():
     response.headers["X-BioManager-SHA256"] = digest
     response.headers["X-BioManager-Taken"] = now.strftime("%Y%m%d-%H%M%S")
     response.headers["X-BioManager-Rows"] = json.dumps(counts, separators=(",", ":"))
+    from . import lab_key
+    with SessionLocal() as s:
+        response.headers["X-BioManager-Lab-Recipient"] = lab_key.recipient(s)
     response.headers["Cache-Control"] = "no-store"
     response.call_on_close(lambda: path.unlink(missing_ok=True))
     return response
@@ -494,20 +503,62 @@ def copies_dir(server: str) -> Path:
     return target
 
 
+def _sidecar(copy: Path) -> Path:
+    """biomanager-<taken>Z.json beside biomanager-<taken>Z.db(.age)."""
+    return copy.with_name(copy.name.split(".db")[0] + ".json")
+
+
+def _copies(folder: Path) -> list[Path]:
+    """The copies in a folder, oldest first: locked (.db.age) and, from before, open (.db)."""
+    return sorted(list(folder.glob("biomanager-*.db")) + list(folder.glob("biomanager-*.db.age")),
+                  key=lambda p: p.name.split(".db")[0])
+
+
 def list_copies(server: str) -> list[dict]:
     if not server:
         return []
     out = []
-    for db in sorted((copies_dir(server) / "db").glob("biomanager-*.db"), reverse=True):
+    for db in reversed(_copies(copies_dir(server) / "db")):
         info = {}
-        sidecar = db.with_suffix(".json")
+        sidecar = _sidecar(db)
         if sidecar.exists():
             try:
                 info = json.loads(sidecar.read_text(encoding="utf-8"))
             except ValueError:
                 pass
-        out.append({"name": db.name, "path": str(db), "size": db.stat().st_size, **info})
+        out.append({"name": db.name, "path": str(db), "size": db.stat().st_size, "locked": db.name.endswith(".age"),
+                    **info})
     return out
+
+
+def open_copy(copy: Path, target: Path, keys) -> Path:
+    """The database of a copy, opened into `target` (unlocked with one of
+    `keys`, age identities, if it is locked)."""
+    from . import lab_key
+    if lab_key.is_locked(copy):
+        lab_key.unlock_file(copy, target, list(keys))
+    else:
+        shutil.copyfile(copy, target)
+    return target
+
+
+def open_uploads(server: str, target: Path, keys) -> Path:
+    """The mirrored uploaded files of a server, opened into `target`."""
+    from . import lab_key
+    source = copies_dir(server) / "uploads"
+    for f in sorted(p for p in source.rglob("*") if p.is_file() and p.name != UPLOADS_INDEX):
+        locked = f.name.endswith(".age")
+        rel = f.relative_to(source)
+        dest = target / (rel.with_name(rel.name[:-4]) if locked else rel)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if locked:
+            lab_key.unlock_file(f, dest, list(keys))
+        else:
+            shutil.copyfile(f, dest)
+    return target
+
+
+UPLOADS_INDEX = ".sizes.json"         # each mirrored file's size before it was locked
 
 
 def _open(url: str, key: str, timeout: int = 300):
@@ -550,6 +601,7 @@ def pull() -> dict:
         with os.fdopen(fd, "wb") as out, _open(f"{server}/api/lab-copy/snapshot", cfg["key"]) as r:
             shutil.copyfileobj(r, out, 1 << 20)
             digest, taken = r.headers.get("X-BioManager-SHA256", ""), r.headers.get("X-BioManager-Taken", "")
+            recipient = r.headers.get("X-BioManager-Lab-Recipient", "")
             try:
                 rows = json.loads(r.headers.get("X-BioManager-Rows", "") or "{}")
             except ValueError:
@@ -564,32 +616,54 @@ def pull() -> dict:
             incoming.unlink(missing_ok=True)
             raise RuntimeError(f"The copy failed SQLite's integrity check ({check}). It was thrown away.")
         taken = re.sub(r"[^0-9-]", "", taken) or datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-        final = target / "db" / f"biomanager-{taken}Z.db"
-        incoming.replace(final)
-        final.with_suffix(".json").write_text(json.dumps({"server": server, "taken": taken, "rows": rows,
-                                                           "sha256": digest}, indent=1), encoding="utf-8")
+        if recipient:
+            # Locked with the lab's key; the open file never stays on disk.
+            from . import lab_key
+            final = target / "db" / f"biomanager-{taken}Z.db.age"
+            lab_key.lock_file(incoming, final, [recipient])
+            incoming.unlink(missing_ok=True)
+        else:                       # a server from before the lab's key
+            final = target / "db" / f"biomanager-{taken}Z.db"
+            incoming.replace(final)
+        _sidecar(final).write_text(json.dumps({"server": server, "taken": taken, "rows": rows, "sha256": digest,
+                                               "locked": bool(recipient)}, indent=1), encoding="utf-8")
         # 2. Keep the newest copies.
-        dbs = sorted((target / "db").glob("biomanager-*.db"))
+        dbs = _copies(target / "db")
         for old in dbs[:-cfg["keep"]]:
             old.unlink(missing_ok=True)
-            old.with_suffix(".json").unlink(missing_ok=True)
+            _sidecar(old).unlink(missing_ok=True)
         # 3. Uploaded files: only what is new or changed; nothing is deleted here.
         with _open(f"{server}/api/lab-copy/files", cfg["key"], timeout=60) as r:
             listing = json.loads(r.read().decode() or "{}").get("files", [])
         fetched = 0
+        index_path = target / "uploads" / UPLOADS_INDEX
+        try:
+            sizes = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else {}
+        except ValueError:
+            sizes = {}
         for item in listing:
             rel = Path(item["path"])
             if rel.is_absolute() or ".." in rel.parts:
                 continue
-            dest = target / "uploads" / rel
-            if dest.exists() and dest.stat().st_size == item["size"]:
+            plain = target / "uploads" / rel
+            dest = plain.with_name(plain.name + ".age") if recipient else plain
+            if dest.exists() and (sizes.get(item["path"]) if recipient else dest.stat().st_size) == item["size"]:
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             part = dest.with_name(dest.name + ".part")
             with open(part, "wb") as out, _open(f"{server}/api/lab-copy/files/{quote(item['path'])}", cfg["key"]) as r:
                 shutil.copyfileobj(r, out, 1 << 20)
-            part.replace(dest)
+            if recipient:
+                from . import lab_key
+                lab_key.lock_file(part, dest, [recipient])
+                part.unlink(missing_ok=True)
+                plain.unlink(missing_ok=True)       # an open one from before the lab's key
+                sizes[item["path"]] = item["size"]
+            else:
+                part.replace(dest)
             fetched += 1
+        if recipient:
+            index_path.write_text(json.dumps(sizes, indent=0, sort_keys=True), encoding="utf-8")
         result = {"ok": True, "error": "", "last_ok": datetime.utcnow().isoformat(timespec="seconds"),
                   "last_name": final.name, "last_size": final.stat().st_size,
                   "records": sum(v for v in rows.values() if isinstance(v, int)),

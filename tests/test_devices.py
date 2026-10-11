@@ -213,7 +213,7 @@ class GiveBackTests(DeviceCase):
         self.assertEqual(one("select notes from mouse_cages where id=?", cage), changed)
         self.assertEqual(one("select value from app_settings where key='devices:mine'"), "kept")
         from app.paths import data_dir
-        self.assertTrue(list((data_dir() / "backups").glob("before-taking-back-*.db")))
+        self.assertTrue(list((data_dir() / "backups").glob("before-taking-back-*.db.age")))
         # The master again: it takes changes.
         self.assertEqual(self.autosave(self.a, f"/colony/cages/{cage}/update", {"notes": "n"}).status_code, 200)
         # New records get new ids, never one the copy already used.
@@ -272,7 +272,10 @@ class DesktopDeviceTests(DeviceCase):
         def fake_call(server, key, path, body=None, method="POST", timeout=60):
             calls.append((path, body))
             return {"ok": True}
-        newest = [{"path": "/tmp/biomanager-x.db"}]
+        copy = Path(tempfile.mkdtemp()) / "biomanager-x.db"
+        copy.write_bytes(b"the last copy")
+        self.addCleanup(copy.unlink)
+        newest = [{"path": str(copy)}]
         with mock.patch.object(devices, "_call", fake_call), \
                 mock.patch("app.lab_copy.pull", return_value={"ok": True}), \
                 mock.patch("app.lab_copy.list_copies", return_value=newest), \
@@ -282,11 +285,41 @@ class DesktopDeviceTests(DeviceCase):
                 self.assertTrue(devices.take_over(app, {"server": self.server, "key": self.key}))
         self.assertEqual([c[0] for c in calls], ["/api/devices/handover/freeze", "/api/devices/handover/done"])
         self.assertEqual(calls[1][1], {"url": "http://10.1.2.3:5870"})
-        self.assertEqual(install.call_args[0][0], Path("/tmp/biomanager-x.db"))
+        self.assertEqual(install.call_args[0][0].name, "copy.db")
         from app.db import SessionLocal
         with SessionLocal() as s:
             self.assertEqual(devices.came_from(s)["url"], self.server)
             self.assertTrue(devices.sharing(s))
+
+    def test_the_lab_s_key_comes_with_the_master_copy(self):
+        # The copy is locked with the server lab's key; the freeze answer
+        # brings that key, which opens the copy and stays with the lab here.
+        from pyrage import x25519
+        from app import devices, lab_key
+        key = x25519.Identity.generate()
+        folder = Path(tempfile.mkdtemp())
+        plain, locked = folder / "plain.db", folder / "biomanager-x.db.age"
+        plain.write_bytes(b"the whole lab")
+        lab_key.lock_file(plain, locked, [str(key.to_public())])
+        seen = {}
+
+        def fake_install(database, uploads):
+            seen["body"] = Path(database).read_bytes()
+            return folder / "backup.db"
+
+        def fake_call(server, k, path, body=None, method="POST", timeout=60):
+            return {"ok": True, "lab_key": str(key)} if path.endswith("/freeze") else {"ok": True}
+        with mock.patch.object(devices, "_call", fake_call), \
+                mock.patch("app.lab_copy.pull", return_value={"ok": True}), \
+                mock.patch("app.lab_copy.list_copies", return_value=[{"path": str(locked)}]), \
+                mock.patch.object(devices, "install_copy", side_effect=fake_install), \
+                mock.patch.object(devices, "start_sharing", return_value="http://10.1.2.3:5870"):
+            with app.app_context():
+                self.assertTrue(devices.take_over(app, {"server": self.server, "key": self.key}))
+        self.assertEqual(seen["body"], b"the whole lab")
+        from app.db import SessionLocal
+        with SessionLocal() as s:
+            self.assertEqual(lab_key.current(s).secret, str(key))
 
     def test_a_failed_take_over_tells_the_master(self):
         from app import devices
@@ -388,6 +421,6 @@ class DesktopDeviceTests(DeviceCase):
         self.assertNotIn("the other computer is lost", html)
         with mock.patch.object(devices, "load_lab") as load, mock.patch.object(devices, "keep_a_copy"):
             r = self.a.post("/settings/devices/own-again")
-        load.assert_called_once_with(backup)
+        load.assert_called_once_with(backup, make_its_key_current=True)
         self.assertIn("/login", r.headers["Location"])
         self.assertEqual(device_state(), {})

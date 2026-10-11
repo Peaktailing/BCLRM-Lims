@@ -32,6 +32,7 @@ from flask import (Blueprint, abort, current_app, flash, g, redirect, render_tem
 from . import devices, lab_copy, lab_transfer, paths, security
 from .db import SessionLocal
 from .i18n import gettext
+from .models import UserAccount
 
 bp = Blueprint("lab_move", __name__)
 
@@ -102,10 +103,16 @@ def push(server: str, code: str, admin: str) -> dict:
         made = Path(tmp) / "lab.biomanager"
         lab_transfer.build(made, Path(tmp) / "work")
         size = made.stat().st_size
+        # The file is locked with the lab's key, and the key goes with it:
+        # the lab keeps its key on the server (app/lab_key.py).
+        from . import lab_key
+        with SessionLocal() as s:
+            secret = lab_key.current(s).secret
         with open(made, "rb") as body:
             req = Request(f"{server}/lab/import", data=body, method="POST", headers={
-                "Content-Type": "application/zip", "Content-Length": str(size), "Accept": "application/json",
-                "X-BioManager-Setup-Code": code, "X-BioManager-Admin": admin, "User-Agent": "BioManager desktop"})
+                "Content-Type": "application/octet-stream", "Content-Length": str(size), "Accept": "application/json",
+                "X-BioManager-Setup-Code": code, "X-BioManager-Admin": admin, "User-Agent": "BioManager desktop",
+                "X-BioManager-Lab-Key": secret})
             try:
                 with urlopen(req, timeout=1800) as response:    # noqa: S310 (the server the admin typed)
                     return json.loads(response.read().decode("utf-8"))
@@ -183,3 +190,50 @@ def move_back():
     devices._save_prefs(window_url="")
     flash(gettext("This computer’s own lab is open again, as it was when it moved. The server keeps the lab it was given; this computer still keeps a copy of it."), "success")
     return redirect(url_for("devices.page"))
+
+
+# ---------------------------------------------------------------- the lab's key
+
+@bp.app_context_processor
+def inject_lab_key():
+    """For Settings → Your data: when the recovery key was last shown, and to whom."""
+    def lab_key_status():
+        from . import lab_key
+        with SessionLocal() as s:
+            row = lab_key.current(s)
+            return {"key_id": row.key_id, "made": row.created_at, "shown_at": row.recovery_shown_at,
+                    "shown_to": row.recovery_shown_to}
+    return {"lab_key_status": lab_key_status}
+
+
+@bp.route("/settings/lab-key", methods=["GET", "POST"])
+def lab_key_page():
+    """An admin's view of the lab's key (app/lab_key.py): the recovery key,
+    shown after the admin's password, and a recovery key typed in, for a lab
+    that came back without the key it had."""
+    from . import lab_key, security
+    _admin()
+    shown = ""
+    if request.method == "POST":
+        if request.form.get("action") == "show":
+            with SessionLocal() as s:
+                user = s.get(UserAccount, g.user.id)
+                if security.has_password(user) and not security.check_password(user, request.form.get("password", "")):
+                    flash(gettext("That password isn't right, so the recovery key wasn't shown."), "error")
+                else:
+                    shown = lab_key.grouped(lab_key.recovery_key(s, g.user.username))
+        elif request.form.get("action") == "adopt":
+            try:
+                with SessionLocal() as s:
+                    lab_key.adopt(s, request.form.get("recovery_key", ""))
+                flash(gettext("The lab's key is back: backups and lab files it locked open here again, and it locks new ones."), "success")
+                return redirect(url_for("lab_move.lab_key_page"))
+            except ValueError as error:
+                flash(str(error), "error")
+    with SessionLocal() as s:
+        row = lab_key.current(s)
+        info = {"key_id": row.key_id, "made": row.created_at, "shown_at": row.recovery_shown_at,
+                "shown_to": row.recovery_shown_to, "older": max(0, len(lab_key.identities(s)) - 1)}
+        from . import security as sec
+        needs_password = sec.has_password(s.get(UserAccount, g.user.id))
+    return render_template("lab_move/lab_key.html", info=info, shown=shown, needs_password=needs_password)

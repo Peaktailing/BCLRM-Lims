@@ -42,6 +42,7 @@ TRACKED_TABLES = {
 TRACKED_TABLES |= {"plasmid_boxes"}
 TRACKED_TABLES |= {"experiment_steps", "experiment_step_records", "experiment_subjects", "experiment_readings", "experiment_regimens", "record_signatures"}   # an experiment's manipulations, planned and done
 TRACKED_TABLES |= {"experiment_deviations"}   # changes from an experiment's plan, with their reasons
+TRACKED_TABLES |= {"mouse_weights"}   # a weight is a record of the animal, kept and undone like one
 TRACKED_TABLES |= {"user_identities"}   # who connected which Google/Microsoft account, and when   # so deleting a box (which unplaces its plasmids) can be undone
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
@@ -61,6 +62,7 @@ TABLE_LABELS = {
     "experiment_subjects": "Experiment subjects", "experiment_readings": "Readings",
     "experiment_regimens": "Regimens", "record_signatures": "Signatures", "user_identities": "Sign-in accounts",
     "experiment_deviations": "Changes from the plan",
+    "mouse_weights": "Weights",
 }
 
 
@@ -68,16 +70,18 @@ def table_label(name: str) -> str:
     return TABLE_LABELS.get(name or "", (name or "").replace("_", " ").capitalize())
 
 
-# High-churn or derived rows: logging them would bury the signal.
+# High-churn or derived rows: logging them would bury the signal. To-dos
+# and events can be someone's own, which not even an admin sees, so they stay
+# out of the admins' Audit log.
 IGNORED_TABLES = {
     "audit_log", "batches", "notifications", "calendar_events", "tasks",
     "notebook_pages", "notebook_entries", "notebook_tabs",
     "organism_events", "organism_due", "organism_measurements",
-    "dropdown_options", "mouse_weights", "water_logs",
+    "dropdown_options", "water_logs",
 }
 
 # Columns that change on every save and say nothing about intent.
-NOISE_COLUMNS = {"updated_at", "updated_by", "created_at"}
+NOISE_COLUMNS = {"updated_at", "updated_by", "created_at", "sync_version"}
 
 # Never write a credential, or its hash, into a log.
 REDACTED_COLUMNS = {"password_hash", "token", "access_token", "refresh_token",

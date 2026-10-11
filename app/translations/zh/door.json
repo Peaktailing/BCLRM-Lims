@@ -131,5 +131,13 @@
   "They wrote: %(note)s Reach them at %(contact)s.": "留言：%(note)s 联系方式：%(contact)s。",
   "Reach them at %(contact)s.": "联系方式：%(contact)s。",
   "Opening %(host)s…": "正在打开 %(host)s…",
-  "Open it": "打开"
+  "Open it": "打开",
+  "Lab recovery key": "实验室恢复密钥",
+  "A lab file is locked with its lab’s key. Enter the lab’s recovery key, which its admin was shown under Settings → Your data → Lab key.": "实验室文件用该实验室的密钥加密。请输入实验室的恢复密钥：管理员可以在“设置 → 你的数据 → 实验室密钥”里看到它。",
+  "This lab file is locked with its lab's key. Enter that lab's recovery key (Settings → Your data → Lab key, where the lab was) to bring it in.": "这个实验室文件用它所属实验室的密钥加密。请输入那个实验室的恢复密钥（在原来那台设备的“设置 → 你的数据 → 实验室密钥”里）才能导入。",
+  "That recovery key doesn't open this lab file: it is locked with another lab's key.": "这个恢复密钥打不开这个实验室文件：它是用另一个实验室的密钥加密的。",
+  "That isn't a lab recovery key: it starts AGE-SECRET-KEY-1.": "这不是实验室恢复密钥：恢复密钥以 AGE-SECRET-KEY-1 开头。",
+  "That recovery key has a mistake in it: check each letter.": "这个恢复密钥有错字，请逐个字母核对。",
+  "This file is locked with its lab's key. Enter the lab's recovery key to open it.": "这个文件用实验室的密钥加密。请输入实验室的恢复密钥来打开它。",
+  "This file is locked with another lab's key, or it is damaged. Enter the recovery key of the lab it came from.": "这个文件用另一个实验室的密钥加密，或者已经损坏。请输入它所属实验室的恢复密钥。"
 }
