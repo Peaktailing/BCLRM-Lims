@@ -1,0 +1,20 @@
+{
+  "pups is a whole number from 1 to %(max)s.": "pups 须为 1 到 %(max)s 的整数。",
+  "Groups allocated at random by BioManager with seed %(seed)s: the same animals, groups and seed give the same allocation.": "分组由 BioManager 随机分配，随机种子为 %(seed)s：同样的动物、分组和种子会得到同样的分配。",
+  "amount is a number, with its unit if it isn't the item's (40 mg), not “%(value)s”.": "amount 应为一个数字，单位与物品不同时带上单位（如 40 mg），而不是“%(value)s”。",
+  "%(item)s has no unit, so %(amount)s can't be taken off it: give the amount alone, as its quantity is kept.": "%(item)s 没有单位，无法从中扣除 %(amount)s：请只给数量，按它记录数量的方式。",
+  "%(item)s is kept in %(unit)s, and %(amount)s can't be turned into that.": "%(item)s 以 %(unit)s 记录，%(amount)s 无法换算成这个单位。",
+  "%(item)s: %(amount)s used, which is %(converted)s (%(before)s → %(after)s)": "%(item)s：用掉 %(amount)s，即 %(converted)s（%(before)s → %(after)s）",
+  "%(item)s: %(amount)s used (%(before)s → %(after)s)": "%(item)s：用掉 %(amount)s（%(before)s → %(after)s）",
+  "expires %(date)s": "有效期至 %(date)s",
+  ", added to %(database)s: %(what)s": "，加入%(database)s：%(what)s",
+  "%(database)s already has “%(name)s” (%(items)s): this adds another item rather than adding to it.": "%(database)s 已有“%(name)s”（%(items)s）：这样会另加一个物品，而不是加到它上面。",
+  "Cage %(cage)s will be shared with the lab, as Breeder cages are, for anyone to Pick from.": "笼 %(cage)s 将与实验室共享（种鼠笼都是如此），供大家领用。",
+  "Cage %(cage)s will no longer be shared with the lab: only Breeder cages are shared on their own. Its owner can share it again.": "笼 %(cage)s 将不再与实验室共享：只有种鼠笼会自动共享。笼的负责人可以重新共享。",
+  "%(record)s will be shared with the lab.": "%(record)s 将与实验室共享。",
+  "%(record)s will no longer be shared with the lab.": "%(record)s 将不再与实验室共享。",
+  "Litter of %(num)s pup born in cage %(cage)s%(on)s": "笼 %(cage)s 产仔 %(num)s 只%(on)s",
+  "Litter of %(num)s pups born in cage %(cage)s%(on)s": "笼 %(cage)s 产仔 %(num)s 只%(on)s",
+  "%(date)s: litter born, %(num)s pup": "%(date)s：产仔 %(num)s 只",
+  "%(date)s: litter born, %(num)s pups": "%(date)s：产仔 %(num)s 只"
+}

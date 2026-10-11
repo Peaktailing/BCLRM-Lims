@@ -1312,10 +1312,12 @@ track.
   propose* token, meant for an AI assistant, changes nothing itself: it
   sends its changes as one proposal, which BioManager checks as its pages
   would and keeps under **Proposed changes** (in your account menu and in
-  **Settings → AI assistant & tokens**, with a notification) as one plain summary. **Approve** makes every change at
+  **Settings → AI assistant & tokens**, with a notification) as one plain summary, with warnings
+  for what else a change would do (a cage no longer shared with the lab, an
+  item of that name already in stock). **Approve** makes every change at
   once, as one batch you can undo; **Discard** makes none; only you, signed
   in, can approve, or **Send back** with a reason for the assistant to
-  correct. **Connect an AI assistant**, at the top of the same
+  correct: its corrected proposal takes the old one's place. **Connect an AI assistant**, at the top of the same
   pane, connects one (it is also under **Help**). Claude Code, Codex, Cursor,
   VS Code and Cherry Studio use BioManager's own MCP address (`/api/v1/mcp`),
   nothing to install: paste the page's message into the assistant and it sets

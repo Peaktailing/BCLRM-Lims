@@ -79,6 +79,9 @@ class Action:
     fields: tuple[Field, ...]
     build: Callable[[Any, Any, dict], list[Call]]
     describe: Callable[[Any, Any, dict], str]
+    # What the person should know before approving, beyond what the pages
+    # say (an item of the same name already there): warnings, in words.
+    warn: Callable[[Any, Any, dict], list[str]] | None = None
 
     def schema(self) -> dict:
         """JSON Schema for this action's fields (the MCP server's tools)."""
@@ -104,12 +107,43 @@ def _ref_schema(kind: str) -> dict:
                       {"type": ["string", "integer"], "description": f"the {kind}'s number as the lab writes it"}]}
 
 
+# experiment_new's groups and regimen, as JSON Schema (app/experiments.py
+# design() takes them, through _design_groups and _design_steps).
+_ANIMAL_REF = {"anyOf": [{"type": "object", "properties": {"kind": {"type": "string"}, "id": {"type": "integer"}},
+                          "required": ["kind", "id"]},
+                         {"type": ["string", "integer"], "description": "a mouse's number, in the colony"}]}
+_DESIGN_GROUP = {"type": "object", "additionalProperties": False, "required": ["name"], "properties": {
+    "name": {"type": "string", "description": "The group's name (HDM, Vehicle…)"},
+    "animals": {"type": "array", "items": _ANIMAL_REF,
+                "description": "Its animals: references from resolve (mouse, fish, clutch, stock_unit, org_animal, "
+                               "org_cohort) or mouse numbers"},
+    "housing": {"type": "array", "items": _ANIMAL_REF,
+                "description": "Every living animal in these: cages (their IDs), tanks, stock racks or housing units"}}}
+_DESIGN_STEP = {"type": "object", "additionalProperties": False, "required": ["days"], "properties": {
+    "days": {"type": ["string", "integer"], "description": "Its days: 1, \"1-5\", \"1, 3, 5\" (day 1 = the start "
+                                                          "date)"},
+    "kind": {"type": "string", "description": "What is done. Mice and other organisms: injection, challenge, "
+                                              "treatment, surgery, behavior, sample, imaging; zebrafish: immersion, "
+                                              "microinjection, heat_shock, injury, feeding…; flies: food, "
+                                              "temperature…; worms: plate, rnai…; a readout day is \"reading\""},
+    "agent": {"type": "string", "description": "What is given (Tamoxifen, HDM): needed for an injection, "
+                                               "challenge or treatment"},
+    "dose": {"type": "string", "description": "e.g. 75 mg/kg"},
+    "route": {"type": "string", "description": "e.g. i.p."},
+    "concentration": {"type": "string", "description": "e.g. 20 mg/mL"},
+    "group": {"type": "string", "description": "The group it is for (every animal if left out)"},
+    "notes": {"type": "string"}}}
+
+
 def _field_schema(f: Field) -> dict:
     kinds = {"text": {"type": "string"}, "date": {"type": "string", "format": "date"},
              "int": {"type": "integer"}, "number": {"type": "number"}, "bool": {"type": "boolean"},
              "sex": {"type": "string", "enum": ["F", "M", ""]},
              "list": {"type": "array", "items": {"type": "string"}},
-             "object": {"type": "object"}}
+             "object": {"type": "object"},
+             "amount": {"type": ["number", "string"]},
+             "groups": {"type": "array", "items": _DESIGN_GROUP},
+             "steps": {"type": "array", "items": _DESIGN_STEP}}
     if f.kind in kinds:
         out = dict(kinds[f.kind])
     elif f.kind in KINDS:
@@ -252,6 +286,10 @@ def clean(act: Action, raw: dict) -> dict:
                 v = float(v)
             except (TypeError, ValueError):
                 raise ActionError(gettext("%(field)s must be a number.", field=name)) from None
+        elif f.kind == "amount":     # a number, or a number with its unit: read by the action
+            if isinstance(v, bool) or not isinstance(v, (int, float, str)) or not str(v).strip():
+                raise ActionError(gettext("%(field)s must be a number.", field=name))
+            v = v.strip() if isinstance(v, str) else v
         elif f.kind == "bool":
             v = bool(v)
         elif f.kind == "sex":
@@ -414,7 +452,9 @@ def _mice_died(s, _target, v):
 
 
 CAGE_FIELDS = (Field("purpose", "text", "Breeder (the lab's breeding stock, shared), Breeding (a mating cage, the one "
-                                        "with litters and weaning) or Experiment, as the lab's list has them"),
+                                        "with litters and weaning) or Experiment, as the lab's list has them. A cage "
+                                        "made Breeder becomes shared with the lab; one that stops being Breeder, "
+                                        "personal"),
                Field("owner", "text", "Username of its owner"),
                Field("rack", "rack", "The rack it sits in"),
                Field("position", "text", "Its position in the rack, as the rack names them (B3, 4-7…)"),
@@ -467,11 +507,25 @@ def _cage_said(s, key, value) -> str:
 @action(name="litter_born", area="mice", title="Litter born",
         help="A litter was born in this mating (Breeding) cage (the cage keeps one birth date; weaning is due from it).",
         target="cage",
-        fields=(Field("date", "date", "The day they were born (today if left out)"),),
-        describe=lambda _s, c, v: gettext("Litter born in cage %(cage)s%(on)s", cage=c.cage_id,
-                                          on=_on(v.get("date"))))
+        fields=(Field("date", "date", "The day they were born (today if left out)"),
+                Field("pups", "int", "How many pups were born (1–40): added to the cage's notes until the litter is "
+                      "made at genotyping")),
+        describe=lambda _s, c, v: (ngettext("Litter of %(num)s pup born in cage %(cage)s%(on)s",
+                                            "Litter of %(num)s pups born in cage %(cage)s%(on)s", v["pups"],
+                                            cage=c.cage_id, on=_on(v.get("date"))) if "pups" in v else
+                                   gettext("Litter born in cage %(cage)s%(on)s", cage=c.cage_id,
+                                           on=_on(v.get("date")))))
 def _litter_born(_s, cage, v):
-    return [Call("POST", f"/colony/cages/{cage.id}/give-birth", form=[("date_give_birth", v.get("date", ""))])]
+    calls = [Call("POST", f"/colony/cages/{cage.id}/give-birth", form=[("date_give_birth", v.get("date", ""))])]
+    if "pups" in v:
+        # The cage keeps a birth date only; the count is the litter's once it
+        # is made at genotyping, so until then it goes in the cage's notes.
+        if not 1 <= v["pups"] <= MAX_REPEAT:
+            raise ActionError(gettext("pups is a whole number from 1 to %(max)s.", max=MAX_REPEAT))
+        line = ngettext("%(date)s: litter born, %(num)s pup", "%(date)s: litter born, %(num)s pups", v["pups"],
+                        date=v.get("date") or date.today().isoformat())
+        calls.append(Call("POST", f"/colony/cages/{cage.id}/update", form=[("notes", _added(cage.notes, line))]))
+    return calls
 
 
 @action(name="litter_genotyping", area="mice", title="Create the litter at genotyping",
@@ -1425,7 +1479,9 @@ def _design_steps(steps) -> list[dict]:
                 Field("description", "text", "The goal and the design, in words"),
                 Field("groups", "groups", "The treatment groups: [{\"name\": \"HDM\", \"animals\": [references, or "
                       "mouse numbers in the colony], \"housing\": [a cage, tank, stock rack or housing unit: every "
-                      "living animal in it]}]"),
+                      "living animal in it]}]. randomize's groups are already in this shape"),
+                Field("seed", "int", "The seed randomize allocated the groups with: kept in the description, so the "
+                      "allocation can be repeated"),
                 Field("steps", "steps", "The regimen: [{\"days\": \"1-5\", \"kind\": \"injection\", \"agent\": "
                       "\"Tamoxifen\", \"dose\": \"75 mg/kg\", \"route\": \"i.p.\", \"concentration\": \"20 mg/mL\", "
                       "\"group\": \"HDM\" (every animal if left out), \"notes\"}]; a readout day is kind \"reading\""),
@@ -1453,7 +1509,11 @@ def _experiment_new(s, _target, v):
     readout = v.get("readout") or ""
     if readout and readout not in xp.READOUTS:
         readout = {"label": readout, "unit": v.get("readout_unit", ""), "kind": v.get("readout_kind") or "value"}
-    body = {"name": v["name"], "description": v.get("description", ""), "notes": v.get("notes", ""),
+    description = v.get("description", "")
+    if "seed" in v:
+        # The experiment has no place of its own for it: its design's words.
+        description = "\n\n".join(filter(None, [description, gettext("Groups allocated at random by BioManager with seed %(seed)s: the same animals, groups and seed give the same allocation.", seed=v["seed"])]))  # noqa: E501
+    body = {"name": v["name"], "description": description, "notes": v.get("notes", ""),
             "via": g.get("proposal_source") or "", "readout": readout, "readout_day": v.get("readout_day"),
             "planned_test": v.get("planned_test", ""), "start_date": v.get("start_date", ""),
             "groups": _design_groups(s, db, v.get("groups")), "steps": _design_steps(v.get("steps"))}
@@ -1775,16 +1835,65 @@ def _left_after(s, item, used: float) -> tuple[str, str]:
     return isvc.number_text(now), isvc.number_text(round(now - used, 6))
 
 
+# Units an amount used may be given in, as powers of ten of the family's
+# base (g, L). Any other unit (vials, tubes, µM…) is only itself.
+UNITS = {"kg": ("mass", 3), "g": ("mass", 0), "mg": ("mass", -3), "µg": ("mass", -6), "ug": ("mass", -6),
+         "mcg": ("mass", -6), "ng": ("mass", -9),
+         "l": ("volume", 0), "ml": ("volume", -3), "µl": ("volume", -6), "ul": ("volume", -6), "nl": ("volume", -9)}
+AMOUNT = re.compile(r"\s*(\d[\d.,]*|[.,]\d+)\s*(\D*?)\s*")
+
+
+def _unit_key(unit: str) -> str:
+    return " ".join(str(unit or "").split()).replace("μ", "µ").lower()
+
+
+def _used(s, item, v) -> tuple[float, str, str]:
+    """(the amount in the item's unit, the amount as given, and what it is
+    in the item's unit when converted, else ""), from an amount (12 or
+    "40 mg") and an optional unit."""
+    from . import inventory_service as isvc
+    raw, unit = v["amount"], v.get("unit", "")
+    if isinstance(raw, str):
+        match = AMOUNT.fullmatch(raw)
+        number = isvc.amount(match.group(1)) if match else None
+        if number is None:
+            raise ActionError(gettext("amount is a number, with its unit if it isn't the item's (40 mg), not “%(value)s”.", value=raw))  # noqa: E501
+        raw, unit = number, match.group(2) or unit
+    amount = float(raw)
+    have, want = _unit_key(item.unit), _unit_key(unit)
+    if not want or want == have:
+        return amount, f"{isvc.number_text(amount)} {item.unit or ''}".strip(), ""
+    given = f"{isvc.number_text(amount)} {unit}"
+    if not have:
+        raise ActionError(gettext("%(item)s has no unit, so %(amount)s can't be taken off it: give the amount alone, as its quantity is kept.", item=_item_label(s, item), amount=given))  # noqa: E501
+    if want not in UNITS or have not in UNITS or UNITS[want][0] != UNITS[have][0]:
+        raise ActionError(gettext("%(item)s is kept in %(unit)s, and %(amount)s can't be turned into that.",
+                                  item=_item_label(s, item), unit=item.unit, amount=given))
+    converted = round(amount * 10.0 ** (UNITS[want][1] - UNITS[have][1]), 9)
+    return converted, given, f"{isvc.number_text(converted)} {item.unit}"
+
+
+def _used_said(s, item, v) -> str:
+    used, given, converted = _used(s, item, v)
+    before, after = _left_after(s, item, used)
+    if converted:
+        return gettext("%(item)s: %(amount)s used, which is %(converted)s (%(before)s → %(after)s)",
+                       item=_item_label(s, item), amount=given, converted=converted, before=before, after=after)
+    return gettext("%(item)s: %(amount)s used (%(before)s → %(after)s)", item=_item_label(s, item), amount=given,
+                   before=before, after=after)
+
+
 @action(name="inventory_quantity_used", area="inventory", title="Some of an item used",
-        help="Take an amount off an item's quantity, in its unit. Where the inventory keeps Low at, its status "
-             "follows as on the page: low at or below Low at, empty (or used up) at 0.", target="inventory_item",
-        fields=(Field("amount", "number", "How much was used, in the item's unit", required=True),),
-        describe=lambda s, i, v: gettext("%(item)s: %(amount)s %(unit)s used (%(before)s → %(after)s)",
-                                         item=_item_label(s, i), amount=f"{v['amount']:g}", unit=i.unit or "",
-                                         before=_left_after(s, i, v["amount"])[0],
-                                         after=_left_after(s, i, v["amount"])[1]))
+        help="Take an amount off an item's quantity. Give it in the item's unit, or in another of mass (kg, g, mg, "
+             "µg, ng) or volume (L, mL, µL, nL) and BioManager converts it; other units (vials, tubes) only as "
+             "themselves. Where the inventory keeps Low at, its status follows as on the page: low at or below "
+             "Low at, empty (or used up) at 0.", target="inventory_item",
+        fields=(Field("amount", "amount", "How much was used: a number in the item's unit, or with its own unit "
+                      "(\"40 mg\")", required=True),
+                Field("unit", "text", "The amount's unit, when it isn't the item's (mg, µL…)")),
+        describe=_used_said)
 def _inventory_quantity_used(s, item, v):
-    _now, left = _left_after(s, item, v["amount"])
+    _now, left = _left_after(s, item, _used(s, item, v)[0])
     return [Call("PATCH", f"/api/v1/inventories/{_item_module(s, item).key}/items/{item.number}",
                  json={"quantity": left})]
 
@@ -1800,25 +1909,79 @@ def _inventory_box(s, module, name) -> str:
     return str(rack.id)
 
 
-STOCK_ONLY = ("shared", "expires_on", "box", "position", "location_note")
+STOCK_ONLY = ("name", "quantity", "unit", "shared", "expires_on", "box", "position", "location_note")
+
+
+def _restock(s, order, v):
+    """(the stock inventory, the stock record as it will be made) for an
+    order received with to_stock."""
+    from . import inventory_service as isvc
+    from .inventory_routes import _stock_from_order
+    target = _inventory(s, v["to_stock"])
+    draft = _stock_from_order(s, isvc.view(_item_module(s, order)), isvc.view(target), order,
+                              shared=v.get("shared", True))
+    for key in ("name", "quantity", "unit", "lot", "expires_on"):
+        if key in v:
+            setattr(draft, key, date.fromisoformat(v[key]) if key == "expires_on" else v[key])
+    return target, draft
+
+
+def _received_said(s, order, v) -> str:
+    """"Orders #4 · Tamoxifen 1 g received, added to Reagents: Tamoxifen, 1 g,
+    lot L7, expires 2027-10-01": what the stock record will hold."""
+    stock = ""
+    if v.get("to_stock") not in (None, ""):
+        target, draft = _restock(s, order, v)
+        parts = [draft.name or "-"]
+        if draft.quantity or draft.unit:
+            parts.append(f"{draft.quantity or ''} {draft.unit or ''}".strip())
+        if draft.lot:
+            parts.append(gettext("lot %(lot)s", lot=draft.lot))
+        if draft.expires_on:
+            parts.append(gettext("expires %(date)s", date=draft.expires_on.isoformat()))
+        stock = gettext(", added to %(database)s: %(what)s", database=_inventory_said(s, target.key),
+                        what=", ".join(parts))
+    return gettext("%(item)s received%(on)s%(stock)s", item=_item_label(s, order), on=_on(v.get("received_on")),
+                   stock=stock)
+
+
+def _received_warn(s, order, v) -> list[str]:
+    """An item of the same name already in the stock inventory: the person
+    may rather add to it than keep a second."""
+    from .models import InventoryItem
+    if v.get("to_stock") in (None, ""):
+        return []
+    target, draft = _restock(s, order, v)
+    same = list(s.scalars(select(InventoryItem).where(InventoryItem.module_id_fk == target.id,
+                                                      func.lower(InventoryItem.name) == (draft.name or "").lower())
+                          .order_by(InventoryItem.number).limit(5)))
+    if not draft.name or not same:
+        return []
+    found = "; ".join(f"#{i.number}" + (f", {i.quantity} {i.unit or ''}".rstrip() if i.quantity else "")
+                      for i in same)
+    return [gettext("%(database)s already has “%(name)s” (%(items)s): this adds another item rather than adding to it.",
+                    database=_inventory_said(s, target.key), name=draft.name, items=found)]
 
 
 @action(name="order_received", area="inventory", title="Order received",
         help="Mark an order received. With to_stock, also add it to a reagents, chemicals, antibodies or viruses "
-             "inventory, as the order's Add to stock does: its name, vendor, catalogue number and quantity come "
-             "from the order; give the lot, when it expires and where it is kept.", target="inventory_item",
+             "inventory, as the order's Add to stock does: its name, vendor, catalogue number, quantity and unit "
+             "come from the order unless given here (the order says \"Tamoxifen 1 g\", the stock keeps "
+             "\"Tamoxifen\", quantity 1, unit g); give the lot, when it expires and where it is kept. The summary "
+             "shows the stock record as it will be made, and a warning when that inventory already has an item "
+             "of the same name.", target="inventory_item",
         fields=(Field("received_on", "date", "When it arrived (today if left out)"),
                 Field("lot", "text", "Its lot"),
                 Field("to_stock", "text", "Add it to this inventory, by its key or name"),
+                Field("name", "text", "In stock: its name (the order's if left out)"),
+                Field("quantity", "text", "In stock: how much there is (the order's if left out)"),
+                Field("unit", "text", "In stock: the quantity's unit (the order's if left out)"),
                 Field("shared", "bool", "In stock as lab common (true, the page's first choice) or yours (false)"),
                 Field("expires_on", "date", "In stock: when it expires"),
                 Field("box", "text", "In stock: the box it goes in"),
                 Field("position", "text", "In stock: its position in the box"),
                 Field("location_note", "text", "In stock: where it is kept, in words")),
-        describe=lambda s, i, v: gettext("%(item)s received%(on)s%(stock)s", item=_item_label(s, i),
-                                         on=_on(v.get("received_on")),
-                                         stock=gettext(", added to %(database)s", database=_inventory_said(s, v["to_stock"]))
-                                         if v.get("to_stock") not in (None, "") else ""))
+        describe=_received_said, warn=_received_warn)
 def _order_received(s, order, v):
     from . import inventory_service as isvc
     module = _item_module(s, order)
@@ -1848,14 +2011,12 @@ def _stock_form(s, module, target, order, v) -> list[tuple[str, str]]:
     """The stock inventory's new-item form as Add to stock fills it from the
     order (inventory_routes._stock_from_order), with what was given over it.
     `from_order` links the two, as when the page's dialog is saved."""
-    from . import inventory_service as isvc
-    from .inventory_routes import _stock_from_order
-    draft = _stock_from_order(s, isvc.view(module), isvc.view(target), order, shared=v.get("shared", True))
+    _target, draft = _restock(s, order, v)
     received = v.get("received_on") or (draft.received_on.isoformat() if draft.received_on else "")
-    expires = v.get("expires_on") or (draft.expires_on.isoformat() if draft.expires_on else "")
+    expires = draft.expires_on.isoformat() if draft.expires_on else ""
     form = [("id", ""), ("from_order", f"{module.key}:{order.id}"), ("name", draft.name or ""),
             ("is_shared", "1" if draft.is_shared else "0"), ("received_on", received), ("expires_on", expires),
-            ("lot", v.get("lot", draft.lot or ""))]
+            ("lot", draft.lot or "")]
     form += [(k, getattr(draft, k) or "") for k in ("quantity", "unit", "vendor", "catalog_number", "notes")]
     form += [(f"attr_{k}", str(x)) for k, x in json.loads(draft.attrs or "{}").items() if not isinstance(x, dict)]
     if "location_note" in v:
@@ -2244,6 +2405,30 @@ def _entries_since(s, last: int) -> tuple[list[dict], int]:
     return out, (rows[-1].id if rows else last)
 
 
+def side_effects(values: dict, records: list[dict]) -> list[str]:
+    """What a change did that wasn't asked for, as its records show it: a
+    record no longer (or now) shared with the lab, as when a Breeder cage's
+    purpose changes (models._breeder_cages_start_shared)."""
+    if "shared" in values:
+        return []
+    out = []
+    for r in records:
+        changes = r.get("changes") if isinstance(r.get("changes"), dict) else {}
+        shared = (changes.get("changes") or {}).get("is_shared") if isinstance(changes, dict) else None
+        if r.get("action") == "create" or not isinstance(shared, list) or len(shared) != 2 \
+                or bool(shared[0]) == bool(shared[1]):
+            continue
+        name = r.get("label") or f"#{r.get('id')}"
+        if r.get("table") == "mouse_cages":
+            out.append(gettext("Cage %(cage)s will be shared with the lab, as Breeder cages are, for anyone to Pick from.", cage=name)  # noqa: E501
+                       if shared[1] else
+                       gettext("Cage %(cage)s will no longer be shared with the lab: only Breeder cages are shared on their own. Its owner can share it again.", cage=name))  # noqa: E501
+        else:
+            out.append(gettext("%(record)s will be shared with the lab.", record=name) if shared[1] else
+                       gettext("%(record)s will no longer be shared with the lab.", record=name))
+    return out
+
+
 def run(app, username: str, changes: list[dict], apply: bool = False, label: str = "",
         description: str = "", lang: str = "en", source: str = "") -> Outcome:
     """Run `changes` as `username`, in order, in one transaction: a preview
@@ -2289,6 +2474,7 @@ def _run(app, username, changes, apply, label, description, lang) -> Outcome:
         for raw in changes:
             out = ChangeOutcome(str(raw.get("action", "")) if isinstance(raw, dict) else "")
             outcomes.append(out)
+            values: dict = {}
             step = tx.savepoint()
             try:
                 if not isinstance(raw, dict):
@@ -2301,6 +2487,8 @@ def _run(app, username, changes, apply, label, description, lang) -> Outcome:
                     values = clean(act, raw)
                     out.summary = act.describe(s, record, values)
                     calls = act.build(s, record, values)
+                    if act.warn is not None:
+                        out.warnings += act.warn(s, record, values)
             except ActionError as exc:
                 out.ok = False
                 out.errors.append(str(exc))
@@ -2320,6 +2508,7 @@ def _run(app, username, changes, apply, label, description, lang) -> Outcome:
                 step.commit()
                 with SessionLocal() as s:
                     out.records, last = _entries_since(s, last)
+                out.warnings += side_effects(values, out.records)
             else:
                 step.rollback()
                 if apply:

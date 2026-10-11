@@ -37,6 +37,8 @@ MAX_SUMMARY = 2000
 STATUSES = ("pending", "approved", "discarded", "superseded", "expired", "invalid", "sent_back")
 MAX_EVIDENCE = 300
 MAX_REASON = 300
+# What a new proposal's `replaces` supersedes.
+REPLACEABLE = ("pending", "sent_back", "invalid")
 # What each database's changes are listed under on Proposed changes.
 AREAS = {"mice": "Mouse colony", "zebrafish": "Zebrafish", "stocks": "Flies and worms",
          "organisms": "Other organisms", "experiments": "Experiments", "notebook": "Notebook",
@@ -136,9 +138,13 @@ def create(app, session, owner: str, changes, summary: str = "", source: str = "
             warnings_json=json.dumps(out.warnings, ensure_ascii=False),
             records_json=json.dumps(out.records, ensure_ascii=False, default=str)))
     if replaces:
+        # A corrected proposal replaces one of the same person's not yet
+        # decided for good (waiting, sent back or invalid): superseded.
         earlier = session.get(Proposal, replaces)
-        if earlier is not None and earlier.owner_username == owner and earlier.status == "pending":
-            earlier.status, earlier.decided_at = "superseded", now
+        if earlier is not None and earlier.owner_username == owner and earlier.id != p.id:
+            p.replaces_id = earlier.id
+            if earlier.status in REPLACEABLE:
+                earlier.status, earlier.decided_at = "superseded", now
     if p.status == "pending":
         from . import notify
         notify.send(session, owner, "Proposed changes from %(source)s", category="general",
@@ -161,8 +167,10 @@ def changes_of(session, p: Proposal) -> list[ProposalChange]:
                                 .order_by(ProposalChange.position)))
 
 
-def as_dict(session, p: Proposal, full: bool = False) -> dict:
-    """A proposal as the API and the page show it."""
+def as_dict(session, p: Proposal, full: bool = False, records: bool = False) -> dict:
+    """A proposal as the API and the page show it. `full` adds each change's
+    request and records (before → after); `records` the records alone, as
+    the reply to a new proposal, so what else a change does shows at once."""
     rows = changes_of(session, p)
     requests = [json.loads(c.request_json or "{}") for c in rows]
     out = {"id": p.id, "status": p.status, "source": p.source, "summary": p.summary,
@@ -175,8 +183,8 @@ def as_dict(session, p: Proposal, full: bool = False) -> dict:
            "changes": [{"action": c.action, "area": c.area, "summary": c.summary, "ok": c.ok,
                         "errors": json.loads(c.errors_json or "[]"), "warnings": json.loads(c.warnings_json or "[]"),
                         **({"evidence": evidence_of(req)} if evidence_of(req) else {}),
-                        **({"request": req,
-                            "records": json.loads(c.records_json or "[]")} if full else {})}
+                        **({"request": req} if full else {}),
+                        **({"records": json.loads(c.records_json or "[]")} if full or records else {})}
                        for c, req in zip(rows, requests)]}
     out["captures"] = json.loads(p.captures_json or "[]")
     out["reason"] = p.reason or None

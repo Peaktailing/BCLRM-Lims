@@ -201,7 +201,9 @@ reference from resolve ({"kind": "cage", "id": 412}) or what the lab writes on t
 change its evidence, shown to the person beside it: {"quote": the words of their notes it comes from, or \
 what the photo shows (at most 300 characters), "capture": the capture's id, "where": where in it}. Made \
 from captures? Set captures to their ids: they are marked used when the person approves. The \
-reply has each change's summary, warnings and errors, and the review_url to give the person."""
+reply has each change's summary, warnings, errors and records (each record it would change, field: \
+before → after; check them for what else a change does), and the review_url to give the person. \
+Correcting an earlier proposal (sent back, invalid or still waiting)? Set replaces to its id."""
 
 
 # ---------------------------------------------------------------- tools and prompts, described once
@@ -345,8 +347,12 @@ def experiment_summary(api: Api, experiment_id: int) -> dict:
 _REF = {"type": "object", "description": "The record's reference, {\"kind\", \"id\"}, from resolve or search"}
 _KIND = {"type": "string", "description": "Instead of ref: what it is (mouse, cage, plasmid, stock_unit…)"}
 _CODE = {"type": "string", "description": "With kind: what the lab writes on it (1043, 88, FV12)"}
-_LOCI = {"type": "object", "description": "Each locus as the lab writes it in genotypes (lab_overview's "
-                                          "transgenes_in_use: Cre, Foxp3…) → wt, het, hom or carrier"}
+_WANT = {"type": "object", "description": "The genotype wanted. Each key is a locus (an allele or transgene as the lab "
+                                          "writes it in genotypes: Cre, Foxp3, Ai14) → wt, het, hom or carrier "
+                                          "(het or hom). A strain or background (C57BL/6J, BALB/c; lab_overview's "
+                                          "strains and their backgrounds) is not a locus, though transgenes_in_use "
+                                          "may list it: {\"C57BL/6J\": \"hom\"} means both parents of that strain, "
+                                          "and it has no het or wt."}
 
 TOOLS.update({
     "search": (
@@ -386,7 +392,7 @@ TOOLS.update({
         "lab's own breeders (or the crosses given), the lab's own litter size, weaning at P21, and how many matings "
         "to set up by which date for `count` mice of that genotype and sex, aged within the window on `by`. Tell "
         "the person the assumptions it lists, and which breeders it was unsure how to read.",
-        _obj({"want": _LOCI, "sex": {"type": "string", "enum": ["F", "M"]},
+        _obj({"want": _WANT, "sex": {"type": "string", "enum": ["F", "M"]},
               "count": {"type": "integer", "description": "How many mice are wanted"},
               "age_min_days": {"type": "integer"}, "age_max_days": {"type": "integer"},
               "by": {"type": "string", "description": "When they are needed, YYYY-MM-DD"},
@@ -397,8 +403,9 @@ TOOLS.update({
         lambda api, a: breeding_plan(api, a)),
     "randomize": (
         "Allocate mice to named groups, balanced by sex, litter (or cage) and weight, from a seed that gives the "
-        "same allocation again; returns the groups, the seed and a balance table. Changes nothing: with experiment "
-        "it also returns the experiment_add_animals changes to propose.",
+        "same allocation again; returns the allocation, the seed and a balance table. Changes nothing. For a new "
+        "design it returns groups in experiment_new's shape: pass groups and seed to experiment_new as they are. "
+        "With experiment (an existing one) it also returns the experiment_add_animals changes to propose.",
         _obj({"animals": {"type": "array", "items": {}, "description": "The mice: numbers or references"},
               "groups": {"type": "array", "items": {},
                          "description": "Group names, or {name, size} for each when the sizes differ"},
@@ -408,7 +415,8 @@ TOOLS.update({
              ("animals", "groups")),
         lambda api, a: randomize(api, a)),
     "power_analysis": (
-        "Animals per group, computed exactly by BioManager: two groups (t-test) or more (one-way ANOVA), from the "
+        "Animals per group, computed exactly by BioManager: two groups (a t-test planned with one SD; the "
+        "experiment's Welch's t-test has the same power then) or more (one-way ANOVA), from the "
         "smallest difference worth detecting and the SD (or each group's expected mean, or Cohen's d), alpha, "
         "power and the share expected to be lost. With experiment (and day), the SD is that experiment's own "
         "readouts'. Never work out a sample size yourself.",

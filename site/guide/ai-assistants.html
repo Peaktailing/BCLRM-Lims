@@ -195,10 +195,12 @@
       <h2 id="what-it-can-do">What it can propose</h2>
       <ul>
         <li>In the mouse colony, zebrafish, fly and worm databases and any other organism's: the everyday records. New animals,
-          cages, tanks and vials; litters, weaning, moves and deaths; crosses, clutches and flips; weights and readings;
-          scheduled jobs done.</li>
-        <li>In your inventories: a new item, a change, an amount used (the item turns low at its <b>Low at</b>), an order
-          received (and added to stock), a sample taken from an animal.</li>
+          cages, tanks and vials; litters (with how many pups were born), weaning, moves and deaths; crosses, clutches and
+          flips; weights and readings; scheduled jobs done.</li>
+        <li>In your inventories: a new item, a change, an amount used (the item turns low at its <b>Low at</b>; say it in
+          another unit of weight or volume, <i>40 mg</i> of an item kept in g, and BioManager converts it), an order
+          received (and added to stock under the name, amount and unit your stock keeps), a sample taken from an
+          animal.</li>
         <li>In plasmids: a new plasmid (with its sequence pasted as GenBank or FASTA), a change, a glycerol stock, a primer or
           a primer pair.</li>
         <li>In an experiment: a step done, a readout, animals added, its status, a note; and a new, <b>planned</b> experiment
@@ -216,10 +218,12 @@
         <li><b>Which animals are free</b>: by genotype, sex and age on a date, leaving out those in experiments and breeding
           cages.</li>
         <li><b>A breeding plan</b>: <i>I need 12 Cre⁺ fl/fl males at 8 weeks by March 1.</i> The odds for each mating, from the
-          breeders you have; how many matings to set up, and by when; your line's own litter sizes.</li>
+          breeders you have; how many matings to set up, and by when; your line's own litter sizes. A strain (C57BL/6J,
+          BALB/c) isn't an allele: wanting it means both parents of that strain.</li>
         <li><b>Animals per group</b>: from the difference you want to see and the spread in your own past readouts (the same
           numbers G*Power gives).</li>
-        <li><b>Random groups</b>: balanced for sex and litter, with weights even across groups; the seed is kept.</li>
+        <li><b>Random groups</b>: balanced for sex and litter, with weights even across groups; the seed is kept, in a
+          new experiment's description.</li>
         <li><b>When stock runs out</b>: from how fast each item has been used.</li>
       </ul>
       <p><b>Designing an experiment.</b> Tell it the question (<i>does deleting Il33 in airway epithelium reduce
@@ -246,10 +250,12 @@
       <p>A proposal tells you (the bell) and waits under <b>Proposed changes</b> in your account menu.</p>
       <ul>
         <li>Each proposal is one summary in plain words: what will change in each database, with any warnings at the top (a
-          litter date that would be replaced, pups too young to wean). <b>Show each change</b> lists every record, before → after,
+          litter date that would be replaced, pups too young to wean, a cage that would stop being shared with the lab, an
+          item of that name already in stock). <b>Show each change</b> lists every record, before → after,
           and under each, what it came from: <i>From your notes: "…"</i>, or the capture and its photo.</li>
         <li><b>Approve</b> makes every change at once; <b>Discard</b> makes none. If something is wrong, <b>Send back</b> with a
-          line saying what: the assistant reads it and proposes again, corrected.</li>
+          line saying what: the assistant reads it and proposes again, corrected, and the new proposal takes the old one's
+          place.</li>
         <li>An approved proposal is one batch in <b>Batch history</b>, marked with the assistant's name, so <b>Undo</b> takes it
           back whole (a line added to the notebook stays).</li>
         <li>If a record it touches was changed after the proposal was made, or a change no longer goes through, nothing is applied
@@ -277,7 +283,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 7 min read</p>
+      <p>On this page · 8 min read</p>
       <ol>
         <li class="lvl2"><a href="#connect">Connect an assistant</a></li>
         <li class="lvl2"><a href="#use-it">What to say</a></li>

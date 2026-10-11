@@ -322,7 +322,8 @@ def power(k: int = 2, difference: float | None = None, sd: float | None = None, 
     found = n_per_group(k, spread, alpha, target)
     n = found["n"]
     enrol = math.ceil(n / (1 - attrition)) if attrition else n
-    test = "two-sided two-sample t-test (equal variances)" if k == 2 else f"one-way ANOVA, {k} groups"
+    test = ("two-sided two-sample t-test, planned with the same SD in both groups" if k == 2
+            else f"one-way ANOVA, {k} groups")
     out = {"n_per_group": n, "total": n * k, "enrol_per_group": enrol, "enrol_total": enrol * k,
            "achieved_power": found["power"], "test": test, "alpha": alpha, "power": target,
            "effect": {"cohens_d": round(math.sqrt(2 * spread), 4)} if k == 2
@@ -331,6 +332,12 @@ def power(k: int = 2, difference: float | None = None, sd: float | None = None, 
                      "λ = n·Σ(μᵢ − μ̄)²/σ², the smallest n per group reaching the power.",
            "assumptions": ["Normally distributed readout with the same SD in every group.",
                            "Equal group sizes; animals independent (the animal is the experimental unit)."]}
+    if k == 2:
+        out["assumptions"].append("The test run on the results is Welch's t-test (what an experiment's page and "
+                                  "experiment_new's planned_test welch use), which doesn't assume equal SDs. Planned "
+                                  "with one SD and equal group sizes, it has practically the same power as this "
+                                  "calculation, so the two agree; if the groups' SDs are expected to differ much, "
+                                  "plan with the larger SD.")
     if k > 2 and not means and d is None:
         out["assumptions"].append("Only the smallest difference worth detecting was given: two groups that far "
                                   "apart and the others midway, the least favourable case.")
@@ -801,19 +808,56 @@ def lab_litter_size(session, loci: list[str]) -> dict:
             "kept_source": kept_source}
 
 
-def lab_breeders(session, loci: list[str], today: date) -> list[dict]:
-    """Living mice in Breeder and Breeding cages, each read at the loci."""
+# Strains and backgrounds, which a lab writes in a mouse's genotype beside
+# its alleles ("C57BL/6J; Cre") and which lab_overview's transgenes_in_use
+# lists with them: not loci. An inbred strain breeds true, so a strain
+# wanted means both parents of it, never a het or wt call.
+BACKGROUND = re.compile(r"c57bl(/\w+)?|b6[jn]?|balb/?c\w*|129[\w/]*|fvb(/n\w*)?|dba/?[12]\w*|cd-?1|icr|c3h(/\w+)?|"
+                        r"nod(/\w+)?|nsg|nod[ .-]?scid[\w ]*|sjl(/\w+)?|swiss( webster)?|cba(/\w+)?|a/j|nzb(/\w+)?|"
+                        r"nzw(/\w+)?|akr(/\w+)?|cast/eij|pwk/phj|wsb/eij|outbred|mixed( background)?")
+
+
+def _plain(text: str) -> str:
+    return " ".join(str(text or "").lower().split())
+
+
+def lab_strains(session) -> set[str]:
+    """The lab's strains' backgrounds (Strains' Background column), and any
+    strain whose name is a background itself, as plain lower-case text."""
+    from .models import StrainRecord
+    out = set()
+    for name, background in session.execute(select(StrainRecord.strain_name, StrainRecord.strain_background)):
+        if _plain(background):
+            out.add(_plain(background))
+        if _plain(name) and (_plain(name) == _plain(background) or BACKGROUND.fullmatch(_plain(name))):
+            out.add(_plain(name))
+    return out
+
+
+def is_strain(name: str, known: set[str]) -> bool:
+    """Whether a name is a strain or background (C57BL/6J, BALB/c, the
+    lab's own backgrounds) rather than an allele or transgene."""
+    return _plain(name) in known or BACKGROUND.fullmatch(_plain(name)) is not None
+
+
+def lab_breeders(session, loci: list[str], today: date, strains: list[str] | None = None) -> list[dict]:
+    """Living mice in Breeder and Breeding cages (of every strain asked,
+    as their genotype names it), each read at the loci."""
     from sqlalchemy.orm import selectinload
     from .models import CageRecord, MouseRecord
-    from .services import SAC_THRESHOLD_WEEKS, holds_breeders, mouse_is_active
+    from .services import SAC_THRESHOLD_WEEKS, holds_breeders, mouse_is_active, split_genotype
+    known = lab_strains(session)
     out = []
     for m in session.scalars(select(MouseRecord).join(CageRecord, MouseRecord.cage_id_fk == CageRecord.id)
                              .options(selectinload(MouseRecord.cage), selectinload(MouseRecord.litter))
                              .where(MouseRecord.date_of_death.is_(None)).order_by(MouseRecord.mouse_id)):
         if not (mouse_is_active(m) and holds_breeders(m.cage.purpose)) or (m.gender or "").upper() not in ("F", "M"):
             continue
-        read = {locus: read_locus(m.genotype or "; ".join(filter(None, [m.transgene_1, m.transgene_2])), locus,
-                                  only_locus=len(loci) == 1) for locus in loci}
+        parts = split_genotype(m.genotype or "; ".join(filter(None, [m.transgene_1, m.transgene_2])))
+        if any(_plain(s) not in {_plain(p) for p in parts} for s in strains or []):
+            continue
+        alleles = "; ".join(p for p in parts if not is_strain(p, known))    # a strain is no locus's state
+        read = {locus: read_locus(alleles, locus, only_locus=len(loci) == 1) for locus in loci}
         born = m.litter.date_of_birth if m.litter else None
         weeks = (today - born).days // 7 if born else None
         out.append({"mouse": m.mouse_id, "ref": {"kind": "mouse", "id": m.id}, "sex": m.gender.upper(),
@@ -832,10 +876,29 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
     today = today or date.today()
     if not isinstance(want, dict) or not want:
         raise ValueError("Say the genotype wanted at each locus, e.g. {\"Cre\": \"carrier\", \"Foxp3\": \"hom\"}.")
-    want = {str(locus).strip(): state(value, wanted=True) for locus, value in want.items() if str(locus).strip()}
-    if not 1 <= len(want) <= MAX_LOCI:
+    known, strains, loci_wanted = lab_strains(session), [], {}
+    for key, value in want.items():
+        key = str(key).strip()
+        if not key:
+            continue
+        if is_strain(key, known):
+            if SAY.get(str(value or "").strip().lower()) not in ("hom", "carrier", "any"):
+                raise ValueError(f"{key} is a strain (a background), not an allele or transgene: an inbred strain "
+                                 f"breeds true, so it has no het or wt. Ask for {{\"{key}\": \"hom\"}} to have both "
+                                 f"parents {key}, or name the allele or transgene you mean (Cre, Foxp3 fl…).")
+            strains.append(key)
+        else:
+            loci_wanted[key] = state(value, wanted=True)
+    want = loci_wanted
+    if not want and not strains:
+        raise ValueError("Say the genotype wanted at each locus, e.g. {\"Cre\": \"carrier\", \"Foxp3\": \"hom\"}.")
+    if len(want) > MAX_LOCI:
         raise ValueError(f"Plan one to {MAX_LOCI} loci at a time.")
     loci = list(want)
+
+    def named(genotype: dict) -> str:
+        """A parent as the plan says it: its strain, then each locus."""
+        return "; ".join(filter(None, [*strains, label(genotype, loci)]))
     sex = (sex or "").strip().upper()
     if sex not in ("", "F", "M"):
         raise ValueError("sex is F, M or left out.")
@@ -844,7 +907,7 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
     if not 0.5 <= confidence < 1:
         raise ValueError("confidence is between 0.5 and 0.99.")
     by = _day(by)
-    litter = lab_litter_size(session, loci)
+    litter = lab_litter_size(session, loci or strains)
     pups = litter["mean"] * litter["kept"]
     p_sex = 0.5 if sex else 1.0
 
@@ -853,14 +916,14 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
         for c in crosses:
             female = {locus: state((c.get("female") or {}).get(locus, "wt")) for locus in loci}
             male = {locus: state((c.get("male") or {}).get(locus, "wt")) for locus in loci}
-            plans.append({"female": label(female, loci), "male": label(male, loci),
+            plans.append({"female": named(female), "male": named(male),
                           "odds": cross_odds(female, male, want), "females": None, "males": None})
         breeders = []
     else:
-        breeders = lab_breeders(session, loci, today)
+        breeders = lab_breeders(session, loci, today, strains)
         kinds: dict[tuple[str, str], list[dict]] = {}
         for b in breeders:
-            kinds.setdefault((b["sex"], label(b["read_as"], loci)), []).append(b)
+            kinds.setdefault((b["sex"], named(b["read_as"])), []).append(b)
         for (fsex, flabel), females in kinds.items():
             if fsex != "F":
                 continue
@@ -909,12 +972,21 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
         f"matings: enough to have {count} with {confidence:.0%} confidence (binomial); matings_on_average: "
         "enough on average.",
     ]
+    for strain in strains:
+        assumptions.insert(0, f"{strain} is a strain (a background), not a locus: an inbred strain breeds true, so "
+                              f"both parents are {strain} and every pup is (odds 1 for it). "
+                              + ("Only breeders whose genotype names it were counted." if not crosses else
+                                 "The crosses given are taken to be of it."))
     if not plans:
         assumptions.append("No pair of the lab's breeders (living mice in Breeder and Breeding cages) can give this "
                            "genotype as their genotypes read: best_possible lists the crosses that would.")
-    return {"want": want, "sex": sex or "any", "count": count, "litter_size": litter["mean"],
+    best = best_crosses(want)
+    for cross in best:
+        cross["female"] = "; ".join(filter(None, [*strains, cross["female"]]))
+        cross["male"] = "; ".join(filter(None, [*strains, cross["male"]]))
+    return {"want": want, "strains": strains, "sex": sex or "any", "count": count, "litter_size": litter["mean"],
             "pups_weaned_per_litter": round(pups, 2), "crosses": plans[:12],
-            "best_possible": best_crosses(want), "timing": timing,
+            "best_possible": best, "timing": timing,
             "breeders": breeders[:200], "assumptions": assumptions}
 
 
@@ -981,8 +1053,11 @@ def randomize(session, animals: list, groups: list, seed: int | None = None, by:
                      "first, each to the group with room that leaves the groups least unequal in sex, then "
                      f"{by}, then mean weight, then size; the seed breaks ties (and picks any spares). The same "
                      "mice, groups and seed give the same allocation.",
-           "note": "Nothing has changed. To put them in the experiment, propose experiment_add_animals, one change "
-                   "per group."}
+           # experiment_new's groups, as they are: a new design takes these and the seed straight.
+           "groups": [{"name": g["group"], "animals": [a["ref"] for a in g["animals"]]} for g in allocation],
+           "note": "Nothing has changed. For a new design, pass groups and seed as they are to experiment_new (its "
+                   "groups and seed fields). For an existing experiment, propose experiment_add_animals, one change "
+                   "per group (propose, when experiment is given)."}
     if experiment is not None:
         out["propose"] = [{"action": "experiment_add_animals", "target": {"kind": "experiment", "id": int(experiment)},
                            "fields": {"mice": g["mice"], "group": g["group"]}} for g in allocation if g["mice"]]

@@ -1696,10 +1696,20 @@ page itself.
   notebook and the calendar. Inventory items are written through the API's
   item writes (`_item_from_form`), so required columns, statuses and Low at
   behave as on the sheet. `inventory_quantity_used` takes an amount off a
-  numeric quantity, and the status follows Low at. `order_received` marks an
+  numeric quantity, and the status follows Low at; an amount in another unit
+  ("40 mg", or `unit`) is converted within mass or volume (`UNITS`, powers
+  of ten), any other unit only matching itself. `order_received` marks an
   order received; with `to_stock` it saves the stock record that **Add to
-  stock** would make (`_stock_from_order`) with `from_order`, so the two are
-  linked. `sample_from_animal` fills a sample's Source with the mouse, tank
+  stock** would make (`_stock_from_order`, with `name`, `quantity`, `unit`
+  and the rest given over it: `_restock`) with `from_order`, so the two are
+  linked; its summary lists the new record's name, amount, lot and expiry,
+  and its `warn` names an item of the same name already in that inventory.
+  An `Action`'s optional `warn(s, target, values)` adds warnings of its own;
+  `side_effects()` adds one for a record whose sharing changed though
+  `shared` wasn't asked (a cage leaving Breeder is un-shared by
+  `models._breeder_cages_start_shared`). `litter_born` with `pups` adds
+  "<date>: litter born, N pups" to the cage's notes: the cage keeps a birth
+  date only, and the count is the litter's once genotyping makes it. `sample_from_animal` fills a sample's Source with the mouse, tank
   or animal. Plasmids go through `/plasmids` and `/plasmids/<id>/update`,
   with a pasted sequence through upload-sequence. Glycerol stocks and primers
   are items in those inventories, and a primer pair goes through
@@ -1728,9 +1738,12 @@ page itself.
   left out of members' lab copies (`lab_copy.ADMIN_ONLY`).
 - `create()` previews with `actions.run` in the owner's language
   (`i18n.language_for`; `contained.run(lang=…)` makes the pages answer in
-  it too), stores the result (pending, or invalid with the reasons), marks
-  `replaces` superseded and notifies the owner (`notify.send`, linking to
-  `/proposals`). It commits the session's read before the preview starts,
+  it too), stores the result (pending, or invalid with the reasons), keeps
+  `replaces` (one of the owner's) as `replaces_id` and marks it superseded
+  when it is pending, sent back or invalid (`REPLACEABLE`), and notifies the
+  owner (`notify.send`, linking to `/proposals`). `POST /proposals` answers
+  with each change's records (`as_dict(records=True)`), so an assistant sees
+  every before → after at once. It commits the session's read before the preview starts,
   so SQLite's lock is not held across it.
 - `approve()` refuses unless pending; refuses when a record the preview
   changed (not one it made) has a change-history row after `audit_mark`
@@ -1814,10 +1827,17 @@ record in a database they can't open, history shows only their own changes
 unless they are an admin, and search is the ⌘K search
 (`app.search_results`, which gives each match a `ref`). The genotype model
 counts copies of the allele that matters at each autosomal, unlinked locus
-(one to three loci); litter sizes are the line's own mean when it has three
+(one to three loci); a strain or background wanted (`is_strain`: the
+`BACKGROUND` pattern, C57BL/6J, BALB/c…, or a background in the lab's
+Strains, `lab_strains`) is no locus but both parents of it, odds 1, with
+breeders whose genotype names it (and asking it het or wt is refused);
+litter sizes are the line's own mean when it has three
 litters with pup counts, else the lab's, else 6; power is exact, from the
 noncentral F distribution over `exp_stats.inc_beta` (two groups are the t² =
-F case), and matches G*Power. The pure parts (genotype model, binomial
+F case, planned with one SD; the experiment's Welch's test has practically
+the same power then, as its assumptions say), and matches G*Power.
+`randomize` also returns `groups` in `experiment_new`'s shape, which takes
+them and the `seed` (kept in the description) as they are. The pure parts (genotype model, binomial
 matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
 builder) take plain values and are tested in
 `tests/test_assistant_compute.py`; the endpoints in `tests/test_api_compute.py`.

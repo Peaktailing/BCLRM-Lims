@@ -1555,9 +1555,9 @@ At the rack you rarely have time for a conversation. **Capture** keeps what you'
 
 ### What it can propose
 
-- In the mouse colony, zebrafish, fly and worm databases and any other organism's: the everyday records. New animals, cages, tanks and vials; litters, weaning, moves and deaths; crosses, clutches and flips; weights and readings; scheduled jobs done.
+- In the mouse colony, zebrafish, fly and worm databases and any other organism's: the everyday records. New animals, cages, tanks and vials; litters (with how many pups were born), weaning, moves and deaths; crosses, clutches and flips; weights and readings; scheduled jobs done.
 
-- In your inventories: a new item, a change, an amount used (the item turns low at its **Low at**), an order received (and added to stock), a sample taken from an animal.
+- In your inventories: a new item, a change, an amount used (the item turns low at its **Low at**; say it in another unit of weight or volume, *40 mg* of an item kept in g, and BioManager converts it), an order received (and added to stock under the name, amount and unit your stock keeps), a sample taken from an animal.
 
 - In plasmids: a new plasmid (with its sequence pasted as GenBank or FASTA), a change, a glycerol stock, a primer or a primer pair.
 
@@ -1575,11 +1575,11 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 
 - **Which animals are free**: by genotype, sex and age on a date, leaving out those in experiments and breeding cages.
 
-- **A breeding plan**: *I need 12 Cre⁺ fl/fl males at 8 weeks by March 1.* The odds for each mating, from the breeders you have; how many matings to set up, and by when; your line's own litter sizes.
+- **A breeding plan**: *I need 12 Cre⁺ fl/fl males at 8 weeks by March 1.* The odds for each mating, from the breeders you have; how many matings to set up, and by when; your line's own litter sizes. A strain (C57BL/6J, BALB/c) isn't an allele: wanting it means both parents of that strain.
 
 - **Animals per group**: from the difference you want to see and the spread in your own past readouts (the same numbers G*Power gives).
 
-- **Random groups**: balanced for sex and litter, with weights even across groups; the seed is kept.
+- **Random groups**: balanced for sex and litter, with weights even across groups; the seed is kept, in a new experiment's description.
 
 - **When stock runs out**: from how fast each item has been used.
 
@@ -1597,9 +1597,9 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 
 A proposal tells you (the bell) and waits under **Proposed changes** in your account menu.
 
-- Each proposal is one summary in plain words: what will change in each database, with any warnings at the top (a litter date that would be replaced, pups too young to wean). **Show each change** lists every record, before → after, and under each, what it came from: *From your notes: "…"*, or the capture and its photo.
+- Each proposal is one summary in plain words: what will change in each database, with any warnings at the top (a litter date that would be replaced, pups too young to wean, a cage that would stop being shared with the lab, an item of that name already in stock). **Show each change** lists every record, before → after, and under each, what it came from: *From your notes: "…"*, or the capture and its photo.
 
-- **Approve** makes every change at once; **Discard** makes none. If something is wrong, **Send back** with a line saying what: the assistant reads it and proposes again, corrected.
+- **Approve** makes every change at once; **Discard** makes none. If something is wrong, **Send back** with a line saying what: the assistant reads it and proposes again, corrected, and the new proposal takes the old one's place.
 
 - An approved proposal is one batch in **Batch history**, marked with the assistant's name, so **Undo** takes it back whole (a line added to the notebook stays).
 

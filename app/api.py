@@ -1197,7 +1197,7 @@ def proposal_create():
                                  token_id=g.api_token.id or None, replaces=replaces, captures=data.get("captures"))
         except proposals.ProposalError as error:
             abort(400, str(error))
-        body = proposals.as_dict(s, p)
+        body = proposals.as_dict(s, p, records=True)
     body["review_url"] = url_for("proposals.page", _external=True) + f"#proposal-{body['id']}"
     return jsonify(body), 201
 

@@ -79,8 +79,8 @@ class More(Base):
         self.assertIn("can't be approved", " ".join(t for _c, t in flashes(r)))
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
         r, _ = self.propose(litter(cage, days_ago(2)), replaces=pid)
-        self.assertEqual(r.get_json()["status"], "pending")
-        self.assertEqual(one("select status from proposals where id=?", pid), "sent_back")
+        self.assertEqual((r.get_json()["status"], r.get_json()["replaces"]), ("pending", pid))
+        self.assertEqual(one("select status from proposals where id=?", pid), "superseded")
 
     def test_made_from_captures_they_are_used_when_approved(self):
         photo = self.capture(self.m, "litter in my cage", png=True)
