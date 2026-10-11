@@ -401,6 +401,22 @@ class DesktopTests(CopyCase):
         from app import lab_copy
         return lab_copy.copies_dir(self.server)
 
+    def test_a_copy_opens_with_the_lab_s_key_or_this_computer_s_own(self):
+        # A member's computer has no lab key: it reads its copy with its own.
+        from pyrage import x25519
+        from app import lab_copy, lab_key
+        from app.db import SessionLocal
+        the_lab = x25519.Identity.generate()
+        with tempfile.TemporaryDirectory() as tmp:
+            plain, locked = Path(tmp) / "copy.db", Path(tmp) / "copy.db.age"
+            plain.write_bytes(b"what the member can see")
+            lab_key.lock_file(plain, locked, lab_copy._recipients(str(the_lab.to_public())))
+            with SessionLocal() as s:
+                mine = lab_key.identities(s)
+            for keys in ([the_lab], mine):
+                self.assertEqual(lab_copy.open_copy(locked, Path(tmp) / "out.db", keys).read_bytes(),
+                                 b"what the member can see")
+
     def test_a_copy_arrives_checked_with_its_uploaded_files(self):
         from app.paths import uploads_dir
         name = f"{uniq('mirror')}.txt"

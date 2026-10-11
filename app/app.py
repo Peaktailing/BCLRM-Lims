@@ -24,6 +24,7 @@ from .formutil import form_changed
 # audit_log rows for every tracked change; nothing here calls into it.
 from . import audit  # noqa: F401
 from . import sync_clock  # noqa: F401  (numbers each change to what devices keep)
+from . import lab_devices
 from . import undo as undo_service
 from . import custom_fields, feature_library, feature_pack, plannotate, plasmid_lineage, plasmid_versions, primer_records  # noqa: E402
 from .models import (
@@ -336,6 +337,17 @@ def load_current_user():
         g.lang = i18n.DEFAULT
         api.authenticate()
         return
+    # A device that joined the lab (the desktop's relay, a phone syncing): its
+    # token alone signs it in, as its person (app/lab_devices.py).
+    g.device = None
+    if lab_devices.authenticate():
+        if g.user is not None:
+            # Their language from Settings; else the window's own (Accept-Language).
+            with SessionLocal() as db_session:
+                chosen = i18n.preference(db_session, g.user.username)
+            if chosen in i18n.LANGUAGES:
+                g.lang = chosen
+        return
     user_id = session.get("user_id")
     g.user = None
     if user_id is None:
@@ -348,7 +360,8 @@ def load_current_user():
         if (user is None or getattr(user, "disabled", False)
                 or (user.expires_at is not None and user.expires_at <= datetime.utcnow())
                 or not security.session_matches(session.get("auth"), user, db_session)
-                or security.signed_out(db_session)):
+                or security.signed_out(db_session)
+                or not lab_devices.browser_ok(db_session, user)):
             session.clear()
             g.user = None
             return
@@ -394,6 +407,8 @@ app.jinja_env.filters["initials"] = door.initials
 # The whole lab as one file, and moving it to a server (app/lab_move.py).
 from . import lab_move  # noqa: E402
 app.register_blueprint(lab_move.bp)
+# Devices that joined the lab, each signed in on its own (app/lab_devices.py).
+app.register_blueprint(lab_devices.bp)
 # Whether this request is the desktop app's own window (not a network visitor).
 app.jinja_env.globals["this_computer"] = lambda: devices.on_this_computer()
 
@@ -2778,6 +2793,7 @@ def restore_lab():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    lab_devices.forget_browser()
     with SessionLocal() as db_session:
         security.sign_out(db_session)
     flash(gettext("You have been signed out."), "success")

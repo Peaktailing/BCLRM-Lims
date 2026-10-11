@@ -29,7 +29,8 @@ from .i18n import gettext
 from .models import UserAccount
 
 bp = Blueprint("door", __name__)
-FOUND_LAB = "door_found_lab"            # the lab /open-lab found, until Open is pressed
+FOUND_LAB = "door_found_lab"            # the lab /open-lab found, until this computer joins it
+PAIRING = "door_pairing"                # a code /open-lab is waiting to have approved
 
 # Someone asking the lab's admins for something, from one address: a few an
 # hour (the form is open to anyone who can reach the server).
@@ -235,19 +236,33 @@ def find_lab(text: str) -> dict | None:
 
 @bp.route("/open-lab", methods=["GET", "POST"])
 def open_lab():
-    """The desktop app, before any account: open the lab's BioManager in this
-    window instead of making one here. Nothing is created on this computer."""
-    from . import devices
-    if not devices.on_this_computer() or not no_accounts_yet():
+    """The desktop app: join the lab's BioManager as a device of its person
+    (app/desktop_join.py) and open it in this window, through the desktop's
+    relay; never the server's pages themselves. Nothing of this computer's
+    own lab is changed."""
+    from . import desktop_join, devices
+    if not devices.on_this_computer():
         abort(404)
-    found, address = None, (request.form.get("address") or "").strip()
-    if request.method == "POST" and request.form.get("action") == "open":
-        # Only now, on Open: until then Back changes nothing.
-        found = session.pop(FOUND_LAB, None)
+    found, address = None, (request.values.get("address") or "").strip()
+    action = request.form.get("action", "")
+    if request.method == "POST" and action in ("join", "pair"):
+        found = session.get(FOUND_LAB)
         if not found:
             return redirect(url_for("door.open_lab"))
-        devices._save_prefs(window_url=found["url"])
-        return devices.open_in_window(found["url"])
+        if action == "join":
+            result = desktop_join.join(found["url"], request.form.get("username", "").strip(),
+                                       request.form.get("password", ""))
+            if result["ok"]:
+                session.pop(FOUND_LAB, None)
+                return devices.open_in_window(desktop_join.start_relay())
+            flash(result["error"], "error")
+            return render("door/open_lab.html", found=found, address=address, username=request.form.get("username", ""))
+        started = desktop_join.pair_start(found["url"])
+        if not started.get("ok"):
+            flash(started["error"], "error")
+            return render("door/open_lab.html", found=found, address=address)
+        session[PAIRING] = {"url": found["url"], "secret": started["secret"], "code": started["code"]}
+        return render("door/open_lab.html", found=found, address=address, code=started["code"])
     if request.method == "POST":
         found = find_lab(address)
         if found is None:
@@ -256,7 +271,31 @@ def open_lab():
             session[FOUND_LAB] = found
     else:
         session.pop(FOUND_LAB, None)
+        session.pop(PAIRING, None)
+        if address:
+            # Sent here with the lab's address (a lab moved to a server, or
+            # given back to it): find it at once, to join it.
+            found = find_lab(address)
+            if found is not None:
+                session[FOUND_LAB] = found
     return render("door/open_lab.html", found=found, address=address)
+
+
+@bp.route("/open-lab/pair")
+def open_lab_pair():
+    """The joining page asks whether its code was approved yet."""
+    from . import desktop_join, devices
+    if not devices.on_this_computer():
+        abort(404)
+    pairing = session.get(PAIRING)
+    if not pairing:
+        return jsonify({"status": "expired"})
+    answer = desktop_join.pair_poll(pairing["url"], pairing["secret"])
+    if answer.get("status") == "approved":
+        session.pop(PAIRING, None)
+        session.pop(FOUND_LAB, None)
+        return jsonify({"status": "approved", "open": desktop_join.start_relay() + "/"})
+    return jsonify({"status": answer.get("status", "error"), "error": answer.get("error", "")})
 
 
 @bp.route("/lab-elsewhere", methods=["GET", "POST"])
@@ -267,10 +306,21 @@ def elsewhere():
     if not devices.on_this_computer():
         abort(404)
     url = devices.window_url()
+    host = urlparse(url).netloc
+    if url == "relay":
+        # The lab this computer joined opens through its relay (app/desktop_join.py).
+        from . import desktop_join
+        lab = desktop_join.joined()
+        url = desktop_join.start_relay() + "/" if lab else ""
+        host = urlparse(lab["server"]).netloc if lab else ""
+    elif url:
+        # A window that opened a server's address before joining was a thing:
+        # it joins that lab first.
+        url, host = url_for("door.open_lab", address=url), host
     if request.method == "POST" or not url:
         devices._save_prefs(window_url="")
         return redirect(url_for("index"))
-    return render("door/elsewhere.html", lab_url=url, lab_host=urlparse(url).netloc)
+    return render("door/elsewhere.html", lab_url=url, lab_host=host)
 
 
 # ---------------------------------------------------------------- after asking to join
@@ -404,7 +454,22 @@ def take_in(source: Path, admin: str = "", lab_keys: tuple[str, ...] = ()) -> di
               "files": manifest.get("files", 0), "rows": rows}
     if admin:
         result["key"] = _copy_key_for(admin)
+        result["device"] = _device_for(admin)
     return result
+
+
+def _device_for(username: str) -> dict | None:
+    """The desktop the lab came from joins it as a device of its admin
+    (app/lab_devices.py): it opens the lab through its relay from now on."""
+    from . import lab_devices
+    with SessionLocal() as s:
+        user = s.scalar(select(UserAccount).where(UserAccount.username == username))
+        if user is None or user.role != "admin":
+            return None
+        return lab_devices._joined(s, user, {
+            "name": request.headers.get("X-BioManager-Computer", "") or gettext("The desktop app it came from"),
+            "platform": request.headers.get("X-BioManager-Platform", ""),
+            "app_version": request.headers.get("X-BioManager-Version", "")})
 
 
 def _copy_key_for(username: str) -> str:

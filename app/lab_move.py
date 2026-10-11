@@ -109,10 +109,12 @@ def push(server: str, code: str, admin: str) -> dict:
         with SessionLocal() as s:
             secret = lab_key.current(s).secret
         with open(made, "rb") as body:
+            from . import desktop_join
             req = Request(f"{server}/lab/import", data=body, method="POST", headers={
                 "Content-Type": "application/octet-stream", "Content-Length": str(size), "Accept": "application/json",
                 "X-BioManager-Setup-Code": code, "X-BioManager-Admin": admin, "User-Agent": "BioManager desktop",
-                "X-BioManager-Lab-Key": secret})
+                "X-BioManager-Lab-Key": secret, "X-BioManager-Computer": desktop_join.computer_name().encode("ascii", "replace").decode(),
+                "X-BioManager-Platform": desktop_join._platform(), "X-BioManager-Version": devices.version()})
             try:
                 with urlopen(req, timeout=1800) as response:    # noqa: S310 (the server the admin typed)
                     return json.loads(response.read().decode("utf-8"))
@@ -152,11 +154,11 @@ def move():
             finally:
                 devices._swapping.clear()
             if result.get("ok"):
-                return _moved(found["url"], found["host"], result.get("key", ""))
+                return _moved(found["url"], found["host"], result.get("key", ""), result.get("device"))
     return render_template("lab_move/move.html", address=address, result=result)
 
 
-def _moved(server: str, host: str, key: str):
+def _moved(server: str, host: str, key: str, device: dict | None = None):
     """After the server took the lab: this computer keeps a copy of it, opens
     it in its window, and its own lab stays as it was, read only."""
     _, set_setting = lab_copy._settings()
@@ -169,8 +171,15 @@ def _moved(server: str, host: str, key: str):
                                           "since": datetime.utcnow().isoformat(timespec="seconds")})
         s.commit()
     devices.stop_sharing()
-    devices._save_prefs(window_url=server)
-    return devices.open_in_window(server)
+    if device and device.get("token"):
+        # The server made this computer a device of its admin: the lab opens
+        # here through the relay (app/desktop_join.py), and the daily copy
+        # is taken with the device's token.
+        from . import desktop_join
+        desktop_join._remember(server, device)
+        return devices.open_in_window(desktop_join.start_relay())
+    devices._save_prefs(window_url="")
+    return redirect(url_for("door.open_lab", address=server))
 
 
 @bp.route("/settings/devices/move/back", methods=["POST"])

@@ -347,9 +347,15 @@ class DesktopDeviceTests(DeviceCase):
         take.assert_called_once()
 
     def test_open_the_lab_in_this_window_and_come_back(self):
+        # Not joined yet: Open your lab, to join it as a device (tests/test_relay.py).
         r = self.a.post("/settings/devices/window", data={"to": "lab"})
-        self.assertGoesTo(r, self.server + "/")
-        self.assertEqual(self.prefs["window_url"], self.server)
+        self.assertEqual(r.headers["Location"], "/open-lab?address=" + self.server)
+        # Joined: through the relay.
+        with mock.patch("app.desktop_join.joined", return_value={"server": self.server}), \
+                mock.patch("app.desktop_join.start_relay", return_value="http://127.0.0.1:5999"):
+            r = self.a.post("/settings/devices/window", data={"to": "lab"})
+        self.assertGoesTo(r, "http://127.0.0.1:5999/")
+        self.assertEqual(self.prefs["window_url"], "relay")
         self.post(self.a, "/settings/devices/window", data={"to": "here"})
         self.assertEqual(self.prefs["window_url"], "")
 
@@ -399,7 +405,8 @@ class DesktopDeviceTests(DeviceCase):
         with SessionLocal() as s:
             self.assertEqual(devices.phase(s), "away")
             self.assertFalse(devices.sharing(s))
-        self.assertEqual(self.prefs["window_url"], self.server)
+        self.assertEqual(result["url"], self.server)          # the window joins it there (Open your lab)
+        self.assertEqual(self.prefs["window_url"], "")
 
     def test_the_desktop_page_offers_sharing_and_its_window(self):
         html = self.get_ok(self.a, "/settings/devices")

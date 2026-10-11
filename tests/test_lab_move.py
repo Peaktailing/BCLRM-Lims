@@ -94,7 +94,7 @@ class BringingBackALabSetAside(AppTestCase):
 class OpeningALab(AppTestCase):
     FOUND = {"url": "https://lab.example.org", "name": "Rivera Lab", "host": "lab.example.org"}
 
-    def test_finding_a_lab_saves_nothing_until_open(self):
+    def test_finding_a_lab_saves_nothing_until_joined(self):
         saved = {}
         c = app.test_client()
         with DESKTOP, mock.patch.object(door, "no_accounts_yet", return_value=True), \
@@ -103,11 +103,13 @@ class OpeningALab(AppTestCase):
             html = c.post("/open-lab", data={"address": "lab.example.org"}).get_data(as_text=True)
             self.assertIn("Found your lab", html)
             self.assertEqual(saved, {})                              # Back would change nothing
-            r = c.post("/open-lab", data={"action": "open"})
-            self.assertGoesTo(r, "https://lab.example.org/")
-            self.assertEqual(saved, {"window_url": "https://lab.example.org"})
-            # Open without having found one: nothing to open.
-            self.assertEqual(c.post("/open-lab", data={"action": "open"}).headers["Location"], "/open-lab")
+            with mock.patch("app.desktop_join.join", return_value={"ok": False, "error": "That password isn't right."}):
+                html = c.post("/open-lab", data={"action": "join", "username": "a", "password": "b"}).get_data(as_text=True)
+            self.assertIn("That password isn", html)
+            self.assertEqual(saved, {})
+        # Join without having found one: nothing to join.
+        with DESKTOP:
+            self.assertEqual(app.test_client().post("/open-lab", data={"action": "join"}).headers["Location"], "/open-lab")
 
     def test_in_a_browser_the_computer_offers_the_lab_or_its_own(self):
         saved = {}
@@ -116,7 +118,7 @@ class OpeningALab(AppTestCase):
         with DESKTOP, mock.patch("app.devices.window_url", return_value="https://lab.example.org"), \
                 mock.patch("app.devices._save_prefs", side_effect=lambda **kw: saved.update(kw)):
             html = self.get_ok(c, "/lab-elsewhere")
-            self.assertIn('href="https://lab.example.org/"', html)
+            self.assertIn('href="/open-lab?address=https', html)   # joins it first
             self.assertIn("Use this computer’s BioManager", html)
             c.post("/lab-elsewhere")
         self.assertEqual(saved, {"window_url": ""})
@@ -387,13 +389,17 @@ class MovingToAServer(AppTestCase):
         saved = {}
         found = {"url": "https://lab.example.org", "name": "Rivera Lab", "host": "lab.example.org"}
         with DESKTOP, DESKTOP_APP, mock.patch.object(door, "find_lab", return_value=found), \
-                mock.patch("app.lab_move.push", return_value={"ok": True, "lab": "Rivera Lab", "key": "bmk_test"}) as push, \
+                mock.patch("app.lab_move.push", return_value={"ok": True, "lab": "Rivera Lab", "key": "bmk_test",
+                                                              "device": {"token": "bmd_test", "device": "d1"}}) as push, \
+                mock.patch("app.desktop_join._remember") as remember, \
+                mock.patch("app.desktop_join.start_relay", return_value="http://127.0.0.1:5999"), \
                 mock.patch("app.devices._save_prefs", side_effect=lambda **kw: saved.update(kw)):
             self.assertIn("Move this lab to a server", self.get_ok(self.a, "/settings/devices"))
             r = self.a.post("/settings/devices/move", data={"address": "lab.example.org", "setup_code": "abcd"})
-            self.assertGoesTo(r, "https://lab.example.org/")
+            # This computer joined the server as its admin's device: the window opens the relay.
+            self.assertGoesTo(r, "http://127.0.0.1:5999/")
             self.assertEqual(push.call_args.args[:2], ("https://lab.example.org", "abcd"))
-            self.assertEqual(saved, {"window_url": "https://lab.example.org"})
+            self.assertEqual(remember.call_args.args, ("https://lab.example.org", {"token": "bmd_test", "device": "d1"}))
             state = json.loads(one("select value from app_settings where key='devices:state'"))
             self.assertEqual((state["phase"], state["moved"]), ("away", True))
             self.assertEqual(one("select value from app_settings where key='lab_copy_server'"), "https://lab.example.org")

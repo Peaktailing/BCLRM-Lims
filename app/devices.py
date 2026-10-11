@@ -260,7 +260,11 @@ def _master_only(s):
 def page():
     if g.get("user") is None:
         return redirect(url_for("login", next=request.path))
+    from . import lab_devices
     with SessionLocal() as s:
+        lab_devices.forget_old(s)
+        mine = lab_devices.listing(s, g.user)
+        everyone = lab_devices.listing(s, g.user, everyone=True) if is_admin() else []
         st = state(s)
         devices = linked_devices(s) if is_admin() else []
         here = desktop_status(s) if is_desktop() and on_this_computer() else None
@@ -271,7 +275,8 @@ def page():
                   "can_take_back": not is_desktop() or sharing(s),
                   "own_backup": bool(st.get("own_backup")) and Path(st.get("own_backup", "")).is_file()}
     return render_template("devices/index.html", devices=devices, master=master, here=here,
-                           is_admin=is_admin(), is_desktop=is_desktop(), version=version())
+                           is_admin=is_admin(), is_desktop=is_desktop(), version=version(),
+                           my_devices=mine, everyone_devices=everyone)
 
 
 @bp.route("/settings/devices/<int:key_id>/make-master", methods=["POST"])
@@ -328,9 +333,18 @@ def _key_and_state(s):
 def hello():
     """A linked desktop says what it is; the master answers whether it is
     being handed the master copy."""
+    from .models import LabDevice
     body = request.get_json(silent=True) or {}
     with SessionLocal() as s:
         k, st = _key_and_state(s)
+        if isinstance(k, LabDevice):
+            # A desktop that joined as a device (app/lab_devices.py): noted on
+            # its device; the master copy is handed only to a linked key.
+            k.app_version = str(body.get("version", ""))[:40] or k.app_version
+            k.last_seen_at = datetime.utcnow()
+            s.commit()
+            return jsonify({"ok": True, "version": version(), "phase": "", "master": is_master(s),
+                            "for_me": False, "label": k.name})
         k.device_role = str(body.get("role", ""))[:20]
         k.device_version = str(body.get("version", ""))[:40]
         k.device_url = str(body.get("url", ""))[:300]
@@ -711,6 +725,10 @@ def _role(s) -> str:
     if came_from(s) and sharing(s) and phase(s) != AWAY:
         return "master"
     server = lab_copy.config(s)["server"]
+    if window_url() == "relay":
+        from . import desktop_join
+        lab = desktop_join.joined()
+        return "window" if lab and server and lab["server"].rstrip("/") == server.rstrip("/") else "copy"
     return "window" if server and window_url().rstrip("/") == server.rstrip("/") else "copy"
 
 
@@ -834,7 +852,9 @@ def give_back(app) -> dict:
         _settings()[1](s, SHARING, "")
         _save(s, CAME_FROM, {})
         s.commit()
-    _save_prefs(window_url=server)
+    # The window opens the lab through the relay once this computer has
+    # joined it as a device (Open your lab, with the address filled in).
+    _save_prefs(window_url="")
     return {"ok": True, "url": server}
 
 
@@ -927,8 +947,15 @@ def window():
         if is_sharing:
             flash(gettext("This computer shares its own lab: stop sharing it first."), "error")
             return redirect(url_for("devices.page"))
-        _save_prefs(window_url=cfg["server"])
-        return open_in_window(cfg["server"])
+        # The window opens the lab through this computer's relay, as one of
+        # its person's devices (app/desktop_join.py): joined already, at once;
+        # else Open your lab, with the address filled in.
+        from . import desktop_join
+        lab = desktop_join.joined()
+        if lab and lab["server"].rstrip("/") == cfg["server"].rstrip("/"):
+            _save_prefs(window_url="relay")
+            return open_in_window(desktop_join.start_relay())
+        return redirect(url_for("door.open_lab", address=cfg["server"]))
     _save_prefs(window_url="")
     flash(gettext("This window opens this computer's own BioManager again."), "success")
     return redirect(url_for("devices.page"))
@@ -943,7 +970,12 @@ def give_back_now():
     if not result.get("ok"):
         flash(result["error"], "error")
         return redirect(url_for("devices.page"))
-    return open_in_window(result["url"])
+    from . import desktop_join
+    lab = desktop_join.joined()
+    if lab and lab["server"].rstrip("/") == result["url"].rstrip("/"):
+        _save_prefs(window_url="relay")
+        return open_in_window(desktop_join.start_relay())
+    return redirect(url_for("door.open_lab", address=result["url"]))
 
 
 @bp.route("/settings/devices/own-again", methods=["POST"])

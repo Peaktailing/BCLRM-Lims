@@ -137,9 +137,20 @@ def main() -> int:
 
     import desktop_menu
     desktop_menu._state["local_url"] = url
-    # The lab another device holds, if this window opens it (Settings →
-    # Devices → Open the lab in this window); else this computer's own.
-    target = devices.window_url() or url
+    # The lab this computer joined, through its relay, never the server's
+    # pages themselves (app/desktop_join.py, app/relay.py); else this
+    # computer's own. A window that opened a server's address before joining
+    # was a thing asks to join that lab first.
+    from urllib.parse import quote
+    from app import desktop_join
+    shown = devices.window_url()
+    lab_url = desktop_join.start_relay() if shown == "relay" else ""
+    if lab_url:
+        target = lab_url + "/"
+    elif shown and shown != "relay":
+        target = url + "open-lab?address=" + quote(shown, safe="")
+    else:
+        target = url
     # Windows 10 may lack what the window needs, and pywebview would then use
     # Internet Explorer's engine, which can't run the app: the web browser
     # instead (desktop_windows.py).

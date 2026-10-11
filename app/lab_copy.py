@@ -162,12 +162,20 @@ def revoke_key(key_id: int):
     return redirect(url_for("settings") + "#lab-copies")
 
 
-def _authorised(s) -> tuple[LabCopyKey, UserAccount]:
-    """The key in the Authorization header, if it may take a copy now.
+def _authorised(s):
+    """The key in the Authorization header, if it may take a copy now: a copy
+    key (LabCopyKey), or the token of a device that joined the lab (its
+    LabDevice row, app/lab_devices.py), with its person.
 
     Only wrong keys are throttled, per address: a key is 160 random bits,
     so the throttle is against noise, and a stranger's wrong guesses must
     not lock out the lab's own computers."""
+    from .models import LabDevice
+    if g.get("device") is not None and g.get("user") is not None:
+        user = s.get(UserAccount, g.user.id)
+        if user is None or user.role == "pending" or not may_keep_copies(s, user):
+            abort(403)
+        return s.get(LabDevice, g.device.id), user
     throttle_key = ("lab-copy-ip", request.remote_addr or "")
     header = request.headers.get("Authorization", "")
     raw = header[7:].strip() if header.lower().startswith("bearer ") else ""
@@ -363,20 +371,25 @@ def _sha256(path: Path) -> str:
 
 @bp.route("/api/lab-copy/snapshot")
 def snapshot():
+    from .models import LabDevice
     with SessionLocal() as s:
         k, user = _authorised(s)
         s.expunge(user)
         now = datetime.utcnow()
+        joined = isinstance(k, LabDevice)
         # The last copy of a hand-over (app/devices.py) is never made to wait.
         from . import devices
-        handing_over = devices.state(s).get("key_id") == k.id and devices.phase(s) == devices.FROZEN
-        if (not handing_over and k.last_used_at is not None
-                and (now - k.last_used_at).total_seconds() < MIN_SECONDS_BETWEEN):
+        handing_over = not joined and devices.state(s).get("key_id") == k.id and devices.phase(s) == devices.FROZEN
+        last = k.last_copy_at if joined else k.last_used_at
+        if not handing_over and last is not None and (now - last).total_seconds() < MIN_SECONDS_BETWEEN:
             abort(429)
-        k.last_used_at = now
-        k.uses = (k.uses or 0) + 1
+        if joined:
+            k.last_copy_at = now
+        else:
+            k.last_used_at = now
+            k.uses = (k.uses or 0) + 1
         s.commit()
-        key_id = k.id
+        key_id = ("device", k.id) if joined else k.id
     fd, name = tempfile.mkstemp(prefix="biomanager-copy-", suffix=".db")
     os.close(fd)
     path = Path(name)
@@ -388,10 +401,11 @@ def snapshot():
         path.unlink(missing_ok=True)
         current_app.logger.exception("lab copy: the snapshot failed")
         return _json_error(500, "The server could not make a copy. Its log says why.")
-    with SessionLocal() as s:
-        k = s.get(LabCopyKey, key_id)
-        k.last_bytes = size
-        s.commit()
+    if not joined:
+        with SessionLocal() as s:
+            k = s.get(LabCopyKey, key_id)
+            k.last_bytes = size
+            s.commit()
     response = send_file(path, mimetype="application/vnd.sqlite3", as_attachment=True,
                          download_name=f"biomanager-{now:%Y%m%d-%H%M%S}Z.db", max_age=0)
     response.headers["X-BioManager-SHA256"] = digest
@@ -420,11 +434,12 @@ def _upload_files() -> list[dict]:
 
 def _allowed_files(s) -> set[str] | None:
     """None: every uploaded file (an admin's key); else the member's."""
+    from .models import LabDevice
     k, user = _authorised(s)
     if user.role == "admin":
         return None
     s.expunge(user)
-    return member_files(user, k.id)
+    return member_files(user, ("device", k.id) if isinstance(k, LabDevice) else k.id)
 
 
 @bp.route("/api/lab-copy/files")
@@ -583,6 +598,18 @@ def _reason(error: Exception) -> str:
     return str(error) or error.__class__.__name__
 
 
+def _recipients(recipient: str) -> list[str]:
+    """Who can open a copy: the lab (its key, which its admins and its
+    recovery key hold), and this computer itself (its own lab's key, kept in
+    its own database), so a member's computer reads its copy offline. A
+    member's copy holds only what they can see (member_view)."""
+    from . import lab_key
+    with SessionLocal() as s:
+        own = lab_key.recipient(s)
+        s.commit()
+    return list(dict.fromkeys([recipient, own]))
+
+
 def pull() -> dict:
     """Fetch a copy now. Returns the new status (also saved)."""
     with SessionLocal() as s:
@@ -620,7 +647,7 @@ def pull() -> dict:
             # Locked with the lab's key; the open file never stays on disk.
             from . import lab_key
             final = target / "db" / f"biomanager-{taken}Z.db.age"
-            lab_key.lock_file(incoming, final, [recipient])
+            lab_key.lock_file(incoming, final, _recipients(recipient))
             incoming.unlink(missing_ok=True)
         else:                       # a server from before the lab's key
             final = target / "db" / f"biomanager-{taken}Z.db"
@@ -655,7 +682,7 @@ def pull() -> dict:
                 shutil.copyfileobj(r, out, 1 << 20)
             if recipient:
                 from . import lab_key
-                lab_key.lock_file(part, dest, [recipient])
+                lab_key.lock_file(part, dest, _recipients(recipient))
                 part.unlink(missing_ok=True)
                 plain.unlink(missing_ok=True)       # an open one from before the lab's key
                 sizes[item["path"]] = item["size"]

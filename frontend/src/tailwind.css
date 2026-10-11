@@ -847,6 +847,13 @@
   .rail-pop-head { @apply px-2.5 pb-0.5 pt-1 text-[11px] font-semibold text-muted; }
   .menu-item.is-current { @apply font-semibold; }
 
+  /* A device's name in the device list: plain text until it is edited. */
+  .device-name {
+    @apply w-44 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[13px] font-medium text-ink;
+  }
+  .device-name:hover { @apply border-hairline; }
+  .device-name:focus { @apply border-brand-400 bg-surface outline-none; }
+
   /* --- Main column ------------------------------------------------------ */
 
   .shell-main { @apply relative min-w-0 overflow-hidden; }

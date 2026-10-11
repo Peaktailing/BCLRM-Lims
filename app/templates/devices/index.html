@@ -13,6 +13,72 @@
 {% set ph = master.phase %}
 <div class="grid max-w-[980px] grid-cols-1 gap-3">
 
+  {# ---- The devices someone uses the lab from (app/lab_devices.py) ---- #}
+  {% macro device_rows(rows, show_owner) %}
+    {% for d in rows %}
+      <tr>
+        <td>
+          <span class="flex items-center gap-2">
+            {{ icon({'mac': 'home', 'windows': 'home', 'linux': 'home', 'ios': 'barcode', 'android': 'barcode'}.get(d.platform, 'external') if d.kind == 'app' else 'external') }}
+            {% if d.kind == 'app' %}
+              <form method="post" action="{{ url_for('lab_devices.rename', public_id=d.id) }}" class="flex items-center gap-1">
+                <input name="name" value="{{ d.name }}" maxlength="80" class="device-name" aria-label="{{ _('Name of this device') }}">
+              </form>
+            {% else %}
+              <span class="font-medium text-ink">{{ d.name }}</span>
+            {% endif %}
+            {% if d.here %}<span class="badge badge-brand">{{ _('this device') }}</span>{% endif %}
+          </span>
+        </td>
+        {% if show_owner %}<td>{{ d.owner | owner_badge }}</td>{% endif %}
+        <td class="text-muted">{{ _('App') if d.kind == 'app' else _('Browser') }}{% if d.version %} · {{ d.version }}{% endif %}</td>
+        <td>{% if d.seen %}{{ (d.seen | local).strftime('%Y-%m-%d %H:%M') }}{% if d.ip %} <span class="text-muted">· {{ d.ip }}</span>{% endif %}{% else %}<span class="text-muted">{{ _('not yet') }}</span>{% endif %}
+            {% if d.synced %}<br><small class="text-muted">{{ _('synced %(time)s', time=(d.synced | local).strftime('%Y-%m-%d %H:%M')) }}</small>{% endif %}</td>
+        <td class="text-right">
+          {% if not d.here %}
+            <form method="post" action="{{ url_for('lab_devices.sign_out', public_id=d.id) }}"
+                  data-confirm="{{ _('Sign %(name)s out of the lab? It stops working there now; signing in again brings it back.', name=d.name) }}">
+              <button type="submit" class="btn btn-sm">{{ _('Sign out') }}</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  {% endmacro %}
+  <section class="card" id="your-devices">
+    <header class="card-head"><h2>{{ icon('user') }} {{ _('Your devices') }}</h2></header>
+    <div class="flex flex-col gap-3 p-4">
+      <p class="text-[12.5px] leading-snug text-muted">
+        {{ _('Every computer, phone and browser you are signed in on. The desktop app and the phone apps join the lab as a device of yours; signing one out here ends it there at once.') }}
+      </p>
+      <div class="overflow-x-auto">
+        <table class="dt">
+          <thead><tr><th>{{ _('Device') }}</th><th>{{ _('What it is') }}</th><th>{{ _('Last used') }}</th><th></th></tr></thead>
+          <tbody>{{ device_rows(my_devices, False) }}</tbody>
+        </table>
+      </div>
+      <form method="post" action="{{ url_for('lab_devices.approve') }}" class="flex flex-wrap items-end gap-2">
+        <label class="field-label">{{ _('A device shows a code?') }}
+          <input name="code" required autocomplete="off" spellcheck="false" placeholder="ABCD-EFGH" class="font-mono uppercase" maxlength="9">
+          <small class="field-hint">{{ _('When the desktop app or a phone asks you to approve it here, type the code it shows.') }}</small>
+        </label>
+        <button type="submit" class="btn">{{ _('Approve') }}</button>
+      </form>
+    </div>
+  </section>
+
+  {% if is_admin and everyone_devices %}
+    <section class="card" id="lab-devices">
+      <header class="card-head"><h2>{{ icon('users') }} {{ _('Everyone’s devices') }}</h2></header>
+      <div class="overflow-x-auto p-4">
+        <table class="dt">
+          <thead><tr><th>{{ _('Device') }}</th><th>{{ _('Whose') }}</th><th>{{ _('What it is') }}</th><th>{{ _('Last used') }}</th><th></th></tr></thead>
+          <tbody>{{ device_rows(everyone_devices, True) }}</tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
   {# ---- Where the master copy is ---- #}
   <section class="card p-5" id="master">
     <h2 class="flex items-center gap-2 text-[15px] font-semibold text-ink">{{ icon('database') }} {{ _('The lab’s master copy') }}</h2>
@@ -171,4 +237,10 @@
 
   <p class="text-[12px] text-muted">{% trans version=version %}BioManager {{ version }}. Devices hand the master copy only between the same version.{% endtrans %}</p>
 </div>
+<script nonce="{{ csp_nonce() }}">
+  // A device's new name is saved when the field is left (Enter too).
+  document.querySelectorAll('input.device-name').forEach(function (input) {
+    input.addEventListener('change', function () { input.form.submit(); });
+  });
+</script>
 {% endblock %}

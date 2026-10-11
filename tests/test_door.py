@@ -160,7 +160,7 @@ class StartingOrOpeningALab(AppTestCase):
             html = self.get_ok(c, "/start/where")
             self.assertIn("Where should Okafor Lab live?", html)
 
-    def test_opening_a_lab_finds_it_by_address_and_keeps_it_for_the_window(self):
+    def test_opening_a_lab_finds_it_by_address_to_join_it(self):
         pages = {"https://lab.example.org/healthz": (200, "ok\n"),
                  "https://lab.example.org/": (200, "<html><title>Rivera Lab · BioManager</title></html>")}
         saved = {}
@@ -172,9 +172,8 @@ class StartingOrOpeningALab(AppTestCase):
             html = c.post("/open-lab", data={"address": "lab.example.org"}).get_data(as_text=True)
             self.assertIn("Found your lab", html)
             self.assertIn("Rivera Lab", html)
-            self.assertEqual(saved, {})                 # only on Open (tests/test_lab_move.py)
-            c.post("/open-lab", data={"action": "open"})
-        self.assertEqual(saved, {"window_url": "https://lab.example.org"})
+            self.assertIn("Join the lab", html)
+            self.assertEqual(saved, {})                 # only once joined (tests/test_relay.py)
 
     def test_an_address_that_does_not_answer_says_so(self):
         def nothing(url, timeout=6):

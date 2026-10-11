@@ -31,11 +31,23 @@ _state = {"window": None, "nav": [], "go_menu": None, "zoom_items": None, "appea
 
 
 def this_computer() -> None:
-    """Back to this computer's own BioManager, from a lab another device
-    holds that the window opened (app/devices.py: Open the lab in this window)."""
+    """Back to this computer's own BioManager, from the lab it joined
+    (app/desktop_join.py), which stays joined for Your Lab's BioManager."""
     updates.save_prefs(window_url="")
     if _state["local_url"]:
-        _js(f"window.location.href = {json.dumps(_state['local_url'] + 'settings/devices')};")
+        _js(f"window.location.href = {json.dumps(_state['local_url'])};")
+
+
+def your_lab() -> None:
+    """The lab this computer joined, in the window through its relay
+    (app/relay.py); Open your lab when it hasn't joined one."""
+    from app import desktop_join
+    target = desktop_join.start_relay()
+    if target:
+        updates.save_prefs(window_url="relay")
+        _js(f"window.location.href = {json.dumps(target + '/')};")
+    elif _state["local_url"]:
+        _js(f"window.location.href = {json.dumps(_state['local_url'] + 'open-lab')};")
 
 
 class DesktopApi:
@@ -231,6 +243,7 @@ def plain_menus() -> list:
                     MenuAction("Forward", lambda: _js("history.forward();")), MenuSeparator(),
                     MenuAction("Home", lambda: _go("/home")), MenuAction("Search…", search),
                     MenuAction("Settings", lambda: _go("/settings")), MenuSeparator(),
+                    MenuAction("Your Lab's BioManager", your_lab),
                     MenuAction("This Computer's BioManager", this_computer)]),
         Menu("Help", [MenuAction("BioManager User Guide", lambda: webbrowser.open(updates.GUIDE_URL)),
                       MenuAction("Keyboard Shortcuts", lambda: webbrowser.open(updates.GUIDE_URL + "#keys")),
@@ -454,6 +467,7 @@ def _rebuild_go_menu() -> None:
     _sep(menu)
     _item(menu, "Home", lambda: _go("/home"), "h", cmd | shift)
     _item(menu, "Search…", search, "k")
+    _item(menu, "Your Lab's BioManager", your_lab)
     _item(menu, "This Computer's BioManager", this_computer)
     _sep(menu)
     # With Shift, ] and [ arrive as } and {, as Safari has them.

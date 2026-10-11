@@ -309,6 +309,13 @@ def cross_site_reason() -> str | None:
         # Signed in by a bearer token only, which another site can't send
         # for you; the session cookie is never read there (app/api.py).
         return None
+    if request.headers.get("Authorization", "")[:11].lower() == "bearer bmd_":
+        # A device's token (app/lab_devices.py): a header no form or link on
+        # another site can send. The desktop's relay checks what reaches it.
+        return None
+    if request.path in ("/api/devices/join", "/api/devices/pair"):
+        # An app joining, with a password or a code; never a cookie.
+        return None
     origin = request.headers.get("Origin", "")
     if origin and origin != "null" and urlparse(origin).netloc in _trusted_hosts():
         return None
@@ -511,6 +518,9 @@ def start_session(user) -> None:
     if lang:
         # The language picked on the sign-in page carries on (app/i18n.py).
         session["lang"] = lang
+    # This browser's sign-in is one of the person's devices (app/lab_devices.py).
+    from . import lab_devices
+    lab_devices.note_browser(user)
 
 
 class LoginThrottle:

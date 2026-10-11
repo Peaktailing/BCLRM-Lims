@@ -214,3 +214,5 @@ html.mac-window:not(.is-fullscreen) .door-brand img { width: 26px; height: 26px;
 .door-choice.is-row .door-mono { width: 44px; height: 44px; border-radius: 12px; background: var(--door-lab); color: var(--door-lab-ink); font-size: 15px; }
 .door-choice.is-row small { overflow-wrap: anywhere; }
 .door-small code { overflow-wrap: anywhere; font-size: 12px; }
+/* The code a desktop joining with Google or Microsoft shows, to be approved elsewhere (door/open_lab.html). */
+.door-pair-code { margin: 6px 0 4px; padding: 14px 0; border: 1px dashed var(--color-hairline); border-radius: 14px; text-align: center; font: 600 30px/1 var(--font-mono); letter-spacing: 0.14em; color: var(--color-ink); }
