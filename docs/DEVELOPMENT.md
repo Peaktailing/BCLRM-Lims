@@ -1524,6 +1524,38 @@ morning notification of what is due is `notify.daily_experiment_reminder`
 notebook page is a person's for an experiment is the app setting
 `experiment_notebook_page:<experiment>:<username>`.
 
+**Derived readouts** (`app/derived.py`, no schema change). A readout can be a
+formula over what was measured: `tumour_lw` (L × W² / 2) and `tumour_lwh`
+(π/6 × L × W × H, mm³, mouse and organism only), `delta_ct`,
+`delta_delta_ct` and `fold_change` (against the control group's mean ΔCt
+on the same day, `per_group`), `percent_of_baseline` and
+`blank_subtracted`. Each `Formula` names its inputs with units, a line of
+arithmetic (`expression`) and a description; `check()` turns what was
+given into numbers or a `DerivedError` in words (missing, below zero, not a
+number, *Undetermined*, a Ct outside 0–50, an OD over 10, width over
+length); the arithmetic is pure functions. The experiment keeps
+`{"key": "derived", "formula", "control"}` in `experiments.readout`
+(`readout_json`), and `readout_of` gives it the key `derived:<formula>`
+(also each reading's `readout_key`), its unit, inputs and control; the page's
+**Readout** select lists `derived_choices(place)` in an optgroup, and
+**Control group** (`readout_control`) shows for a per-group one. Readings
+take `{input: value}` instead of a number (the page's `/readings`, bench
+mode, a reading step's `values`, `POST /api/v1/experiments/<id>/readings`
+with `inputs`); `set_reading` → `_set_derived` stores the value with the
+inputs as JSON in `experiment_readings.note` (`derived.note`), and
+`readout_table` gives each row its `inputs` for the sheet's tooltips, the
+dialog and the export's extra columns. ΔΔCt and fold change are worked out
+again from the notes whenever they are read (`readings`), so a new control
+animal or a changed group is followed, and stored afresh for the day on each
+save (`_store_day`); a treated animal before any control that day, or the
+last control taken out from under the others, is refused, and
+`control_first` saves a whole day's controls first. `derive_day` is the
+same arithmetic for an action's preview. `experiment_reading` takes
+`inputs` for such a readout (refusing `values`, and the reverse), and its
+summary shows each animal's inputs → value. `POST /api/v1/derive`
+(`api.COMPUTING`; GET lists the formulas) is `derived.derive` over rows,
+changing nothing, for the `derive` tool.
+
 **Planned experiments and changes from the plan** (`app/experiment_plan.py`,
 revision 0033). Status `planned` comes before `active`: an assistant's
 `experiment_new` makes one through `POST /experiments/in/<db>/design` (the
@@ -1974,7 +2006,8 @@ rows only (`lab_copy.OWN_ROWS`).
 computes; the model talks. `/search`, `/history`, `/lineage`,
 `/availability`, `/reorder-forecast`, `/lab-checks`,
 `/experiments/<id>/summary` and `/regimens` read; `/breeding-plan`,
-`/randomize` and `/power` are POSTs that change nothing (`api.COMPUTING`,
+`/randomize`, `/power` and `/derive` (derived readouts, `app/derived.py`;
+the `derive` tool) are POSTs that change nothing (`api.COMPUTING`,
 open to any token). Each runs as the token's person: `lookup.record` 404s a
 record in a database they can't open, history shows only their own changes
 unless they are an admin, and search is the ⌘K search

@@ -84,7 +84,11 @@ def tests() -> list[dict]:
 
 
 def readout_text(readout: dict) -> str:
-    return str((readout or {}).get("label") or "")
+    """The readout's name; one worked out against a control group names
+    that group too, so changing it after Start is a change from the plan."""
+    label = str((readout or {}).get("label") or "")
+    control = str((readout or {}).get("control") or "")
+    return f"{label} · {control}" if label and control else label
 
 
 # ---------------------------------------------------------------- the animals and their groups

@@ -170,6 +170,29 @@
       </table>
       <p>Any experiment can follow a readout of its own (<b>Readout → Something else…</b>): a number for each, or how many of
         those at the start.</p>
+      <h2 id="derived">Readouts worked out from what you measure</h2>
+      <p>Some readouts are a sum, not a reading: a tumour's volume from the calipers, fold change from a qPCR run. Choose one
+        under <b>Readout → Worked out by BioManager from what you measure</b>, then type what you measured and let
+        BioManager do the arithmetic, the same way every time.</p>
+      <table class="gtable">
+        <tr><th>Tumour volume (L × W² / 2)</th><td>Length and width in mm, the length the longer side. In mm³.</td></tr>
+        <tr><th>Tumour volume (π/6 × L × W × H)</th><td>Three diameters in mm, for a lab that measures the height too.
+          Pick whichever your lab uses.</td></tr>
+        <tr><th>ΔCt</th><td>The Ct of the target gene and of the reference gene: target − reference.</td></tr>
+        <tr><th>ΔΔCt, Fold change (2^−ΔΔCt)</th><td>The same two Cts, against the mean ΔCt of the <b>Control group</b>
+          (set beside the readout) on the same day. Enter the control animals' Cts first, or the whole day at once.</td></tr>
+        <tr><th>% of baseline</th><td>A value and its baseline, such as today's weight and day 1's.</td></tr>
+        <tr><th>Absorbance, blank subtracted</th><td>A well's OD and the blank's.</td></tr>
+      </table>
+      <ul>
+        <li><b>Measure</b> (or <b>Record</b>) and <b>Another day</b> open the day with a box for each thing measured, for every
+          animal; click a value in the sheet to change what it was worked out from. Point at a value to see what was
+          measured, and <b>Export</b> has those beside each value.</li>
+        <li>In <b>Bench mode</b> each animal gets a box for each measurement, and the value it worked out is shown as you go
+          on.</li>
+        <li>A number left out, below zero, a width longer than the length, a Ct of 60 or <i>Undetermined</i> is refused,
+          saying why, rather than saved.</li>
+      </ul>
       <h2 id="the-page">The page</h2>
       <ul>
         <li><b>The experiment</b> on top: name, status, start (day 1), end, readout and description, saved as you type.</li>
@@ -235,9 +258,10 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 6 min read</p>
+      <p>On this page · 7 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your week</a></li>
+        <li class="lvl2"><a href="#derived">Readouts worked out from what you measure</a></li>
         <li class="lvl2"><a href="#the-page">The page</a></li>
         <li class="lvl2"><a href="#the-regimen">The regimen</a></li>
         <li class="lvl2"><a href="#planned">Planned experiments, and changes from the plan</a></li>

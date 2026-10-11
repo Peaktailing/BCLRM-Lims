@@ -33,7 +33,7 @@ COMPUTE_TITLES = {"search": "Search", "history": "A record's history", "lineage"
                   "availability": "Animals available", "breeding_plan": "Breeding plan",
                   "randomize": "Randomise into groups", "power_analysis": "Animals per group",
                   "reorder_forecast": "Reorder forecast", "lab_checks": "The week's checks",
-                  "experiment_summary": "An experiment for its methods"}
+                  "experiment_summary": "An experiment for its methods", "derive": "Derived readout"}
 READ_ONLY |= set(COMPUTE_TITLES)
 TITLES.update(COMPUTE_TITLES)
 

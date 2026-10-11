@@ -64,7 +64,7 @@ SCOPES = {"read": "Read", "write": "Read and change", "propose": "Read and propo
 PROPOSING = {"api.proposal_create", "api.proposal_discard", "api.mcp"}
 # POSTs that only work something out from what they are sent and change
 # nothing (app/assistant_compute.py): any token may send them.
-COMPUTING = {"api.breeding_plan", "api.randomize", "api.power"}
+COMPUTING = {"api.breeding_plan", "api.randomize", "api.power", "api.derive"}
 EXPIRY_DAYS = {"30": "In 30 days", "90": "In 90 days", "365": "In a year", "": "Never"}
 PER_MINUTE = 600
 MAX_LIMIT = 1000
@@ -951,7 +951,10 @@ def experiment(experiment_id: int):
 @bp.post("/experiments/<int:experiment_id>/readings")
 def experiment_readings(experiment_id: int):
     """{"date": "2026-09-28", "values": {"<animal key or label>": 24.5, ...}}:
-    the day's readout (a weight, a count, a score) for some animals."""
+    the day's readout (a weight, a count, a score) for some animals. For a
+    readout BioManager works out (app/derived.py), "inputs" gives what was
+    measured instead: {"1043": {"length": 12.1, "width": 8.4}}, and the
+    value is computed here."""
     from . import experiments as xp
     data = _json()
     with SessionLocal() as s:
@@ -967,19 +970,23 @@ def experiment_readings(experiment_id: int):
             abort(400, "date is a date, 2026-09-28.")
         if on > date.today():
             abort(400, "A readout can't be for a day still to come.")
-        values = data.get("values")
-        if not isinstance(values, dict) or not values:
-            abort(400, "values maps each animal (its key or label, e.g. \"1043\") to its reading.")
+        values = {**(data.get("values") if isinstance(data.get("values"), dict) else {}),
+                  **(data.get("inputs") if isinstance(data.get("inputs"), dict) else {})}
+        if not values:
+            abort(400, "values maps each animal (its key or label, e.g. \"1043\") to its reading; for a readout "
+                       "BioManager works out, inputs maps each to what was measured.")
         subjects = xp.subjects(s, exp, place)
         by = {x.key: x for x in subjects}
         by.update({x.label.lstrip("#"): x for x in subjects})
         saved, problems = 0, []
-        for name, raw in values.items():
+        readout = xp.readout_of(exp, place)
+        for name, raw in xp.control_first(readout, list(values.items()), lambda item: by.get(str(item[0]).lstrip("#"))):
             subject = by.get(str(name).lstrip("#"))
             if subject is None:
                 problems.append(f"{name} isn't in this experiment.")
                 continue
-            problem = xp.set_reading(s, exp, place, subject, on, "" if raw is None else str(raw))
+            problem = xp.set_reading(s, exp, place, subject, on, raw if isinstance(raw, dict) else
+                                     "" if raw is None else str(raw))
             if problem:
                 problems.append(problem)
             else:
@@ -1211,6 +1218,17 @@ def power():
             experiment=_whole(data.get("experiment")), day=data.get("day")))
 
 
+@bp.route("/derive", methods=["GET", "POST"])
+def derive():
+    """GET: the formulas (app/derived.py). POST {formula, rows, control}:
+    each row's value worked out, or why not; nothing changes."""
+    from . import derived
+    if request.method == "GET":
+        return jsonify({"formulas": derived.catalogue()})
+    data = _json()
+    return _answer(derived.derive, str(data.get("formula") or ""), data.get("rows"), data.get("control"))
+
+
 @bp.get("/reorder-forecast")
 def reorder_forecast():
     """Stock kept as a number that runs out within `days`, from its use."""
@@ -1394,7 +1412,8 @@ ENDPOINTS = [
     ("PATCH", "/api/v1/inventories/{key}/items/{number}", "write", "Change an item", ()),
     ("GET", "/api/v1/experiments", "read", "Experiments, in every database", ("status", "owner", "database")),
     ("GET", "/api/v1/experiments/{experiment_id}", "read", "One experiment: animals, readout table, manipulations, the plan kept at Start and the changes from it", ()),
-    ("POST", "/api/v1/experiments/{experiment_id}/readings", "write", "Record the readout: {date, values}", ()),
+    ("POST", "/api/v1/experiments/{experiment_id}/readings", "write",
+     "Record the readout: {date, values}, or for a readout BioManager works out {date, inputs}", ()),
     ("GET", "/api/v1/resolve", "read", "The records a phrase could mean, with references", ("q", "kinds")),
     ("GET", "/api/v1/vocabulary", "read", "What this lab calls things", ()),
     ("GET", "/api/v1/due", "read", "What is due (Home's list), with the change that records each done", ("days",)),
@@ -1415,6 +1434,9 @@ ENDPOINTS = [
      ()),
     ("POST", "/api/v1/power", "read",
      "Animals per group: {groups, difference, sd, means, d, alpha, power, attrition, experiment, day}", ()),
+    ("GET", "/api/v1/derive", "read", "The formulas BioManager works readouts out with", ()),
+    ("POST", "/api/v1/derive", "read", "Work out a derived readout for rows, changing nothing: {formula, rows, control}",
+     ()),
     ("GET", "/api/v1/reorder-forecast", "read", "Stock that runs out soon, from its use", ("days", "lead_days",
                                                                                            "window_days")),
     ("GET", "/api/v1/lab-checks", "read", "The weekly review's checks",
