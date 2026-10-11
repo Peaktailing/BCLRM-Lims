@@ -41,7 +41,7 @@ class Fixes(Compute):
 
     # 1. replaces
     def test_a_corrected_proposal_replaces_one_sent_back_invalid_or_waiting(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         sent = self.propose(litter(cage, days_ago(1)))["id"]
         self.post(self.m, f"/proposals/{sent}/send-back", {"reason": "It was two days ago"})
         again = self.propose(litter(cage, days_ago(2)), replaces=sent)
@@ -56,7 +56,7 @@ class Fixes(Compute):
         self.assertEqual(one("select status from proposals where id=?", again["id"]), "superseded")
         # Another person's proposal is neither replaced nor named.
         theirs = self.call("post", "/proposals", self.token(self.o, scope="propose"),
-                           json={"summary": "x", "changes": [litter(self.make_cage(self.o), days_ago(1))]}).get_json()
+                           json={"summary": "x", "changes": [litter(self.make_cage(self.o, purpose="Breeding"), days_ago(1))]}).get_json()
         mine = self.propose(litter(cage, days_ago(1)), replaces=theirs["id"])
         self.assertIsNone(mine["replaces"])
         self.assertEqual(one("select status from proposals where id=?", theirs["id"]), "pending")

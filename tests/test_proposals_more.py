@@ -33,7 +33,7 @@ class More(Base):
         return one("select max(id) from captures")
 
     def test_each_change_shows_its_evidence_and_still_runs(self):
-        cage, other = self.make_cage(self.m), self.make_cage(self.m)
+        cage, other = self.make_cage(self.m, purpose="Breeding"), self.make_cage(self.m, purpose="Breeding")
         r, tok = self.propose(litter(cage, days_ago(1), "litter in 88 yesterday, 7 pups"),
                               litter(other, days_ago(2), {"quote": "  second   litter  " + "x" * 400,
                                                           "where": "line 3"}))
@@ -53,7 +53,7 @@ class More(Base):
         self.assertEqual(str(one("select date_give_birth from mouse_cages where id=?", cage))[:10], days_ago(1))
 
     def test_send_back_with_a_reason_and_the_assistant_reads_it(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         r, tok = self.propose(litter(cage, days_ago(1)))
         pid = r.get_json()["id"]
         self.assertIn(f"/proposals/{pid}/send-back", self.get_ok(self.m, "/proposals"))
@@ -85,7 +85,7 @@ class More(Base):
     def test_made_from_captures_they_are_used_when_approved(self):
         photo = self.capture(self.m, "litter in my cage", png=True)
         line = self.capture(self.m, "and this line")
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         r, tok = self.propose(litter(cage, days_ago(1), {"quote": "litter in my cage", "capture": line}),
                               captures=[photo])
         self.assertEqual(r.status_code, 201, r.get_json())
@@ -106,7 +106,7 @@ class More(Base):
 
     def test_someone_elses_capture_is_refused(self):
         theirs = self.capture(self.o, "not yours")
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         before = one("select count(*) from proposals")
         r, _ = self.propose(litter(cage, days_ago(1)), captures=[theirs])
         self.assertEqual(r.status_code, 400)
