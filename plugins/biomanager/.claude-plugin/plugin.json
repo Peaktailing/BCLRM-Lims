@@ -1,0 +1,41 @@
+{
+  "name": "biomanager",
+  "displayName": "BioManager",
+  "version": "1.2.0",
+  "description": "Tell your assistant what you did in the lab, in your words or with a photo of your notes; it proposes the records in your lab's BioManager, and you approve them there.",
+  "author": {
+    "name": "BioManager",
+    "url": "https://biomanager.org"
+  },
+  "homepage": "https://biomanager.org/guide/ai-assistants",
+  "repository": "https://github.com/gaspolymerase/biomanager",
+  "license": "MIT",
+  "keywords": [
+    "lab",
+    "laboratory",
+    "mouse colony",
+    "zebrafish",
+    "drosophila",
+    "lab notebook",
+    "animal facility",
+    "LIMS"
+  ],
+  "icon": "./icon.svg",
+  "documentationUrl": "https://biomanager.org/guide/ai-assistants",
+  "supportUrl": "https://github.com/gaspolymerase/biomanager/issues",
+  "privacyPolicyUrl": "https://github.com/gaspolymerase/biomanager/blob/master/plugins/biomanager/README.md#privacy",
+  "userConfig": {
+    "mcp_address": {
+      "type": "string",
+      "title": "BioManager's MCP address",
+      "description": "From Help → Connect an AI assistant in your BioManager. It ends in /api/v1/mcp.",
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "biomanager": {
+      "type": "http",
+      "url": "${user_config.mcp_address}"
+    }
+  }
+}

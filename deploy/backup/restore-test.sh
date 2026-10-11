@@ -8,21 +8,28 @@
 set -euo pipefail
 : "${BACKUP_ROOT:=/backups}"
 log() { echo "[$(date -Is)] $*"; }
+# shellcheck source=labkey.sh
+. "$(dirname "$0")/labkey.sh"
 
 if [ -n "${1:-}" ]; then
   dump=$1
   [ -f "$dump" ] || { log "no such dump: $dump"; exit 1; }
-  stamp=$(basename "$dump" .dump); stamp=${stamp#biomanager-}
-  files="$BACKUP_ROOT/files/biomanager-files-$stamp.tar.gz"
+  stamp=$(basename "$dump"); stamp=${stamp%.age}; stamp=${stamp%.dump}; stamp=${stamp#biomanager-}
+  files=$(ls -1 "$BACKUP_ROOT/files/biomanager-files-$stamp.tar.gz"* | head -n 1)
 else
-  dump=$(ls -1t "$BACKUP_ROOT"/db/biomanager-*.dump | head -n 1)
-  files=$(ls -1t "$BACKUP_ROOT"/files/biomanager-files-*.tar.gz | head -n 1)
+  dump=$(ls -1t "$BACKUP_ROOT"/db/biomanager-*.dump* | head -n 1)
+  files=$(ls -1t "$BACKUP_ROOT"/files/biomanager-files-*.tar.gz* | head -n 1)
 fi
 scratch="biomanager_restore_test"
+named=$(basename "$dump")
+opened=$(mktemp -d)
 
 dropdb --if-exists "$scratch"
 createdb "$scratch"
-trap 'dropdb --if-exists "$scratch"' EXIT
+trap 'dropdb --if-exists "$scratch"; rm -rf -- "$opened"' EXIT
+# A locked backup is opened with the lab's key: the test proves the key opens it too.
+dump=$(labkey_open "$dump" "$opened/db.dump") || { log "RESTORE TEST FAILED: $named could not be opened with the lab's key"; exit 1; }
+files=$(labkey_open "$files" "$opened/files.tar.gz") || { log "RESTORE TEST FAILED: its files archive could not be opened with the lab's key"; exit 1; }
 
 pg_restore --no-owner --exit-on-error --dbname="$scratch" "$dump"
 
@@ -48,7 +55,7 @@ done
 tar -tzf "$files" > /dev/null
 
 date -u +%s > "$BACKUP_ROOT/last-restore-test"
-log "restore test passed for $(basename "$dump") (restored/live:$report)"
+log "restore test passed for $named (restored/live:$report)"
 
 # The off-site copy, read back with the repository password: the check that
 # matters on the day this server is gone. restic check reads a fifth of the
@@ -57,11 +64,12 @@ if [ -n "${RESTIC_REPOSITORY:-}" ]; then
   timeout 3600 restic check --read-data-subset=20% > /dev/null 2>&1 \
     || { log "OFF-SITE CHECK FAILED: restic check found a problem in $RESTIC_REPOSITORY"; exit 1; }
   away=$(mktemp -d)
-  trap 'dropdb --if-exists "$scratch"; rm -rf "$away"' EXIT
-  timeout 3600 restic restore latest --tag biomanager --host biomanager --target "$away" --include '*.dump' > /dev/null \
+  trap 'dropdb --if-exists "$scratch"; rm -rf -- "$away" "$opened"' EXIT
+  timeout 3600 restic restore latest --tag biomanager --host biomanager --target "$away" --include '*.dump*' > /dev/null \
     || { log "OFF-SITE RESTORE FAILED: could not restore the latest snapshot"; exit 1; }
-  offsite_dump=$(find "$away" -name 'biomanager-*.dump' | head -n 1)
-  [ -n "$offsite_dump" ] && pg_restore --list "$offsite_dump" > /dev/null \
+  offsite_dump=$(find "$away" -name 'biomanager-*.dump*' | head -n 1)
+  [ -n "$offsite_dump" ] && offsite_dump=$(labkey_open "$offsite_dump" "$away/opened.dump") \
+    && pg_restore --list "$offsite_dump" > /dev/null \
     || { log "OFF-SITE RESTORE FAILED: the restored dump is missing or unreadable"; exit 1; }
   date -u +%s > "$BACKUP_ROOT/last-offsite-test"
   log "off-site copy readable: $(basename "$offsite_dump") restored from $RESTIC_REPOSITORY"

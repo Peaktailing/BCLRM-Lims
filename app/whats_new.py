@@ -30,6 +30,46 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.7.2": {
+        "new": [
+            "Work in the animal facility without a signal: the Android and desktop apps keep a copy, record what you do, and send it to the lab once you're back.",
+            "**Needs your decision** in the account menu: a change made offline that clashes with one made meanwhile waits there for **Keep mine** or **Keep theirs**.",
+            "**Your devices** under **Settings → Devices & copies**: every computer, phone and browser you're signed in on, each with **Sign out**.",
+            "Backups, lab files and the copies on your computers are locked with the lab's own key. Admins: keep its recovery key from **Settings → Your data → Lab key**.",
+        ],
+        "changed": [
+            "**Open your lab** joins the lab as one of your devices: sign in once, and the desktop app works on the lab without opening the server's page.",
+            "Litter born, Genotyping and Wean are refused on a cage that isn't a Breeding cage, by the server too. Weights are in History, with undo.",
+        ],
+    },
+    "1.6.0": {
+        "new": [
+            "The BioManager plugin for AI assistants: add it once, and \"I want to change something in BioManager\" is all you need to say. **Help → Connect an AI assistant** has the steps for each app.",
+            "**Captures**: at the rack, write it down, dictate or take a photo now; your assistant turns it into records later.",
+            "Each proposed change shows where it came from, and **Send back** returns a proposal with a line saying what to correct.",
+            "Assistants can propose inventory items, orders received, plasmids, primers, notebook pages and calendar events too.",
+            "Assistants plan with BioManager's own numbers: animals available, breeding plans, animals per group, random groups, the week's checks and an experiment's methods.",
+            "**Planned** experiments: nothing is due until **Start**; after that, changes to the plan ask why and are listed under **Changes from the plan**.",
+        ],
+        "changed": [
+            "**Add to Cursor**, **Add to VS Code** and **Add to Cherry Studio** on the Connect page; ChatGPT stays connected.",
+            "A member's lab copy leaves out other people's personal to-dos and events.",
+        ],
+    },
+    "1.5.8": {
+        "new": [
+            "In the Mac app, beside the window's buttons: hide the sidebar, search everything, and go back and forward.",
+        ],
+        "changed": [
+            "A collapsed sidebar shows each place's name under its icon, and keeps **Settings** and **Help** at its foot.",
+        ],
+    },
+    "1.5.7": {
+        "fixed": [
+            "On macOS 26, the window's close, minimise and zoom buttons are the size other apps' are, and the app has the system's current look.",
+            "With the sidebar collapsed, the window's buttons sit at the left of the top row, before your tabs, instead of hanging over the sidebar.",
+        ],
+    },
     "1.5.6": {
         "new": [
             "**Import from Excel** reads Chinese sheets: Chinese headers, 公/母 and 种鼠/处死, and a CSV saved on a Chinese Windows.",

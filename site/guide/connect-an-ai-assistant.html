@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connect an AI assistant — BioManager user guide</title>
+  <meta name="description" content="Step by step for each assistant app: add the BioManager plugin once, connect it to your lab, sign in, and try it.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#fbfdfc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1413" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://biomanager.org/guide/connect-an-ai-assistant">
+  <link rel="alternate" hreflang="en" href="https://biomanager.org/guide/connect-an-ai-assistant">
+  <link rel="alternate" hreflang="zh-CN" href="https://biomanager.org/zh/guide/connect-an-ai-assistant">
+  <link rel="alternate" hreflang="x-default" href="https://biomanager.org/guide/connect-an-ai-assistant">
+  <script>try{if(!localStorage.getItem('bm-lang')&&/^zh/i.test((navigator.languages&&navigator.languages[0])||navigator.language||''))location.replace('../zh/guide/connect-an-ai-assistant.html'+location.hash)}catch(e){}</script>
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BioManager">
+  <meta property="og:url" content="https://biomanager.org/guide/connect-an-ai-assistant">
+  <meta property="og:title" content="Connect an AI assistant — BioManager user guide">
+  <meta property="og:description" content="Step by step for each assistant app: add the BioManager plugin once, connect it to your lab, sign in, and try it.">
+  <meta property="og:image" content="https://biomanager.org/assets/social-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preload" href="../assets/fonts/Geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../style.css?v=da76782d6d">
+</head>
+<body class="docs-page">
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="../"><img src="../assets/icon.svg" alt="" width="28" height="28">BioManager</a>
+    <nav class="nav-links" aria-label="Site">
+      <a href="../features.html">Features</a>
+      <a href="../server.html">Run it for your lab</a>
+      <a class="nav-guide" href="../guide.html" aria-current="page">User guide</a>
+    </nav>
+    <a class="lang-link" href="../zh/guide/connect-an-ai-assistant.html" hreflang="zh-CN" lang="zh-CN" data-lang="zh">中文</a>
+    <a class="btn btn-small btn-primary" href="../download.html">Download</a>
+  </div>
+</header>
+
+<div class="wrap docs">
+  <aside class="docs-nav" aria-label="Contents">
+    <button type="button" class="docs-search" data-search data-pagefind="../pagefind/">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span>Search the guide</span><kbd>/</kbd>
+    </button>
+    <details class="docs-toc" open>
+      <summary>Contents</summary>
+      <ol>
+        <li class="docs-group"><span>Get started</span>
+          <ol>
+            <li><a href="../guide.html">Guide home</a></li>
+            <li><a href="what-it-is.html">What BioManager is</a></li>
+            <li><a href="coming-from-excel.html">Coming from Excel</a></li>
+            <li><a href="install.html">Install and set up</a></li>
+            <li><a href="try-it-first.html">Try it first</a></li>
+            <li><a href="bring-your-lab-in.html">Bring your lab in</a></li>
+            <li><a href="import-from-excel.html">Import from Excel</a></li>
+            <li><a href="home-page.html">Home</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Everyday skills</span>
+          <ol>
+            <li><a href="sheets.html">Working in a sheet</a></li>
+            <li><a href="many-at-once.html">Many at once</a></li>
+            <li><a href="finding-things.html">Finding things</a></li>
+            <li><a href="undo-and-history.html">Undo and history</a></li>
+            <li><a href="notifications.html">Notifications</a></li>
+            <li><a href="keyboard-shortcuts.html">Keyboard shortcuts</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Your mouse colony</span>
+          <ol>
+            <li><a href="mouse-colony.html">Mouse colony</a></li>
+            <li><a href="record-a-litter.html">Record a litter</a></li>
+            <li><a href="genotype-a-litter.html">Genotype a litter</a></li>
+            <li><a href="wean-a-litter.html">Wean a litter</a></li>
+            <li><a href="print-cage-cards.html">Print cage cards</a></li>
+            <li><a href="phones-and-cage-cards.html">At the bench: phones and cage cards</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Fish, flies and other animals</span>
+          <ol>
+            <li><a href="zebrafish.html">Zebrafish</a></li>
+            <li><a href="flies-and-worms.html">Flies and worms</a></li>
+            <li><a href="any-organism.html">Any other organism</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Molecular biology</span>
+          <ol>
+            <li><a href="plasmids.html">Plasmids, primers and stocks</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Samples and ordering</span>
+          <ol>
+            <li><a href="samples-and-orders.html">Samples, reagents, antibodies, viruses</a></li>
+            <li><a href="receive-an-order.html">Receive an order into stock</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Experiments and the notebook</span>
+          <ol>
+            <li><a href="experiments.html">Experiments</a></li>
+            <li><a href="notebook.html">Notebook and utilities</a></li>
+            <li><a href="sign-a-notebook-page.html">Sign a notebook page</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Planning the week</span>
+          <ol>
+            <li><a href="calendar.html">Calendar</a></li>
+            <li><a href="book-equipment.html">Book equipment</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Working as a lab</span>
+          <ol>
+            <li><a href="who-can-do-what.html">Who can do what</a></li>
+            <li><a href="project-groups.html">Project groups</a></li>
+            <li><a href="people-and-guests.html">People and guests</a></li>
+            <li><a href="invite-someone.html">Invite someone to the lab</a></li>
+            <li><a href="lab-setup.html">Lab setup</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Your data</span>
+          <ol>
+            <li><a href="your-data.html">Your data and backups</a></li>
+            <li><a href="restore-a-backup.html">Restore a backup</a></li>
+            <li><a href="scripts-and-api.html">Scripts and the API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI assistants</span>
+          <ol>
+            <li><a href="ai-assistants.html">AI assistants</a></li>
+            <li><a href="connect-an-ai-assistant.html" aria-current="page">Connect an AI assistant</a></li>
+          </ol></li>
+        <li class="docs-group"><span>Help</span>
+          <ol>
+            <li><a href="troubleshooting.html">Troubleshooting</a></li>
+            <li><a href="feedback.html">Feedback</a></li>
+          </ol></li>
+      </ol>
+    </details>
+  </aside>
+  <main class="docs-main" data-pagefind-body>
+    <!-- page -->
+    <p class="eyebrow">How to…</p>
+    <h1>Connect an AI assistant</h1>
+    <p class="summary">Step by step for each assistant app: add the BioManager plugin once, connect it to your lab, sign in, and try it.</p>
+    <div class="badges"><span class="badge">Lab server or desktop</span></div>
+
+      <p>Connecting takes a few minutes, once. Whatever app you use, it is the same four steps:</p>
+      <ol class="steps-list">
+        <li><b>Check that your app can reach BioManager</b> (the table below).</li>
+        <li><b>Add the BioManager plugin</b>, where your app takes plugins. It teaches the assistant how to work with
+          BioManager, so you never have to explain it.</li>
+        <li><b>Connect it to your lab</b> with your BioManager's address, and <b>sign in</b>: BioManager opens in your
+          browser and you press <b>Allow</b>. There is no password or token to give the assistant.</li>
+        <li><b>Try it</b>: say <i>I want to change something in BioManager</i>.</li>
+      </ol>
+      <p>Everything you need is on <b>Help → Connect an AI assistant</b> in BioManager (also under <b>Settings → AI assistant
+        &amp; tokens</b>), with your lab's address filled in, buttons for some apps and commands to copy for others. Keep it
+        open beside this page.</p>
+
+      <h2 id="reach">Can your app reach BioManager?</h2>
+      <p>An assistant app connects either from your own computer or from its company's servers on the internet. Which one
+        decides what it can reach:</p>
+      <table class="gtable">
+        <thead><tr><th>Your BioManager</th><th>Apps on your computer</th><th>Apps in the cloud</th></tr></thead>
+        <tbody>
+          <tr><td>The desktop app, on this computer</td><td>Yes</td><td>No</td></tr>
+          <tr><td>A lab server, on the lab network only</td><td>Yes, from a computer on the lab network</td><td>No</td></tr>
+          <tr><td>A lab server on the internet</td><td>Yes</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><b>On your computer</b>: Claude Code, Codex, Cursor, VS Code, Cherry Studio, QwenWork (千问办公), Trae, Doubao (豆包)
+          on the computer, Qwen Code, Kimi Code, and Claude Desktop with a token.</li>
+        <li><b>In the cloud</b>: claude.ai with the Claude desktop and phone apps' chats, and ChatGPT. They need the lab's server
+          on the internet; its admin turns that on (the server's runbook, <i>internet access</i>). Until then, the Connect page
+          says so and shows only the other ways.</li>
+      </ul>
+      <p>The Connect page shows two addresses, both ending in <code>/api/v1/mcp</code>: the <b>connector address</b> (on the
+        internet, for the cloud apps) and the address for apps <b>on this computer or the lab network</b>.</p>
+
+      <h2 id="claude">Claude</h2>
+
+      <h3 id="claude-chat">Claude on the web, the desktop app and the phone</h3>
+      <p>Needs the lab's server on the internet. Do these on claude.ai or in the desktop app; the phone app then has it too.</p>
+      <ol class="steps">
+        <li><b>Add the plugin.</b> Open <b>Customize → Plugins</b>, choose <b>Add → Add marketplace</b>, enter
+          <code>gaspolymerase/biomanager</code>, then open <b>BioManager</b> and press <b>Add</b>.<span class="sub">Once
+          BioManager is listed in Claude's directory, you can find it under <b>Discover</b> instead.</span></li>
+        <li><b>Add the connector.</b> Open the plugin's <b>Connectors</b> tab (or <b>Customize → Connectors</b>), choose
+          <b>Add custom connector</b>, name it <i>BioManager</i>, and paste the <b>connector address</b> from the Connect
+          page.</li>
+        <li><b>Connect.</b> Press <b>Connect</b>. A BioManager page opens asking for a <b>connection code</b>. On the
+          Connect page (on the lab network), press <b>Get a connection code</b>, type the code in, and press <b>Allow</b>. A
+          code works once, for 10 minutes.</li>
+        <li><b>Try it.</b> In a new chat, check BioManager is on in the chat's tools menu, and say <i>I want to change
+          something in BioManager</i>. The first time, Claude asks before it uses each tool; choose <b>Always allow</b> for
+          BioManager's tools. They can only read and propose: nothing changes until you approve it in BioManager.</li>
+      </ol>
+      <div class="callout note"><b>On a Team or Enterprise plan</b>An owner adds the connector for the organization, and can
+        install the plugin for everyone (<b>Installed by default</b>). Each person then only connects, with their own
+        connection code, so the assistant works as them.</div>
+
+      <h3 id="claude-code">Claude Code</h3>
+      <p>Works with the desktop app and with a server on the lab network. In Claude Code:</p>
+      <ol class="steps">
+        <li>Type <code>/plugin marketplace add gaspolymerase/biomanager</code>, then <code>/plugin install
+          biomanager@biomanager</code>.</li>
+        <li>It asks for <b>BioManager's MCP address</b>: paste the address for <b>this computer or the lab network</b> from
+          the Connect page.</li>
+        <li>Type <code>/mcp</code>, choose <i>biomanager</i> and <b>Authenticate</b>. BioManager opens in your browser: press
+          <b>Allow</b>.</li>
+        <li>Say <i>I want to change something in BioManager</i>.</li>
+      </ol>
+      <p>Without the plugin, the Connect page's one command connects it (<code>claude mcp add …</code>), or press <b>Copy the
+        message</b> and send it to Claude Code: it sets itself up.</p>
+
+      <h3 id="claude-desktop">Claude Desktop, with a desktop app or a lab-network server</h3>
+      <p>Claude Desktop's own connectors come from the internet, so for a BioManager it can't reach that way, it runs a small
+        program from BioManager's source instead. On the Connect page, press <b>Make a token</b>: the next page shows the
+        setup to paste into Claude Desktop (<b>Settings → Developer → Edit Config</b>), with your address and token in it. The
+        steps, and the one command that installs what it needs, are in <code>mcp/README.md</code>. Claude Desktop's
+        <b>Code</b> tab is Claude Code, and connects as above.</p>
+
+      <h2 id="openai">ChatGPT and Codex</h2>
+
+      <h3 id="chatgpt">ChatGPT</h3>
+      <p>Needs the lab's server on the internet, and ChatGPT on the web: ChatGPT's phone apps don't take your own servers.
+        ChatGPT lets a <b>Business, Enterprise or Edu</b> workspace make changes this way, once its admin turns on
+        developer mode; on other plans it can only read.</p>
+      <ol class="steps">
+        <li>Open <b>Plugins</b>, press <b>+</b> and choose <b>Add custom MCP server</b>.</li>
+        <li>Name it <i>BioManager</i>, paste the <b>connector address</b>, choose <b>OAuth</b>, and confirm with <b>I
+          understand and want to continue</b>, then <b>Create as a plugin</b> and install it.</li>
+        <li>When it asks you to sign in, a BioManager page asks for a <b>connection code</b>: get one on the Connect page,
+          type it in, and press <b>Allow</b>.</li>
+        <li>In a chat, choose BioManager (type <code>@</code>) and say <i>I want to change something in BioManager</i>.
+          Under its permissions, <b>Allow read actions</b> stops it asking before every look-up.</li>
+      </ol>
+
+      <h3 id="codex">Codex</h3>
+      <ol class="steps">
+        <li>Add the plugin: <code>codex plugin marketplace add gaspolymerase/biomanager</code>, then install
+          <i>BioManager</i> from its plugins.</li>
+        <li>Connect: <code>codex mcp add biomanager --url &lt;address&gt;</code> with the address for <b>this computer or the
+          lab network</b> (the Connect page has the command with it filled in).</li>
+        <li>Sign in: <code>codex mcp login biomanager</code>. BioManager opens in your browser: press <b>Allow</b>.</li>
+      </ol>
+
+      <h2 id="editors">Cursor and VS Code</h2>
+      <ol class="steps">
+        <li>On the Connect page, press <b>Add to Cursor</b> or <b>Add to VS Code</b>. The app opens and asks before adding
+          BioManager: accept.</li>
+        <li>Sign in: the app shows that BioManager <i>needs login</i>, or asks you to allow it; BioManager opens in your
+          browser, press <b>Allow</b>.</li>
+        <li>In VS Code, also add the plugin: run <b>Chat: Install Plugin From Source</b> with
+          <code>https://github.com/gaspolymerase/biomanager</code>.</li>
+      </ol>
+
+      <h2 id="china">Assistants used in China</h2>
+      <p>The DeepSeek, Qwen (千问) and Kimi chat apps can't connect to other apps yet. These can, from a computer that reaches
+        BioManager.</p>
+
+      <h3 id="cherry-studio">Cherry Studio, with DeepSeek, Qwen, Kimi or GLM</h3>
+      <ol class="steps">
+        <li>Set up Cherry Studio with your model's key (DeepSeek, Qwen, Kimi or Zhipu GLM), as Cherry Studio describes.</li>
+        <li>On the Connect page, press <b>Add to Cherry Studio</b>. Cherry Studio opens with BioManager added, switched off:
+          switch it on in <b>Settings → MCP</b>.</li>
+        <li>Sign in when BioManager opens in your browser: press <b>Allow</b>.</li>
+        <li>In a chat, turn on the BioManager tools and say <i>I want to change something in BioManager</i>.</li>
+      </ol>
+
+      <h3 id="qwenwork">QwenWork (千问办公), Trae and Doubao (豆包)</h3>
+      <p>These take your BioManager's address with a token. On the Connect page, press <b>Make a token</b>; the next page shows
+        the setup, with the address and token filled in.</p>
+      <ul>
+        <li><b>QwenWork</b>: <b>扩展 → 连接器 → + 添加 → 粘贴 JSON 配置</b>, and paste the JSON.</li>
+        <li><b>Trae</b>: <b>设置 → MCP → 添加 → 手动添加</b>, and paste the same JSON.</li>
+        <li><b>Doubao</b> on the computer: <b>技能 · 连接器 → 新建 → 新建自定义连接器</b>, transport <b>HTTP</b>, the address,
+          and a header <code>Authorization</code> with the value <code>Bearer</code> and the token.</li>
+      </ul>
+      <p>The token is shown once: keep it in the app, not in a note. Revoke it under <b>Settings → AI assistant &amp; tokens</b>
+        when you stop using the app.</p>
+
+      <h3 id="qwen-code">Qwen Code and Kimi Code</h3>
+      <ul>
+        <li><b>Qwen Code</b>: add the plugin with <code>qwen extensions install
+          https://github.com/gaspolymerase/biomanager:biomanager</code>, then connect with <code>qwen mcp add --transport
+          http biomanager &lt;address&gt;</code>. It signs in by itself in your browser.</li>
+        <li><b>Kimi Code</b>: <code>kimi mcp add -t http biomanager &lt;address&gt; --auth oauth</code>, then
+          <code>kimi mcp auth biomanager</code>.</li>
+      </ul>
+
+      <h3 id="deepseek">Claude Code on DeepSeek or GLM</h3>
+      <p>DeepSeek and Zhipu (GLM) both offer an address that speaks Claude's API, so Claude Code, with the BioManager plugin,
+        can run on a DeepSeek or Zhipu key. Set Claude Code up as their own pages say (DeepSeek's <i>Anthropic API</i> guide,
+        Zhipu's <i>Claude Code</i> guide), then follow <a href="#claude-code">Claude Code</a> above.</p>
+
+      <h2 id="other-apps">Any other app</h2>
+      <p>An app that takes an MCP server (Goose, OpenCode, LobeHub, Chatbox and others) needs the address, as a
+        <b>streamable HTTP</b> server. If it signs in with OAuth, leave the headers empty and sign in in the browser; if it
+        doesn't, press <b>Make a token</b> and give it the header the next page shows. An app that only starts commands runs
+        <code>mcp/biomanager_mcp.py</code>, as for Claude Desktop.</p>
+
+      <h2 id="check">Check that it works</h2>
+      <ol class="steps-list">
+        <li>Say <i>I want to change something in BioManager</i>. It should show you what's due today and ask what you did,
+          without asking you how BioManager works.</li>
+        <li>Tell it one small real thing, e.g. <i>weighed mouse 1043, 24.1 g</i>. It looks the mouse up, sends one proposal,
+          and gives you a link.</li>
+        <li>Open the link (or the bell) in BioManager: the proposal waits under <b>Proposed changes</b>. Read it, and press
+          <b>Approve</b> or <b>Discard</b>.</li>
+      </ol>
+      <p class="result">The connection is listed under <b>Settings → AI assistant &amp; tokens</b> with the app's name. Revoke it
+        there to end it; the assistant then can't read anything.</p>
+
+    <section class="trouble">
+      <h2 id="troubleshooting">Troubleshooting</h2>
+      <h3>The assistant doesn't seem to know BioManager</h3>
+      <p>Check that BioManager is on in the chat's tools (Claude, ChatGPT, Cherry Studio switch tools per chat), and that the
+        plugin is added and turned on. Without the plugin, say <i>use BioManager's lab_overview first</i>.</p>
+      <h3>It can't reach BioManager</h3>
+      <p>For apps on your computer: check that BioManager is running and that the address is the one for <b>this computer or
+        the lab network</b>. For claude.ai and ChatGPT: the <b>connector address</b> should open from a phone off the lab's
+        Wi-Fi, showing a short message asking for an API token. If it doesn't, the server isn't on the internet yet.</p>
+      <h3>Connecting says the connection code isn't right</h3>
+      <p>A code works once and for 10 minutes. Press <b>Get a connection code</b> again and use the new one.</p>
+      <h3>ChatGPT can read but not propose</h3>
+      <p>On ChatGPT plans other than Business, Enterprise and Edu, your own servers can only read. Use another app to
+        propose, or ask your workspace's admin about developer mode.</p>
+      <h3>Every few weeks it asks me to sign in again</h3>
+      <p>A sign-in lasts 90 days without use. Sign in again the same way; nothing else is lost.</p>
+    </section>
+    <p class="related"><span>Related:</span> <a href="ai-assistants.html">AI assistants</a> <a href="scripts-and-api.html">Scripts and the API</a> <a href="../server.html">Run it for your lab</a></p>
+    <!-- /page -->
+      <nav class="pager" aria-label="Previous / Next"><a class="prev" href="ai-assistants.html"><small>Previous</small>AI assistants</a><a class="next" href="troubleshooting.html"><small>Next</small>Troubleshooting</a></nav>
+      <div class="helpful" data-pagefind-ignore>
+        <span>Was this page helpful?</span>
+        <button type="button" data-helpful="yes" aria-pressed="false">Yes</button>
+        <a class="btn btn-small" data-helpful="no" href="https://github.com/gaspolymerase/biomanager/issues/new?title=Guide: Connect%20an%20AI%20assistant&amp;body=Page: https://biomanager.org/guide/connect-an-ai-assistant%0A%0AWhat%20was%20unclear%20or%20missing:" target="_blank" rel="noopener">No</a>
+      </div>
+  </main>
+  <nav class="docs-rail" aria-label="On this page">
+      <p>On this page · 9 min read</p>
+      <ol>
+        <li class="lvl2"><a href="#reach">Can your app reach BioManager?</a></li>
+        <li class="lvl2"><a href="#claude">Claude</a></li>
+        <li class="lvl3"><a href="#claude-chat">Claude on the web, the desktop app and the phone</a></li>
+        <li class="lvl3"><a href="#claude-code">Claude Code</a></li>
+        <li class="lvl3"><a href="#claude-desktop">Claude Desktop, with a desktop app or a lab-network server</a></li>
+        <li class="lvl2"><a href="#openai">ChatGPT and Codex</a></li>
+        <li class="lvl3"><a href="#chatgpt">ChatGPT</a></li>
+        <li class="lvl3"><a href="#codex">Codex</a></li>
+        <li class="lvl2"><a href="#editors">Cursor and VS Code</a></li>
+        <li class="lvl2"><a href="#china">Assistants used in China</a></li>
+        <li class="lvl3"><a href="#cherry-studio">Cherry Studio, with DeepSeek, Qwen, Kimi or GLM</a></li>
+        <li class="lvl3"><a href="#qwenwork">QwenWork (千问办公), Trae and Doubao (豆包)</a></li>
+        <li class="lvl3"><a href="#qwen-code">Qwen Code and Kimi Code</a></li>
+        <li class="lvl3"><a href="#deepseek">Claude Code on DeepSeek or GLM</a></li>
+        <li class="lvl2"><a href="#other-apps">Any other app</a></li>
+        <li class="lvl2"><a href="#check">Check that it works</a></li>
+        <li class="lvl2"><a href="#troubleshooting">Troubleshooting</a></li>
+      </ol>
+    </nav>
+</div>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-gh">
+      <p>BioManager is free and open source. If it helps your lab, a star on GitHub helps other labs find it; an issue there tells us what to fix or build next.</p>
+      <a class="btn btn-quiet" href="https://github.com/gaspolymerase/biomanager"><svg class="star" width="16" height="16" aria-hidden="true"><use href="../assets/icons.svg?v=d44b577819#star"/></svg>Star on GitHub</a>
+      <a class="btn btn-quiet" href="https://github.com/gaspolymerase/biomanager/issues/new/choose"><svg width="16" height="16" aria-hidden="true"><use href="../assets/icons.svg?v=d44b577819#github"/></svg>Send feedback</a>
+    </div>
+    <div class="brand"><img src="../assets/icon.svg" alt="" width="22" height="22">BioManager</div>
+    <p><a href="../download.html">Download</a> · <a href="https://github.com/gaspolymerase/biomanager/releases">All releases and what changed</a></p>
+  </div>
+</footer>
+<script src="../site.js?v=bd7f0aefcb"></script>
+</body>
+</html>

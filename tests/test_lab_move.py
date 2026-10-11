@@ -94,7 +94,7 @@ class BringingBackALabSetAside(AppTestCase):
 class OpeningALab(AppTestCase):
     FOUND = {"url": "https://lab.example.org", "name": "Rivera Lab", "host": "lab.example.org"}
 
-    def test_finding_a_lab_saves_nothing_until_open(self):
+    def test_finding_a_lab_saves_nothing_until_joined(self):
         saved = {}
         c = app.test_client()
         with DESKTOP, mock.patch.object(door, "no_accounts_yet", return_value=True), \
@@ -103,11 +103,13 @@ class OpeningALab(AppTestCase):
             html = c.post("/open-lab", data={"address": "lab.example.org"}).get_data(as_text=True)
             self.assertIn("Found your lab", html)
             self.assertEqual(saved, {})                              # Back would change nothing
-            r = c.post("/open-lab", data={"action": "open"})
-            self.assertGoesTo(r, "https://lab.example.org/")
-            self.assertEqual(saved, {"window_url": "https://lab.example.org"})
-            # Open without having found one: nothing to open.
-            self.assertEqual(c.post("/open-lab", data={"action": "open"}).headers["Location"], "/open-lab")
+            with mock.patch("app.desktop_join.join", return_value={"ok": False, "error": "That password isn't right."}):
+                html = c.post("/open-lab", data={"action": "join", "username": "a", "password": "b"}).get_data(as_text=True)
+            self.assertIn("That password isn", html)
+            self.assertEqual(saved, {})
+        # Join without having found one: nothing to join.
+        with DESKTOP:
+            self.assertEqual(app.test_client().post("/open-lab", data={"action": "join"}).headers["Location"], "/open-lab")
 
     def test_in_a_browser_the_computer_offers_the_lab_or_its_own(self):
         saved = {}
@@ -116,7 +118,7 @@ class OpeningALab(AppTestCase):
         with DESKTOP, mock.patch("app.devices.window_url", return_value="https://lab.example.org"), \
                 mock.patch("app.devices._save_prefs", side_effect=lambda **kw: saved.update(kw)):
             html = self.get_ok(c, "/lab-elsewhere")
-            self.assertIn('href="https://lab.example.org/"', html)
+            self.assertIn('href="/open-lab?address=https', html)   # joins it first
             self.assertIn("Use this computer’s BioManager", html)
             c.post("/lab-elsewhere")
         self.assertEqual(saved, {"window_url": ""})
@@ -142,7 +144,11 @@ class TheLabFile(AppTestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 made = self.make(Path(tmp))
-                manifest, database, _ = lab_transfer.open_file(made, Path(tmp) / "open")
+                from app import lab_key
+                from app.db import SessionLocal
+                with SessionLocal() as s:
+                    keys = lab_key.identities(s)
+                manifest, database, _ = lab_transfer.open_file(made, Path(tmp) / "open", keys)
                 self.assertEqual((manifest["format"], manifest["lab"]), ("biomanager-lab", "Rivera Lab"))
                 with sqlite3.connect(database) as conn:
                     keys = {r[0] for r in conn.execute("SELECT key FROM app_settings")}
@@ -154,6 +160,24 @@ class TheLabFile(AppTestCase):
                 self.assertTrue(data["users"])
         finally:
             execute("delete from app_settings where key='devices:state'")
+
+    def test_it_is_locked_with_the_lab_s_key(self):
+        from pyrage import x25519
+        from app import lab_key
+        from app.db import SessionLocal
+        with tempfile.TemporaryDirectory() as tmp:
+            made = self.make(Path(tmp))
+            self.assertTrue(lab_key.is_locked(made))
+            self.assertNotIn(b"lab.db", made.read_bytes())
+            with self.assertRaises(lab_transfer.LabFileError):
+                lab_transfer.open_file(made, Path(tmp) / "a")
+            with self.assertRaises(lab_transfer.LabFileError):
+                lab_transfer.open_file(made, Path(tmp) / "b", [x25519.Identity.generate()])
+            with SessionLocal() as s:
+                recovery = lab_key.parse_recovery(lab_key.grouped(lab_key.current(s).secret).lower())
+            manifest, database, _ = lab_transfer.open_file(made, Path(tmp) / "c", [recovery])
+            self.assertTrue(database.is_file())
+            self.assertEqual(str(manifest["__key__"]), str(recovery))
 
     def test_what_is_not_a_lab_file_is_refused_before_anything(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -203,11 +227,16 @@ MAKE = textwrap.dedent("""
     Path(os.environ["UPLOADS"], "gel.png").write_bytes(b"png")
     with app.app_context():
         lab_transfer.build(Path(os.environ["OUT"]), Path(os.environ["OUT"]).parent / "work")
+        open_copy = Path(os.environ["OUT"]).parent / "open.zip"
+        lab_transfer.build(open_copy, Path(os.environ["OUT"]).parent / "work2", lock=False)
+    from app import lab_key
+    with SessionLocal() as s:
+        Path(os.environ["KEY"]).write_text(lab_key.current(s).secret)
     # A broken copy: a key belonging to an account the file doesn't hold.
     import hashlib, json, sqlite3, zipfile
     work = Path(os.environ["OUT"]).parent / "broken"
     work.mkdir()
-    with zipfile.ZipFile(os.environ["OUT"]) as zf:
+    with zipfile.ZipFile(open_copy) as zf:
         zf.extractall(work)
     with sqlite3.connect(work / "lab.db") as conn:
         required = [r[1] for r in conn.execute("PRAGMA table_info(lab_copy_keys)") if r[3] and not r[5]]
@@ -239,9 +268,17 @@ TAKE = textwrap.dedent("""
     out["dialect"] = engine.dialect.name
     r = c.post("/lab/import", data=body, headers={"Content-Type": "application/zip", "X-BioManager-Setup-Code": "wrong"})
     out["wrong_code"] = [r.status_code, r.get_json()["error"]]
+    out["locked"] = body.startswith(b"age-encryption.org/v1")
+    r = c.post("/lab/import", data=body, headers={"Content-Type": "application/zip", "X-BioManager-Setup-Code": code})
+    out["no_key"] = [r.status_code, r.get_json()["error"]]
+    lab_key_secret = Path(os.environ["KEY"]).read_text()
     r = c.post("/lab/import", data=body, headers={"Content-Type": "application/zip", "X-BioManager-Setup-Code": code,
-                                                   "X-BioManager-Admin": "pi"})
+                                                   "X-BioManager-Admin": "pi", "X-BioManager-Lab-Key": lab_key_secret})
     out["answer"] = r.get_json()
+    from app import lab_key
+    from app.db import SessionLocal
+    with SessionLocal() as s:
+        out["kept_key"] = lab_key.current(s, create=False).secret == lab_key_secret
     with engine.connect() as conn:
         out["users"] = conn.execute(text("select count(*) from users")).scalar()
         out["lab"] = conn.execute(text("select value from app_settings where key='lab_name'")).scalar()
@@ -293,8 +330,9 @@ class ANewServerTakesALab(unittest.TestCase):
                 raise AssertionError(done.stderr[-3000:])
             return done.stdout
         lab_file = tmp / "rivera.biomanager"
-        run(MAKE, "desktop", OUT=str(lab_file), BROKEN=str(tmp / "broken.biomanager"))
+        run(MAKE, "desktop", OUT=str(lab_file), BROKEN=str(tmp / "broken.biomanager"), KEY=str(tmp / "lab.key"))
         cls.result = json.loads(run(TAKE, "server", FILE=str(lab_file), BROKEN=str(tmp / "broken.biomanager"),
+                                    KEY=str(tmp / "lab.key"),
                                     **server_db).strip().splitlines()[-1])
 
     @classmethod
@@ -332,6 +370,15 @@ class ANewServerTakesALab(unittest.TestCase):
     def test_a_second_lab_is_refused(self):
         self.assertEqual(self.result["again"], 409)
 
+    def test_the_file_is_locked_and_the_lab_keeps_its_key(self):
+        # Locked with the desktop lab's key: without it the server can't
+        # read the file; with the key the desktop sends, it keeps that key,
+        # so files the desktop saved before still open here.
+        self.assertTrue(self.result["locked"])
+        self.assertEqual(self.result["no_key"][0], 409)
+        self.assertIn("recovery key", self.result["no_key"][1])
+        self.assertTrue(self.result["kept_key"])
+
 
 class MovingToAServer(AppTestCase):
     def tearDown(self):
@@ -342,13 +389,17 @@ class MovingToAServer(AppTestCase):
         saved = {}
         found = {"url": "https://lab.example.org", "name": "Rivera Lab", "host": "lab.example.org"}
         with DESKTOP, DESKTOP_APP, mock.patch.object(door, "find_lab", return_value=found), \
-                mock.patch("app.lab_move.push", return_value={"ok": True, "lab": "Rivera Lab", "key": "bmk_test"}) as push, \
+                mock.patch("app.lab_move.push", return_value={"ok": True, "lab": "Rivera Lab", "key": "bmk_test",
+                                                              "device": {"token": "bmd_test", "device": "d1"}}) as push, \
+                mock.patch("app.desktop_join._remember") as remember, \
+                mock.patch("app.desktop_join.start_relay", return_value="http://127.0.0.1:5999"), \
                 mock.patch("app.devices._save_prefs", side_effect=lambda **kw: saved.update(kw)):
             self.assertIn("Move this lab to a server", self.get_ok(self.a, "/settings/devices"))
             r = self.a.post("/settings/devices/move", data={"address": "lab.example.org", "setup_code": "abcd"})
-            self.assertGoesTo(r, "https://lab.example.org/")
+            # This computer joined the server as its admin's device: the window opens the relay.
+            self.assertGoesTo(r, "http://127.0.0.1:5999/")
             self.assertEqual(push.call_args.args[:2], ("https://lab.example.org", "abcd"))
-            self.assertEqual(saved, {"window_url": "https://lab.example.org"})
+            self.assertEqual(remember.call_args.args, ("https://lab.example.org", {"token": "bmd_test", "device": "d1"}))
             state = json.loads(one("select value from app_settings where key='devices:state'"))
             self.assertEqual((state["phase"], state["moved"]), ("away", True))
             self.assertEqual(one("select value from app_settings where key='lab_copy_server'"), "https://lab.example.org")

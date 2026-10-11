@@ -118,7 +118,11 @@
             <li><a href="your-data.html">Your data and backups</a></li>
             <li><a href="restore-a-backup.html">Restore a backup</a></li>
             <li><a href="scripts-and-api.html">Scripts and the API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI assistants</span>
+          <ol>
             <li><a href="ai-assistants.html">AI assistants</a></li>
+            <li><a href="connect-an-ai-assistant.html">Connect an AI assistant</a></li>
           </ol></li>
         <li class="docs-group"><span>Help</span>
           <ol>
@@ -138,13 +142,32 @@
 
       <dl class="gdl">
         <dt>Android</dt><dd>Install <code>BioManager-Android.apk</code> from the <a href="../download.html">download page</a> (allow your browser to
-          install apps when asked), type your lab server's address once, and you're in. The <b>Scan</b> button reads cage cards.</dd>
+          install apps when asked), type your lab server's address once, and you're in. The <b>Scan</b> button reads cage cards.
+          Signed in, the app is one of your devices and keeps the facility on the phone for when there is no signal
+          (<a href="#offline">Working offline</a>).</dd>
         <dt>iPhone and iPad</dt><dd>Open the server in <b>Safari</b> and tap <b>Share → Add to Home Screen</b>. BioManager gets its own icon
           and opens full screen like an app; your camera scans cage cards. (Android without the app: Chrome → <b>⋮ → Install app</b>.)</dd>
         <dt id="getting-around">Getting around</dt><dd>A bar at the bottom holds <b>Home</b>, <b>Calendar</b>, <b>Databases</b> (a list of
           the lab's databases), <b>Notebook</b> and <b>Scan</b>, with <b>Search</b> in the round button beside it; it shrinks while you read down
           a page. <b>Scan</b> uses the app's scanner, or the phone's camera; in Safari on an iPhone it reminds you to point the
           <b>Camera</b> app at the card, which opens it here. <b>☰</b> at the top left brings in the whole sidebar.</dd>
+        <dt id="offline">Working offline</dt><dd>Animal facilities often have no signal. The Android app and the desktop app keep a
+          copy of what you need there: the colony's racks, cages, mice, litters and recent weights, your to-dos for the next two
+          weeks, fly and worm vials and fish tanks, as you may see them. They refresh it when they open, when the network comes
+          back and every 15 minutes. Before going down, press and hold the <b>Scan</b> button and choose <b>Get ready for the
+          facility</b> for a fresh copy.
+          <p>When the lab's server can't be reached, the app shows its offline screens instead of an error, marked
+          <b>Offline</b> with when the copy was made (amber once it is more than a day old). Find a cage by its ID, card or a
+          mouse's number, or scan its card, and record what you do: <b>Record a weight</b>, <b>Died</b>, <b>Move</b>, a
+          <b>Note</b>; on a Breeding cage <b>Litter born</b>, <b>Genotyping</b> (the pups appear at once, ready to weigh) and
+          <b>Wean</b>; tick a to-do; <b>Flipped</b> or <b>Discard</b> a vial; a note on a tank. Each shows at once, marked
+          <b>waiting</b>, and the bar counts the changes waiting. Nothing is lost if the app closes.</p>
+          <p>Back in signal, the changes go to the lab in the order you made them, each through the same rules as the pages,
+          as you, with the time you did it. If someone changed the same thing meanwhile (marked the mouse Breeder while you
+          marked it dead, recorded another birth date), yours waits under <b>Needs your decision</b> in your account menu, and on
+          Home after three days: it shows what you saw, what is there now and who changed it, with <b>Keep mine</b>,
+          <b>Keep theirs</b> or <b>Edit</b>. A different field changed meanwhile is simply kept along with yours. Something the
+          lab refuses (a cage that isn't a Breeding cage any more) is listed on the same page with the reason.</p></dd>
         <dt id="cards">Cage cards</dt><dd><b>Cages → Cage cards</b> prints cards sized for standard card stock — owner, purpose, where it goes (rack and
           position), animals with how many of each sex, genotype and a QR code. Scanning it opens that cage, ready to edit, at the rack.
           <b>Tank labels</b> (Zebrafish), <b>Labels</b> on a fly or worm database, and <b>Labels</b> on ticked samples, reagents or any
@@ -166,6 +189,9 @@
       <h3>My phone can't reach the server</h3>
       <p>Check the address with your admin; that you're on the lab's network, VPN or Tailscale;
           and, if your lab uses its own certificate, that it's installed on the phone.</p>
+      <h3>The offline screens say "This device has no copy of the lab yet"</h3>
+      <p>The app keeps a copy once you have signed in through it with a signal. Open BioManager once where it reaches the
+          server, signed in, then <b>Get ready for the facility</b>.</p>
     </section>
     <!-- /page -->
       <nav class="pager" aria-label="Previous / Next"><a class="prev" href="print-cage-cards.html"><small>Previous</small>Print cage cards</a><a class="next" href="zebrafish.html"><small>Next</small>Zebrafish</a></nav>

@@ -28,7 +28,7 @@ run_once() {
 
 recent_backup() {
   local newest
-  newest=$(ls -1t "$BACKUP_ROOT"/db/biomanager-*.dump 2>/dev/null | head -n 1)
+  newest=$(ls -1t "$BACKUP_ROOT"/db/biomanager-*.dump* 2>/dev/null | head -n 1)
   [ -n "$newest" ] && [ $(( $(date +%s) - $(stat -c %Y "$newest") )) -lt $(( START_SKIP_HOURS * 3600 )) ]
 }
 

@@ -118,7 +118,11 @@
             <li><a href="your-data.html">数据与备份</a></li>
             <li><a href="restore-a-backup.html" aria-current="page">从备份恢复</a></li>
             <li><a href="scripts-and-api.html">脚本与 API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI 助手</span>
+          <ol>
             <li><a href="ai-assistants.html">AI 助手</a></li>
+            <li><a href="connect-an-ai-assistant.html">连接 AI 助手</a></li>
           </ol></li>
         <li class="docs-group"><span>帮助</span>
           <ol>
@@ -152,6 +156,9 @@
     <p>服务器每晚备份一次，每周恢复一次最新备份以证明备份可用。恢复只要一条命令，由负责服务器的人执行，而且不会删掉被替换的数据：
       见服务器安装包里的 <code>deploy/RUNBOOK.md</code> 和<a href="../server.html#safe">保护数据安全</a>。如果只是批量操作出了错，
       用 <b>设置 → 历史 → 撤销</b> 就够了。</p>
+    <p>备份都用<a href="your-data.html#lab-key">实验室密钥</a>加密，所以泄露的备份无法读取。在同一台服务器上，它们会自动打开。新机器上没有这把密钥，
+      恢复时要提供实验室的恢复密钥（运维手册里写了怎么做）；实验室恢复后，管理员在 <b>设置 → 你的数据 → 实验室密钥 → 恢复的实验室没有密钥</b>
+      （Settings → Your data → Lab key → A lab back without its key）里输入恢复密钥，它加密过的实验室文件和副本就能在那里重新打开。</p>
     <section class="trouble">
       <h2 id="troubleshooting">故障排除</h2>
       <h3>BioManager 打不开，提示实验室数据库是空文件</h3>
@@ -167,7 +174,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="本页内容">
-      <p>本页内容 · 阅读约 1 分钟</p>
+      <p>本页内容 · 阅读约 2 分钟</p>
       <ol>
         <li class="lvl2"><a href="#lab-server">实验室服务器</a></li>
         <li class="lvl2"><a href="#troubleshooting">故障排除</a></li>

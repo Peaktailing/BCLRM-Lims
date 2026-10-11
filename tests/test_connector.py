@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import json
 import os
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from tests.base import client_for, days_ago, execute, make_user, one, uniq
 from tests.test_api import Base
@@ -41,6 +42,9 @@ class Endpoint(Base):
         self.assertEqual(server["code_challenge_methods_supported"], ["S256"])
         self.assertTrue(server["authorization_response_iss_parameter_supported"])
         self.assertEqual(server["registration_endpoint"], "http://localhost/oauth/register")
+        # ChatGPT asks for a refresh token only when offline_access is offered.
+        self.assertIn("offline_access", server["scopes_supported"])
+        self.assertIn("offline_access", meta["scopes_supported"])
 
     def test_initialize_tools_and_prompts(self):
         tok = self.token(self.m, scope="propose", label="Claude")
@@ -53,8 +57,10 @@ class Endpoint(Base):
         self.assertEqual(newer["protocolVersion"], "2025-11-25")
         self.assertEqual(self.rpc(tok, "notifications/initialized", msg_id=None).status_code, 202)
         tools = {t["name"]: t for t in self.rpc(tok, "tools/list").get_json()["result"]["tools"]}
+        from app.mcp_http import COMPUTE_TITLES
         self.assertEqual(set(tools), {"lab_overview", "resolve", "get", "list", "whats_due", "list_actions",
-                                      "propose_changes", "proposal_status", "discard_proposal"})
+                                      "propose_changes", "proposal_status", "discard_proposal", "list_captures",
+                                      "get_capture"} | set(COMPUTE_TITLES))
         self.assertIn("litter_born", tools["propose_changes"]["description"])     # the lab's own actions
         self.assertTrue(tools["resolve"]["annotations"]["readOnlyHint"])
         self.assertEqual(tools["resolve"]["inputSchema"]["required"], ["q"])
@@ -72,7 +78,7 @@ class Endpoint(Base):
     def test_a_proposal_through_the_endpoint_is_signed_with_the_connection(self):
         tok = self.token(self.m, scope="propose", label="Claude")
         code = uniq("C")
-        cage = self.make_cage(self.m, code)
+        cage = self.make_cage(self.m, code, purpose="Breeding")
         found = self.rpc(tok, "tools/call", {"name": "resolve", "arguments": {"q": f"cage {code}"}}).get_json()
         ref = found["result"]["structuredContent"]["matches"][0]["ref"]
         self.assertEqual(ref, {"kind": "cage", "id": cage})
@@ -321,3 +327,18 @@ class ConnectPage(Base):
         execute("update users set expires_at=? where username=?", "2099-01-01 00:00:00", guest)
         page = self.get_ok(client_for(guest), "/settings")
         self.assertFalse('href="/settings/assistant"' in page)
+
+    def test_the_plugin_and_one_click_links_carry_this_address(self):
+        page = self.get_ok(self.m, "/settings/assistant")
+        self.assertTrue('id="plugin"' in page and "gaspolymerase/biomanager" in page)
+        self.assertTrue("codex mcp add biomanager --url http://localhost/api/v1/mcp" in page)
+        links = dict((name, html.unescape(href)) for href, name in
+                     re.findall(r'<a class="btn btn-sm" href="([^"]+)">.*?Add to ([A-Za-z ]+)</a>', page, re.S))
+        self.assertEqual(set(links), {"Cursor", "VS Code", "Cherry Studio"})
+        config = parse_qs(urlparse(links["Cursor"]).query)["config"][0]
+        self.assertEqual(json.loads(base64.b64decode(config)), {"url": "http://localhost/api/v1/mcp"})
+        self.assertEqual(json.loads(unquote(links["VS Code"].split("?", 1)[1])),
+                         {"name": "biomanager", "type": "http", "url": "http://localhost/api/v1/mcp"})
+        servers = parse_qs(urlparse(links["Cherry Studio"]).query)["servers"][0]
+        self.assertEqual(json.loads(base64.b64decode(servers)),
+                         {"name": "BioManager", "type": "streamableHttp", "baseUrl": "http://localhost/api/v1/mcp"})

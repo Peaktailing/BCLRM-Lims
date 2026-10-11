@@ -49,6 +49,14 @@
   </a>
 {% endif %}
 
+{% if held_overdue %}
+  <a class="setup-banner" href="{{ url_for('sync.page') }}">
+    {{ icon('error') }}
+    <span><strong>{{ ngettext('%(num)s change made offline needs your decision.', '%(num)s changes made offline need your decision.', held_pending) }}</strong> {{ _('Someone changed the same record meanwhile; choose which to keep.') }}</span>
+    <span class="btn btn-sm btn-primary">{{ _('Decide') }}</span>
+  </a>
+{% endif %}
+
 {% include "lab/_getting_started.html" %}
 
 {# ---- The cards: each person chooses which show, in what order and which

@@ -153,6 +153,13 @@ never what you may edit.
     counts), with each test in a table below it.
   - **Export** gives an Excel workbook: the readout (long, for Prism or R,
     and wide), each animal's manipulations, and the tests.
+  - **Planned, then started.** An experiment an AI assistant designs with
+    you arrives as **Planned**: nothing is due until you press **Start**,
+    which keeps a copy of the plan (the groups, the **Main readout day**,
+    the **Planned test**). After that, changing the main readout, the
+    groups, the test, or leaving an animal out (**Leave out…**) asks for a
+    one-line reason; **Changes from the plan** lists each, beside
+    **Planned → done**, and the export gets a sheet of them.
   - **Bench mode**, on a phone (scan its QR code): one animal at a time,
     with big numbers: weigh or count each, or give each today's
     manipulation and tick it. **Scan a card** reads a cage, tank or vial
@@ -718,6 +725,13 @@ database has a name of its own (one another database has is refused), so
       photo of your notebook, and it sends one proposal: you <b>Approve</b>
       it whole in BioManager, or <b>Discard</b> it. It never changes
       anything itself, and an approved proposal can be undone like any batch.
+      Add the <b>BioManager plugin</b> once (Claude, Codex, VS Code, Qwen Code)
+      and "I want to change something in BioManager" is all you need to say.
+      At the bench, a <b>Capture</b> (words, dictation or a photo) waits
+      for it until later. It can also plan with you: breeding, animals per
+      group, random groups, a whole experiment, worked out by BioManager
+      from your own records; review the week; and draft an experiment's
+      methods with its ARRIVE checklist.
     </td>
     <td valign="top">
       <h4>↕️ Your sidebar, your order</h4>
@@ -824,7 +838,10 @@ The interface follows Apple's Liquid Glass design: the sidebar, the row of
 tabs and each page's buttons float as frosted glass over the page, which
 scrolls beneath them, while the records themselves sit on solid ground so
 they stay easy to read. On a Mac the desktop app has no title bar; its close,
-minimise and zoom buttons sit at the top of the sidebar. There is a full
+minimise and zoom buttons sit at the top of the sidebar, followed, as in
+Safari, by buttons to hide the sidebar, search everything, and go back and
+forward. Hidden, the sidebar narrows to a column of its places, each icon
+with its name under it. There is a full
 dark mode, following the system's setting (in the desktop app, **View →
 Appearance** chooses Light or Dark), and Reduce Transparency, Increase
 Contrast and Reduce Motion are honoured. It works in any modern browser on
@@ -908,9 +925,12 @@ places is lost. **Settings → Devices & copies → Devices** says which device 
 every computer linked to the lab:
 
 - **A lab server** is the master copy unless an admin hands it on.
-- **A desktop can open the lab in its window** (**Open the lab in this
-  window**): you work on the lab itself, in the app, and the computer keeps
-  its daily copy. **Go → This Computer's BioManager** comes back.
+- **A desktop joins the lab as one of your devices** (**Open your lab**, or
+  **Open the lab in this window**): you sign in as you do at the lab (or
+  approve a code on a device already signed in), and its window works on the
+  lab through the app, never the server's page itself. It keeps a daily
+  copy, locked with the lab's key and its own. **Go → This Computer's
+  BioManager** and **Go → Your Lab's BioManager** switch between the two.
 - **A desktop can share its own lab on the network** (**Share this lab on
   the network**, admins): it becomes the master for every device on the same
   network (Wi-Fi or cable), which opens its address. The computer must
@@ -923,6 +943,28 @@ every computer linked to the lab:
   sends everyone there. **Give the master copy back** returns it, with
   everything changed meanwhile. Sign-ins to other services (Google
   Calendar) are not carried along and are connected again.
+
+Every computer, phone and browser you are signed in on is one of **Your
+devices** (**Settings → Devices & copies**): rename one, or **Sign out**
+one (a lost phone) without changing your password. Admins see everyone's.
+
+### 📴 Working offline in the facility
+
+Animal facilities often have no signal. The Android app and the desktop app
+keep a copy of what you need there (the colony's racks, cages, mice, litters
+and recent weights, your to-dos for two weeks, vials and tanks, as you may
+see them), refreshed when they open, when the network comes back and every
+15 minutes; **Get ready for the facility** (hold the Scan button) takes a
+fresh one. When the server can't be reached, the app shows offline screens
+instead of an error: find a cage by its ID or card, or scan it, and **Record
+a weight**, **Died**, **Move**, **Note**, **Litter born**, **Genotyping**,
+**Wean**, tick a to-do, flip or discard a vial. Each shows at once, marked
+*waiting*. Back in signal the changes reach the lab in the order you made
+them, through the pages' own rules, as you. One that clashes with a change
+made meanwhile (the same field, set to something else) waits under **Needs
+your decision** (**Keep mine**, **Keep theirs**, **Edit**); a different
+field is kept along with yours; one the lab refuses is listed with the
+reason.
 
 ---
 
@@ -940,8 +982,8 @@ every computer linked to the lab:
    `BioManager-Linux.AppImage` executable and open it. The apps aren't
    signed by Apple or Microsoft, so the system asks once per version.
 3. It asks whether your lab already uses BioManager. **Yes, open my lab**
-   takes the lab's address and opens it in this window; nothing is made on
-   the computer. **No, start a new lab** names the new lab, asks where it
+   takes the lab's address, then your sign-in, and joins the lab as one of
+   your devices; nothing is made on the computer. **No, start a new lab** names the new lab, asks where it
    lives, and makes your account its admin; then answer the short setup
    survey: tick what your lab keeps, and BioManager creates just those
    databases, with racks and incubators to match, and shows the address
@@ -1291,24 +1333,36 @@ track.
   admin can revoke it). Mice, cages, litters, strains, tanks and fish,
   plasmids, fly and worm vials, every inventory and every experiment can be
   read; a mouse's weights and fields, vials, inventory items and an
-  experiment's readout can be written. For tools that start from your
+  experiment's readout can be written. A list refuses a filter it doesn't
+  take, and names the ones it does. For tools that start from your
   own words, such as an AI assistant, it also finds the records a phrase
   means (`/api/v1/resolve`), lists what the lab calls things
-  (`/api/v1/vocabulary`) and what is due (`/api/v1/due`). A *Read and
+  (`/api/v1/vocabulary`) and what is due (`/api/v1/due`), searches
+  (`/api/v1/search`), reads a record's history and family tree, and works
+  things out from the lab's own records, changing nothing: animals available,
+  a breeding plan, random groups, animals per group, when stock runs out, the
+  week's checks and an experiment's facts for its methods. A *Read and
   propose* token, meant for an AI assistant, changes nothing itself: it
   sends its changes as one proposal, which BioManager checks as its pages
   would and keeps under **Proposed changes** (in your account menu and in
-  **Settings → AI assistant & tokens**, with a notification) as one plain summary. **Approve** makes every change at
+  **Settings → AI assistant & tokens**, with a notification) as one plain summary, with warnings
+  for what else a change would do (a cage no longer shared with the lab, an
+  item of that name already in stock). **Approve** makes every change at
   once, as one batch you can undo; **Discard** makes none; only you, signed
-  in, can approve. **Connect an AI assistant**, at the top of the same
-  pane, connects one (it is also under **Help**). Claude Code, Cursor and Cherry Studio use
-  BioManager's own MCP address (`/api/v1/mcp`), nothing to install: paste
-  the page's message into the assistant and it sets itself up, then you
-  sign in in the browser (or use such a token); Claude
+  in, can approve, or **Send back** with a reason for the assistant to
+  correct: its corrected proposal takes the old one's place. **Connect an AI assistant**, at the top of the same
+  pane, connects one (it is also under **Help**). Claude Code, Codex, Cursor,
+  VS Code and Cherry Studio use BioManager's own MCP address (`/api/v1/mcp`),
+  nothing to install: paste the page's message into the assistant and it sets
+  itself up, or press **Add to Cursor**, **Add to VS Code** or **Add to Cherry
+  Studio**, then you sign in in the browser (or use such a token); Claude
   Desktop runs `mcp/biomanager_mcp.py` from this repository
   (`mcp/README.md`). On a lab server that is on the internet, claude.ai,
   the Claude phone apps and ChatGPT add the same address as a custom
-  connector and sign in with a one-time connection code.
+  connector and sign in with a one-time connection code. The **BioManager
+  plugin** (`plugins/biomanager/`, added from the `gaspolymerase/biomanager`
+  marketplace in Claude, Codex, VS Code or Qwen Code) teaches an
+  assistant how to work with BioManager, so nobody has to explain it first.
   Changes are in the change history
   under your name, marked with the token's name. The reference, with
   examples in curl, Python and R, is at `/api` on your BioManager
@@ -1376,14 +1430,22 @@ version it came from. A lab server takes a backup before every update.
 
 A lab server backs itself up every night, checks every backup and
 test-restores one every week, with an optional off-site copy and a nightly
-copy on the admin's Mac. The desktop app can also keep **a copy of the lab
-server** on any computer (**Settings → Devices & copies**):
-the whole database, checked when it arrives, refreshed daily, the newest 14
-kept, and loadable into a new server if the old one is lost. Admins decide
-whether members may (guests never). An admin's copy is the whole lab; a
-member's holds what they can see in the app, without anyone's password,
-other people's private notebook pages or personal databases, or the Audit
-log. **Settings → Your data → Export my data** downloads your own mice, cages,
+copy on the admin's Mac. A desktop app that joins the lab keeps **a copy of
+the lab** on that computer (**Settings → Devices & copies**; a computer that
+shouldn't join can use a key from the server instead): checked when it
+arrives, refreshed daily, the newest 14 kept, and loadable into a new server
+if the old one is lost. Admins decide whether members may (guests never). An
+admin's copy is the whole lab; a member's holds what they can see in the
+app, without anyone's password, other people's private notebook pages,
+personal databases, personal to-dos and events, or the Audit log.
+
+**The lab's key** locks the server's backups, **Save the whole lab** files
+and the copies on computers, so a file that leaks can't be read. The server
+and its admins' desktop apps hold it and open these files for you. Its
+**recovery key** (**Settings → Your data → Lab key → Show the recovery key**,
+admins) is the one way to open a backup if the server and every admin's
+computer are lost: keep it on paper or in a password manager, away from the
+backups. **Settings → Your data → Export my data** downloads your own mice, cages,
 weights, experiments, plasmids (each sequence as a GenBank file, with its
 features), notebook pages and profile as a zip at any time.
 

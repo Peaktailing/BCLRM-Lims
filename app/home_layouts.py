@@ -26,7 +26,7 @@ from . import i18n, inventory_service, organism_service, positions, stock_servic
 from .i18n import gettext, translate_value
 from .icons import resolve as resolve_icon
 from .models import CageRecord, CalendarEvent, InventoryItem, LitterRecord, MouseRack, MouseRecord, StockRack, StockUnit
-from .services import WEAN_OFFSET_DAYS, weaning_due, weaning_title
+from .services import WEAN_OFFSET_DAYS, is_breeding_cage, weaning_due, weaning_title
 
 LAYOUTS = {
     "classic": ("Classic", "columns"),
@@ -374,6 +374,13 @@ def _mouse_ids(mice) -> str:
     return ", ".join(ids[:4]) + (f" +{len(ids) - 4}" if len(ids) > 4 else "")
 
 
+def _mouse_refs(mice) -> list[dict]:
+    """Each mouse an item names, as /api/v1/due gives them: its number and
+    reference, in the order the title lists them."""
+    return [{"mouse": m.mouse_id, "ref": {"kind": "mouse", "id": m.id}}
+            for m in sorted(mice, key=lambda m: m.mouse_id)]
+
+
 def _by_cage(mice):
     groups = defaultdict(list)
     for m in mice:
@@ -407,6 +414,7 @@ def _colony_items(session, today, until) -> list[dict]:
         out.append(_item("colony:age", due, title, today,
                          mice_url, detail=gettext("oldest %(n)s w", n=weeks) if past else "",
                          loc=_cage_loc(group[0].cage), owner=group[0].owner, ref=_ref("cage", group[0].cage)))
+        out[-1]["mice"] = _mouse_refs(group)
 
     # Weanings at P21, from a week overdue to the end of the window: the
     # same list as Home's and the calendar's (services.weaning_due).
@@ -419,7 +427,10 @@ def _colony_items(session, today, until) -> list[dict]:
         out.append(_item("colony:wean", wean["due"], gettext("Wean %(what)s", what=weaning_title(wean)), today, url,
                          detail=" · ".join(bits), loc=_cage_loc(cage),
                          owner=cage.owner if cage is not None else "", ref=_ref("cage", cage),
-                         propose=_done("wean", _ref("cage", cage))))
+                         # Weaning is a Breeding cage's (app.py _not_breeding):
+                         # elsewhere the litter is weaned by hand.
+                         propose=_done("wean", _ref("cage", cage))
+                         if cage is not None and is_breeding_cage(cage.purpose) else None))
 
     # Waiting on genotyping: due now.
     geno = session.scalars(
@@ -428,6 +439,7 @@ def _colony_items(session, today, until) -> list[dict]:
     for group in _by_cage(geno):
         out.append(_item("colony:geno", today, gettext("Genotype %(mice)s", mice=_mouse_ids(group)), today, mice_url,
                          loc=_cage_loc(group[0].cage), owner=group[0].owner, ref=_ref("cage", group[0].cage)))
+        out[-1]["mice"] = _mouse_refs(group)
     return out
 
 
@@ -506,19 +518,26 @@ def _supply_items(session, today, horizon) -> list[dict]:
                    "order": (2, 0, where, 0, 0)}
         url = url_for("inventory.module", key=a["key"], q=a["name"])
         owner = item.owner if item is not None else ""
+        ref = {"kind": "inventory_item", "id": a["id"]}
+        module = translate_value(a["module"])
         if a["expiry"] in ("expired", "soon") and a["expires_on"]:
-            title = (gettext("Expired: %(name)s", name=a["name"]) if a["expiry"] == "expired"
+            expired = a["expiry"] == "expired"
+            title = (gettext("Expired: %(name)s", name=a["name"]) if expired
                      else gettext("Expires: %(name)s", name=a["name"]))
-            module = translate_value(a["module"])
-            out.append(_item("supplies", a["expires_on"], title, today, url,
-                             detail=gettext("%(module)s · low", module=module) if a["low"] else module,
-                             loc=loc, owner=owner))
+            if a["low"]:   # both: the detail says so, not only the low half
+                detail = (gettext("%(module)s · expired and low", module=module) if expired
+                          else gettext("%(module)s · expiring and low", module=module))
+            else:
+                detail = module
+            out.append(_item("supplies", a["expires_on"], title, today, url, detail=detail, loc=loc, owner=owner,
+                             ref=ref))
         else:
             # Low stock has no date of its own: it is on today's list, but it is
             # not as pressing as something due today.
             out.append(_item("supplies", today, gettext("Low: %(name)s", name=a["name"]), today, url,
-                             detail=" · ".join(filter(None, [translate_value(a["module"]), a.get("quantity", "")])),
-                             loc=loc, owner=owner, status="soon"))
+                             detail=" · ".join(filter(None, [module, a.get("quantity", "")])),
+                             loc=loc, owner=owner, status="soon", ref=ref))
+        out[-1]["database"] = module   # the inventory's own name, for /api/v1/due
     return out
 
 

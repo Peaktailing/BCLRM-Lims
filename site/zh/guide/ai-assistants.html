@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Language" content="zh-CN">
   <title>AI 助手 — BioManager 用户指南</title>
-  <meta name="description" content="把你做了什么告诉 AI 助手；它提出记录，你在 BioManager 里批准。">
+  <meta name="description" content="告诉 AI 助手你做了什么，或者请它帮你计划；它提出记录，由你在 BioManager 里批准。">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#fbfdfc" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f1413" media="(prefers-color-scheme: dark)">
@@ -17,7 +17,7 @@
   <meta property="og:site_name" content="BioManager">
   <meta property="og:url" content="https://biomanager.org/zh/guide/ai-assistants">
   <meta property="og:title" content="AI 助手 — BioManager 用户指南">
-  <meta property="og:description" content="把你做了什么告诉 AI 助手；它提出记录，你在 BioManager 里批准。">
+  <meta property="og:description" content="告诉 AI 助手你做了什么，或者请它帮你计划；它提出记录，由你在 BioManager 里批准。">
   <meta property="og:image" content="https://biomanager.org/assets/social-card.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml">
@@ -118,7 +118,11 @@
             <li><a href="your-data.html">数据与备份</a></li>
             <li><a href="restore-a-backup.html">从备份恢复</a></li>
             <li><a href="scripts-and-api.html">脚本与 API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI 助手</span>
+          <ol>
             <li><a href="ai-assistants.html" aria-current="page">AI 助手</a></li>
+            <li><a href="connect-an-ai-assistant.html">连接 AI 助手</a></li>
           </ol></li>
         <li class="docs-group"><span>帮助</span>
           <ol>
@@ -130,90 +134,112 @@
   </aside>
   <main class="docs-main" data-pagefind-body>
     <!-- page -->
-    <p class="eyebrow">数据与帮助</p>
+    <p class="eyebrow">AI 助手</p>
     <h1>AI 助手</h1>
-    <p class="summary">把你做了什么告诉 AI 助手；它提出记录，你在 BioManager 里批准。</p>
+    <p class="summary">告诉 AI 助手你做了什么，或者请它帮你计划；它提出记录，由你在 BioManager 里批准。</p>
     <div class="badges"><span class="badge">实验室服务器或桌面版</span></div>
     <figure class="doc-clip"><div class="window"><div class="window-bar"><i></i><i></i><i></i><span>BioManager — AI 助手</span></div><video muted loop playsinline preload="none" width="1280" height="786" poster="../assets/clips/assistant.webp" data-clip-src="../assets/clips/assistant"></video></div></figure>
 
-      <p>BioManager 里面没有 AI。如果你已经在用某个助手（Claude、ChatGPT、Cursor、Cherry Studio 或其他支持 MCP 的应用），
+      <p>BioManager 里面没有 AI。如果你已经在用某个助手（Claude、ChatGPT、Codex、Cursor、Cherry Studio 或其他支持 MCP 的应用），
         可以把它连到你的实验室。用你自己的话、或者拍一张实验记录本的照片告诉它你做了什么（<i>102 号笼昨天产仔，7 只；
         把两只老繁殖鼠从 88 号笼移到 91 号笼；今天早上给 TMX 组打了第 3 天的针</i>），它会把这些变成记录：作为一个提议，
         由你在 BioManager 里批准。它自己什么都不会改。</p>
 
       <h2 id="connect">连接助手</h2>
-      <p>打开 <b>帮助 → 连接 AI 助手</b> （Connect an AI assistant；也在 <b>设置 → AI 助手与令牌</b> 里，以及空的 <b>修改提议</b> 页上）。
-        它会列出连接你的 BioManager 的几种方式，地址已经填好。都不用安装任何东西，只有在实验室网络里用 Claude Desktop 时例外（见下文）。</p>
+      <p>打开 <b>帮助 → 连接 AI 助手</b>（也在 <b>设置 → AI 助手与令牌</b> 里）。它会列出连接你的 BioManager 的几种方式，地址已经填好。
+        每个应用的详细步骤，以及要先确认的事：<a href="connect-an-ai-assistant.html">连接 AI 助手</a>。</p>
+      <p>再给助手添加一次 <b>BioManager 插件</b>（Claude、Codex、VS Code、Qwen Code；来源 <code>gaspolymerase/biomanager</code>）。
+        它教助手怎么使用 BioManager，你就不必解释：直接说你做了什么，或者只说 <i>我想在 BioManager 里改点东西</i>，
+        它会列出今天的待办，问你做了哪些。</p>
 
-      <h3 id="connector">从 claude.ai、Claude 应用或 ChatGPT 连接</h3>
-      <p>这些应用是从互联网访问 BioManager 的，所以实验室服务器要在互联网上：由管理员打开互联网访问（见服务器手册）。
-        之后连接页面会显示 <b>连接器地址</b>，以 <code>/api/v1/mcp</code> 结尾。桌面版无法这样访问，请用下面的方式。</p>
-      <ol class="steps-list">
-        <li>用这个地址把 BioManager 添加为自定义连接器。Claude：<b>Settings → Connectors → Add custom connector</b>
-          （Team 或 Enterprise 套餐需要先由所有者添加）。ChatGPT：<b>Settings → Connectors</b>，开启开发者模式后，
-          新建一个使用 OAuth 的连接器。</li>
-        <li>要求连接时，会打开一个 BioManager 页面，要你输入 <b>连接码</b>。在连接页面（在实验室网络里）按
- <b>获取连接码</b>，把它输进去，再按 <b>允许</b>。连接码只能用一次，10 分钟内有效。</li>
-        <li>这样就好了，网页版和手机应用都一样。这个连接会以应用的名字列在 <b>设置 → AI 助手与令牌</b> 里；在那里撤销就能断开。</li>
-      </ol>
+      <h2 id="use-it">可以怎么说</h2>
+      <p>像对一位负责记录的同事那样跟它说话。插件还给助手提供了这些命令（在 Claude 里输入 <code>/</code>）：</p>
+      <table class="gtable">
+        <tbody>
+          <tr><th>记下今天的工作</th><td><i>110 断奶了，6 和 7 称了重，30、31 移到 106。</i> 它会查找每只动物、每个笼和每个实验，
+            可能对应多条记录时会问你，然后发一个提议。</td></tr>
+          <tr><th>根据照片记录</th><td>实验记录本、白板或笼卡的照片。它会读出数字，看不清的会问你，然后提议。</td></tr>
+          <tr><th>处理我的速记</th><td>你在实验台记下或拍下的内容（<a href="#captures">见下文</a>）变成记录。</td></tr>
+          <tr><th>安排明天</th><td>待办事项，按房间和时间分组，逾期的在前。</td></tr>
+          <tr><th>本周实验室检查</th><td>本周的检查（<a href="#review">见下文</a>），以及一个用于清理的提议。</td></tr>
+          <tr><th>设计实验</th><td>从一个问题到一个计划中的实验（<a href="#plan">见下文</a>）。</td></tr>
+          <tr><th>撰写方法</th><td>根据记录写出实验的方法段落和 ARRIVE 清单（<a href="#write">见下文</a>）。</td></tr>
+        </tbody>
+      </table>
+      <p>也可以直接问：<i>第 3 组用的是哪一批他莫昔芬？</i>、<i>最后一管 pAAV-hSyn-GCaMP8m 在哪？</i>、<i>谁改了 88 号笼的用途？</i>
+        它会搜索你的记录和实验记录本，读取一条记录的修改历史，以及质粒或小鼠的谱系，并附上链接回答。它只能读你能读的内容。</p>
 
-      <h3 id="token">从 Claude Code、Cursor、Cherry Studio 或 Claude Desktop 连接</h3>
-      <p>这些应用运行在能连上 BioManager 的电脑上：桌面版就是同一台电脑，实验室服务器则是实验室网络里的任何电脑。
-        不需要互联网访问，也不需要懂连接是怎么回事：</p>
-      <ol class="steps-list">
-        <li><b>让助手自己设置。</b> 在连接页面按 <b>复制这段话</b>，发到与编程助手的对话里。这段话里有你的 BioManager 地址；
-          助手会自己添加 BioManager，然后告诉你怎么登录。</li>
-        <li><b>登录。</b> 在 Claude Code 里输入 <code>/mcp</code> 并选择 <i>biomanager</i>。BioManager 会在浏览器里打开，
-          问是否允许这个应用连接：按 <b>允许</b>。不需要复制或保存令牌。</li>
-      </ol>
+      <h2 id="captures">速记：现在记下，稍后再记录</h2>
+      <p>在鼠架前很少有时间对话。<b>速记</b> 先把你要告诉助手的话存下来，等你有空再处理：</p>
       <ul>
-        <li>想自己在 Claude Code 里设置，连接页面上也有要在终端里运行的那一条命令。</li>
-        <li>对于不能登录的应用和 <b>Claude Desktop</b>，按 <b>生成令牌</b>：它会生成一个 <b>读取和提议</b> 的令牌，下一页会给出每个应用
-          要复制的设置。Claude Desktop 运行 BioManager 源代码里的一个小程序 <code>mcp/biomanager_mcp.py</code>；步骤在
-          <code>mcp/README.md</code> 里。</li>
-      </ul>
-
-      <h3 id="use-it">使用</h3>
-      <p>对它说：<i>根据我的记录记下今天的工作：……</i> 它会查找你提到的每只动物、每个笼和每个实验，遇到可能对应
-        多条记录时问你，然后发一个提议并附上链接。</p>
-      <ul>
-        <li>助手能读取你能读取的内容，以你的身份。到 <b>设置 → AI 助手与令牌</b> 撤销它的令牌，就能切断它。</li>
+        <li>在手机上，打开账户菜单里的 <b>速记</b>，按 <b>新速记</b>，或者在实验的 <b>实验台模式</b> 里按 <b>速记</b>。打字，或者用键盘上的
+          麦克风口述；用 <b>拍照</b> 加一张照片，或者用 <b>选择文件</b> 加一个文件（天平或酶标仪导出的 CSV）；<b>扫描卡片</b>
+          会附上它说的是哪个笼、鱼缸或果蝇管。按 <b>保存</b>。</li>
+        <li>之后在办公桌前，对助手说 <i>处理我的速记</i>。它会读每一条速记（包括照片和文件），发一个提议；每一处修改都会写明
+          来自哪条速记。</li>
+        <li><b>速记</b> 页面列出你的速记，待处理的在前。批准提议后，它用到的速记会标为已使用，并关联到这个提议；<b>搁置</b>
+          可以把一条放到一边（<b>放回待处理</b> 再拿回来）。只有你能看到自己的速记。</li>
       </ul>
 
       <h2 id="what-it-can-do">它能提议什么</h2>
       <ul>
-        <li>在小鼠、斑马鱼、果蝇和线虫以及其他物种数据库里：日常的记录。新的动物、笼、鱼缸和果蝇管；产仔、断奶、
+        <li>在小鼠、斑马鱼、果蝇和线虫以及其他物种数据库里：日常的记录。新的动物、笼、鱼缸和果蝇管；产仔（及产了几只）、断奶、
           移动和死亡；配对、卵批和转管；体重和读数；完成的计划任务。</li>
-        <li>在实验里：完成一个步骤、观测指标、加入动物、实验状态、备注。</li>
-        <li>在实验记录本里：在今天每日记录的 <b>日志</b> 里加一行，带时间。如果页面正开着，几秒钟内就会出现。</li>
-        <li>它不能删除任何东西、签名，也不能改变谁能看到什么。</li>
-        <li>它也能告诉你有哪些待办（和首页一样），并据此安排你的一天。</li>
+        <li>在库存里：新物品、修改、用掉的量（降到 <b>低库存线</b> 时会标为库存不足；可以用别的重量或体积单位说，比如以 g
+          记录的物品用掉 <i>40 mg</i>，BioManager 会换算）、订单到货（并按你库存里的名称、数量和单位入库）、从动物取的样本。</li>
+        <li>在质粒里：新质粒（可粘贴 GenBank 或 FASTA 序列）、修改、甘油菌、引物或一对引物。</li>
+        <li>在实验里：完成一个步骤、观测指标、加入动物、实验状态、备注；以及一个新的 <b>计划中</b> 的实验（<a href="#plan">见下文</a>）。</li>
+        <li>在实验记录本里：在今天的每日记录里加一行；新建一页（标明由助手起草，从不签名）；给一页加一节，除非有人正开着它。</li>
+        <li>在日历里：一个事件，或一次仪器预约。</li>
+        <li>它不能删除任何东西、签名、开始实验，也不能改变谁能看到什么。</li>
       </ul>
 
-      <h2 id="approving">批准</h2>
-      <p>提议到达时会通知你（铃铛），并在账户菜单的 <b>修改提议</b> 里等你。</p>
+      <h2 id="plan">计划：繁殖、分组、实验</h2>
+      <p>凡是有确定答案的事，助手都会去问 BioManager：它根据你实验室自己的记录算出来，并说明假设：</p>
       <ul>
-        <li>每个提议是一段用平实语言写的总结：每个数据库里会改什么，警告放在最上面（比如会被替换的产仔日期、
-          还太小不能断奶的幼仔）。<b>查看每处修改</b> 列出每条记录修改前 → 修改后的内容。</li>
-        <li><b>批准</b> 会一次完成所有修改；<b>丢弃</b> 则一项都不改。不能逐项批准：如果有不对的地方，丢弃它，
-          让助手发一个改正后的提议。</li>
-        <li>批准的提议在 <b>批量历史</b> 里是一批，标注着助手的名字，所以 <b>撤销</b> 能整体撤回（加到实验记录本里的那行会保留）。</li>
-        <li>如果它涉及的记录在提议之后被改过，或者某项修改已无法完成，就什么都不会改，页面会说明是哪条记录、为什么。</li>
-        <li>只有你能批准自己的提议，而且必须登录 BioManager：任何令牌都不行。没处理的提议会保留两周，然后过期。</li>
+        <li><b>哪些动物可用</b>：按基因型、性别和某一天的年龄筛选，不包括已在实验中和在繁殖笼里的动物。</li>
+        <li><b>繁殖计划</b>：<i>3 月 1 日前我需要 12 只 8 周龄的 Cre⁺ fl/fl 雄鼠。</i> 根据你现有的繁殖鼠给出每种配对的概率；
+          要配几对、最晚哪天配；用你这个品系自己的窝仔数。品系（C57BL/6J、BALB/c）不是等位基因：要某个品系，就是父母都是这个品系。</li>
+        <li><b>每组需要多少只</b>：根据你想看到的差异，以及你过去观测数据的离散程度（结果与 G*Power 一致）。</li>
+        <li><b>随机分组</b>：按性别和窝别平衡，各组体重均衡；随机种子保存在新实验的说明里。</li>
+        <li><b>库存何时用完</b>：根据每种物品用掉的速度。</li>
+      </ul>
+      <p><b>设计实验。</b> 告诉它你的问题（<i>在我们的 HDM 模型里，敲除气道上皮的 Il33 能减轻炎症吗？大约六周后开始</i>）。
+        它会提出分组和对照、主要观测指标、需要多少只动物以及用哪些、来自你保存的处理方案的给药安排、统计检验，并说明它的假设。
+        实验室没用过的药物剂量会附上来源；对照你的动物实验方案检查设计，由你负责。批准后它是一个 <b>计划中</b> 的实验：
+        在你按 <b>开始</b> 之前没有任何待办；开始之后，修改计划会问原因（<a href="experiments.html#planned">实验</a>）。</p>
+
+      <h2 id="review">每周检查</h2>
+      <p><i>本周实验室检查</i> 会运行 BioManager 的检查：逾期的工作、实验中体重下降超过 15% 的动物、还占着鼠架的空笼、
+        超过 30 周的繁殖鼠、没签名的实验记录、过期、快过期或不足的试剂，以及还在等待的提议。它按重要程度汇总，并为能清理的部分
+        提一个提议。管理员或实验室经理可以让助手每周一自动运行（在 Claude 里作为定时任务）。</p>
+
+      <h2 id="write">撰写</h2>
+      <p><i>写一下 TMX 组的方法</i> 会只根据记录写出方法段落：品系、性别、年龄和每组数量，每次处理的剂量、途径、天数和批号，
+        观测指标和检验方法。同时给出 ARRIVE 2.0 核心十项，每一项写明记录里有什么、缺什么，以及实验与计划的不同之处。
+        它可以把草稿放进新的一页实验记录，标明由助手起草。</p>
+
+      <h2 id="approving">批准</h2>
+      <p>提议会通知你（铃铛），并在账户菜单的 <b>修改提议</b> 里等待。</p>
+      <ul>
+        <li>每个提议是一段通俗的摘要：每个数据库里会改什么，有警告的放在最上面（会被替换的产仔日期、太小还不能断奶的幼崽、将不再与实验室共享的笼、库存里已有同名的物品）。<b>查看每处修改</b> 会列出每条记录的之前 → 之后，以及它的依据：<i>来自你的笔记：“……”</i>，或者那条速记和照片。</li>
+        <li><b>批准</b> 一次做完所有修改；<b>丢弃</b> 什么都不改。如果有地方不对，按 <b>退回</b> 并写一句哪里不对：
+          助手会读到，改正后重新提议，新的提议取代原来那个。</li>
+        <li>批准后的提议在 <b>批量操作记录</b> 里是一批，标有助手的名字，所以 <b>撤销</b> 会把它整个撤回（加到实验记录本里的那一行会保留）。</li>
+        <li>如果提议之后它涉及的某条记录被改过，或者某处修改已经无法完成，就什么都不会应用，页面会说明是哪条记录、为什么。</li>
+        <li>只有你本人能批准你的提议，而且必须登录 BioManager：任何令牌都不能批准。放着不管的提议会等两周，然后过期。</li>
       </ul>
     <section class="trouble">
-      <h2 id="troubleshooting">故障排除</h2>
-      <h3>助手说连不上 BioManager</h3>
-      <p>Claude Code、Cursor 或 Cherry Studio：确认 BioManager 正在运行，设置里的地址是它的地址（桌面版的地址在
- <b>设置 → AI 助手与令牌</b> 里），并且令牌没有被撤销或过期。claude.ai、Claude 应用或 ChatGPT：用不连实验室 Wi-Fi 的手机
-        打开连接器地址，确认能打开（应该显示一条要求 API 令牌的简短消息），并且地址以 <code>/api/v1/mcp</code> 结尾。</p>
-      <h3>连接时说连接码不对</h3>
-      <p>连接码只能用一次，10 分钟内有效。再按一次 <b>获取连接码</b>，用新的连接码。</p>
-      <h3>批准时说某条记录在提议之后被改过</h3>
-      <p>有人（或你自己）在这期间改过它，提议可能已经过时。<b>丢弃</b> 它，让助手重新提议。</p>
+      <h2 id="troubleshooting">疑难解答</h2>
+      <h3>助手连不上 BioManager，或者好像不认识它</h3>
+      <p>见 <a href="connect-an-ai-assistant.html#troubleshooting">连接 AI 助手</a>。</p>
+      <h3>批准时说提议之后某条记录被改过</h3>
+      <p>期间有人（或你自己）改了它，所以这个提议可能过时了。<b>丢弃</b> 它，请助手重新提议。</p>
+      <h3>它自己算了一个数字</h3>
+      <p>请它用 BioManager 的工具来算（繁殖计划、每组需要多少只、分组），并说明假设。装了插件的话它会自己这样做。</p>
     </section>
     <!-- /page -->
-      <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="scripts-and-api.html"><small>上一页</small>脚本与 API</a><a class="next" href="troubleshooting.html"><small>下一页</small>疑难解答</a></nav>
+      <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="scripts-and-api.html"><small>上一页</small>脚本与 API</a><a class="next" href="connect-an-ai-assistant.html"><small>下一页</small>连接 AI 助手</a></nav>
       <div class="helpful" data-pagefind-ignore>
         <span>这一页对你有帮助吗？</span>
         <button type="button" data-helpful="yes" aria-pressed="false">有</button>
@@ -221,15 +247,17 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="本页内容">
-      <p>本页内容 · 阅读约 4 分钟</p>
+      <p>本页内容 · 阅读约 6 分钟</p>
       <ol>
         <li class="lvl2"><a href="#connect">连接助手</a></li>
-        <li class="lvl3"><a href="#connector">从 claude.ai、Claude 应用或 ChatGPT 连接</a></li>
-        <li class="lvl3"><a href="#token">从 Claude Code、Cursor、Cherry Studio 或 Claude Desktop 连接</a></li>
-        <li class="lvl3"><a href="#use-it">使用</a></li>
+        <li class="lvl2"><a href="#use-it">可以怎么说</a></li>
+        <li class="lvl2"><a href="#captures">速记：现在记下，稍后再记录</a></li>
         <li class="lvl2"><a href="#what-it-can-do">它能提议什么</a></li>
+        <li class="lvl2"><a href="#plan">计划：繁殖、分组、实验</a></li>
+        <li class="lvl2"><a href="#review">每周检查</a></li>
+        <li class="lvl2"><a href="#write">撰写</a></li>
         <li class="lvl2"><a href="#approving">批准</a></li>
-        <li class="lvl2"><a href="#troubleshooting">故障排除</a></li>
+        <li class="lvl2"><a href="#troubleshooting">疑难解答</a></li>
       </ol>
     </nav>
 </div>

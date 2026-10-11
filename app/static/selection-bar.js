@@ -103,6 +103,28 @@
           event.preventDefault();
           return;
         }
+        // A choice that needs a reason (an experiment started with a plan,
+        // whose groups this changes): ask for it, then submit again with it.
+        const asking = form.querySelector('select option:checked[data-ask-reason]');
+        if (asking && form.dataset.reasoned !== '1') {
+          event.preventDefault();
+          const submitter = event.submitter;
+          window.BioDialog.prompt(asking.dataset.askReason, '', { placeholder: t('A reason, in a line'), okLabel: t('Save with this reason') }).then((text) => {
+            if (text === null || !String(text).trim()) return;
+            let field = form.querySelector('input[name="reason"]');
+            if (!field) {
+              field = document.createElement('input');
+              field.type = 'hidden';
+              field.name = 'reason';
+              form.appendChild(field);
+            }
+            field.value = String(text).trim();
+            form.dataset.reasoned = '1';
+            form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+          });
+          return;
+        }
+        delete form.dataset.reasoned;
         const confirmText = form.dataset.confirm;
         if (confirmText && form.dataset.confirmed !== '1') {
           // Ask in the app, then submit again with the same button.

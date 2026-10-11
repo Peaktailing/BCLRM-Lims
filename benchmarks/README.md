@@ -69,3 +69,36 @@ are matched (5.2% and 0% to 100%), and a CSV from a Chinese Windows (GBK)
 is read; a concentration written with `ng/µl` is read (90.7% to 100%).
 What remains *kept* is what can't be known from the sheet: a person not in
 the lab, a mouse number used twice, a birth date in 2062.
+
+## AI assistants: from words to records
+
+`assistant.py` asks how accurately an AI assistant, connected as a lab
+member's would be, turns what they say into records.
+
+```bash
+.venv/bin/python -m pip install -r benchmarks/requirements.txt
+.venv/bin/python benchmarks/assistant.py --repeat 3
+```
+
+It needs an Anthropic API key (`ANTHROPIC_API_KEY`, or a profile from
+`ant auth login`); `--check` builds every scenario without a model.
+`--model` picks the model (default `claude-opus-5-5`), `--context` what it
+knows of BioManager besides the tools: the plugin's skill (default), only
+the MCP server's instructions, or nothing.
+
+**How.** Each scenario makes a small lab of its own through the app's pages
+(as the tests do), then says one thing a person would ("Litter in cage 202
+yesterday, 7 pups"; "Moved the breeder from 502 to 591", where two breeders
+could be meant; "I want to change something in BioManager"). The assistant
+gets exactly the tools an assistant app gets over MCP, as the person, with a
+*Read and propose* token. When it asks something, the scenario answers as
+the person would, or says they don't know. Its proposal is then approved, as
+the person would press **Approve**, and the records are compared with the
+truth: **correct**; **asked** (it asked rather than guessed, and changed
+nothing wrongly: the right outcome when the words can't say); **missing**
+(something said wasn't recorded); **wrong** (a record ended up wrong,
+silently: the number that has to stay at zero).
+
+Results go to `results/assistant-<version>-<commit>-<model>-<context>.md`
+and `.json`, with each conversation's tool calls. A model's runs vary, so
+compare with `--repeat`.

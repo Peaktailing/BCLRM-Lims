@@ -260,7 +260,11 @@ def _master_only(s):
 def page():
     if g.get("user") is None:
         return redirect(url_for("login", next=request.path))
+    from . import lab_devices
     with SessionLocal() as s:
+        lab_devices.forget_old(s)
+        mine = lab_devices.listing(s, g.user)
+        everyone = lab_devices.listing(s, g.user, everyone=True) if is_admin() else []
         st = state(s)
         devices = linked_devices(s) if is_admin() else []
         here = desktop_status(s) if is_desktop() and on_this_computer() else None
@@ -271,7 +275,8 @@ def page():
                   "can_take_back": not is_desktop() or sharing(s),
                   "own_backup": bool(st.get("own_backup")) and Path(st.get("own_backup", "")).is_file()}
     return render_template("devices/index.html", devices=devices, master=master, here=here,
-                           is_admin=is_admin(), is_desktop=is_desktop(), version=version())
+                           is_admin=is_admin(), is_desktop=is_desktop(), version=version(),
+                           my_devices=mine, everyone_devices=everyone)
 
 
 @bp.route("/settings/devices/<int:key_id>/make-master", methods=["POST"])
@@ -328,9 +333,18 @@ def _key_and_state(s):
 def hello():
     """A linked desktop says what it is; the master answers whether it is
     being handed the master copy."""
+    from .models import LabDevice
     body = request.get_json(silent=True) or {}
     with SessionLocal() as s:
         k, st = _key_and_state(s)
+        if isinstance(k, LabDevice):
+            # A desktop that joined as a device (app/lab_devices.py): noted on
+            # its device; the master copy is handed only to a linked key.
+            k.app_version = str(body.get("version", ""))[:40] or k.app_version
+            k.last_seen_at = datetime.utcnow()
+            s.commit()
+            return jsonify({"ok": True, "version": version(), "phase": "", "master": is_master(s),
+                            "for_me": False, "label": k.name})
         k.device_role = str(body.get("role", ""))[:20]
         k.device_version = str(body.get("version", ""))[:40]
         k.device_url = str(body.get("url", ""))[:300]
@@ -360,7 +374,12 @@ def handover_freeze():
         st["phase"] = FROZEN
         _save(s, STATE, st)
         s.commit()
-    return jsonify({"ok": True})
+        # The lab's key goes with the lab to the admin's computer taking it
+        # over (only that key gets here): it opens the last copy, and locks
+        # the lab's files from now on (app/lab_key.py).
+        from . import lab_key
+        secret = lab_key.current(s).secret
+    return jsonify({"ok": True, "lab_key": secret})
 
 
 @bp.route("/api/devices/handover/done", methods=["POST"])
@@ -484,13 +503,31 @@ def keep_a_copy(why: str) -> Path:
             src.backup(dst)
     else:
         lab_copy.write_snapshot(target)
-    return target
+    # Locked with the lab's key (app/lab_key.py); this machine keeps every
+    # key it has had, so it opens the copy again after it holds another lab.
+    from . import lab_key
+    locked = target.with_name(target.name + ".age")
+    with SessionLocal() as s:
+        lab_key.lock_file(target, locked, [lab_key.recipient(s)])
+    target.unlink(missing_ok=True)
+    return locked
 
 
-def load_lab(path: Path) -> dict[str, int]:
+def load_lab(path: Path, make_its_key_current: bool = False) -> dict[str, int]:
     """Replace this device's records with the lab in `path` (a SQLite file
-    of this version's schema), in one transaction: all or nothing. Settings
-    that belong to this device (LOCAL_SETTINGS) stay as they are here."""
+    of this version's schema, or one locked with a key this device has), in
+    one transaction: all or nothing. Settings that belong to this device
+    (LOCAL_SETTINGS) stay as they are here, and so do the keys it has had
+    (lab_keys, a keyring); a key the file's lab has that opens here is added,
+    and with `make_its_key_current` locks from now on."""
+    from . import lab_key
+    if lab_key.is_locked(path):
+        with SessionLocal() as s:
+            keys = lab_key.identities(s)
+        with tempfile.TemporaryDirectory(prefix="load-lab-", dir=data_dir()) as tmp:
+            opened = Path(tmp) / "lab.db"
+            lab_key.unlock_file(path, opened, keys)
+            return load_lab(opened, make_its_key_current)
     tables = list(Base.metadata.sorted_tables)
     source = create_engine(f"sqlite:///{path}")
     counts: dict[str, int] = {}
@@ -501,15 +538,29 @@ def load_lab(path: Path) -> dict[str, int]:
             else:
                 out.exec_driver_sql("PRAGMA defer_foreign_keys = ON")
             keep = _local_settings(out)
+            keyring = Base.metadata.tables["lab_keys"]
+            known = {r.key_id for r in out.execute(select(keyring.c.key_id))}
             for table in reversed(tables):
-                out.execute(table.delete())
+                if table is not keyring:
+                    out.execute(table.delete())
             for table in tables:
                 rows = [dict(r) for r in src.execute(select(table)).mappings()]
                 if table.name == AppSetting.__tablename__:
                     rows = [r for r in rows if not str(r["key"]).startswith(LOCAL_SETTINGS)] + keep
+                elif table is keyring:
+                    # Rows already ORM-decoded: readable here only if they were
+                    # stored with this device's secret (its own earlier lab).
+                    rows = [{**{k: v for k, v in r.items() if k != "id"}, "active": False} for r in rows
+                            if r.get("secret") and r["key_id"] not in known]
                 for start in range(0, len(rows), 1000):
                     out.execute(table.insert(), rows[start:start + 1000])
                 counts[table.name] = len(rows)
+            if make_its_key_current:
+                incoming = src.execute(select(keyring.c.key_id).where(keyring.c.active.is_(True))
+                                       .order_by(keyring.c.created_at.desc())).scalar()
+                if incoming and out.execute(select(keyring.c.id).where(keyring.c.key_id == incoming)).scalar():
+                    out.execute(keyring.update().values(active=False))
+                    out.execute(keyring.update().where(keyring.c.key_id == incoming).values(active=True))
             if out.dialect.name == "postgresql":
                 for table in tables:
                     pk = list(table.primary_key.columns)
@@ -674,6 +725,10 @@ def _role(s) -> str:
     if came_from(s) and sharing(s) and phase(s) != AWAY:
         return "master"
     server = lab_copy.config(s)["server"]
+    if window_url() == "relay":
+        from . import desktop_join
+        lab = desktop_join.joined()
+        return "window" if lab and server and lab["server"].rstrip("/") == server.rstrip("/") else "copy"
     return "window" if server and window_url().rstrip("/") == server.rstrip("/") else "copy"
 
 
@@ -711,13 +766,20 @@ def take_over(app, cfg: dict) -> bool:
     open it here, share it on this network, and tell the master where."""
     server, key = cfg["server"].rstrip("/"), cfg["key"]
     try:
-        _call(server, key, "/api/devices/handover/freeze")
+        frozen = _call(server, key, "/api/devices/handover/freeze") or {}
         result = lab_copy.pull()
         if not result.get("ok"):
             raise RuntimeError(result.get("error") or "The last copy failed.")
         newest = lab_copy.list_copies(server)[0]
-        backup = install_copy(Path(newest["path"]), lab_copy.copies_dir(server) / "uploads")
+        from . import lab_key
+        keys = [lab_key.parse_recovery(frozen["lab_key"])] if frozen.get("lab_key") else []
+        with tempfile.TemporaryDirectory(prefix="take-over-", dir=data_dir()) as tmp:
+            database = lab_copy.open_copy(Path(newest["path"]), Path(tmp) / "copy.db", keys)
+            uploads = lab_copy.open_uploads(server, Path(tmp) / "uploads", keys)
+            backup = install_copy(database, uploads)
         with SessionLocal() as s:
+            if keys:
+                lab_key.adopt(s, keys[0])
             _save(s, CAME_FROM, {"url": server, "label": _master_label(server), "backup": str(backup)})
             _settings()[1](s, SHARING, "1")
             _save(s, STATE, {})
@@ -790,7 +852,9 @@ def give_back(app) -> dict:
         _settings()[1](s, SHARING, "")
         _save(s, CAME_FROM, {})
         s.commit()
-    _save_prefs(window_url=server)
+    # The window opens the lab through the relay once this computer has
+    # joined it as a device (Open your lab, with the address filled in).
+    _save_prefs(window_url="")
     return {"ok": True, "url": server}
 
 
@@ -883,8 +947,15 @@ def window():
         if is_sharing:
             flash(gettext("This computer shares its own lab: stop sharing it first."), "error")
             return redirect(url_for("devices.page"))
-        _save_prefs(window_url=cfg["server"])
-        return open_in_window(cfg["server"])
+        # The window opens the lab through this computer's relay, as one of
+        # its person's devices (app/desktop_join.py): joined already, at once;
+        # else Open your lab, with the address filled in.
+        from . import desktop_join
+        lab = desktop_join.joined()
+        if lab and lab["server"].rstrip("/") == cfg["server"].rstrip("/"):
+            _save_prefs(window_url="relay")
+            return open_in_window(desktop_join.start_relay())
+        return redirect(url_for("door.open_lab", address=cfg["server"]))
     _save_prefs(window_url="")
     flash(gettext("This window opens this computer's own BioManager again."), "success")
     return redirect(url_for("devices.page"))
@@ -899,7 +970,12 @@ def give_back_now():
     if not result.get("ok"):
         flash(result["error"], "error")
         return redirect(url_for("devices.page"))
-    return open_in_window(result["url"])
+    from . import desktop_join
+    lab = desktop_join.joined()
+    if lab and lab["server"].rstrip("/") == result["url"].rstrip("/"):
+        _save_prefs(window_url="relay")
+        return open_in_window(desktop_join.start_relay())
+    return redirect(url_for("door.open_lab", address=result["url"]))
 
 
 @bp.route("/settings/devices/own-again", methods=["POST"])
@@ -918,7 +994,7 @@ def own_again():
     _swapping.set()
     try:
         keep_a_copy("before-going-back")
-        load_lab(backup)
+        load_lab(backup, make_its_key_current=True)
     finally:
         _swapping.clear()
     with SessionLocal() as s:

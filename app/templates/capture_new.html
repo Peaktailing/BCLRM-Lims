@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{# Capture (app/captures.py new): a line or a photo, saved at once, at the bench.
+   On a phone the keyboard's microphone dictates into the box; Take photo opens the camera. #}
+
+{% block page_title %}{{ _('Capture') }}{% endblock %}
+{% block page_heading %}{{ _('Capture') }}{% endblock %}
+{% block page_subtitle %}{{ _('Write it down or take a photo now; your assistant turns it into records later.') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="{{ back or url_for('captures.page') }}">{{ icon('back') }} {{ _('Back') if back else _('Captures') }}</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" action="{{ url_for('captures.new') }}"
+      class="card grid gap-3 p-4" style="max-width: 640px;" data-capture-form
+      data-scanned="{{ _('With the card you scanned.') }}"
+      data-not-this-lab="{{ _('That code is not a card of this lab.') }}">
+  <input type="hidden" name="kind" value="{{ kind if label else '' }}" data-capture-kind>
+  <input type="hidden" name="id" value="{{ record_id if label else '' }}" data-capture-id>
+  <input type="hidden" name="card" value="" data-capture-card>
+  <input type="hidden" name="back" value="{{ back }}">
+  <p class="text-[12.5px] text-muted" data-capture-at {% if not label %}hidden{% endif %}>
+    {{ icon('location') }} <span data-capture-at-label>{% if label %}{{ _('At %(record)s', record=label) }}{% endif %}</span>
+  </p>
+  <label class="grid gap-1 text-[13px]">
+    <span>{{ _('What you did or saw') }}</span>
+    <textarea name="text" rows="6" maxlength="10000"
+              placeholder="{{ _('Weaned cage 88: 4 females, 3 males. On a phone, the microphone on the keyboard dictates.') }}">{{ text }}</textarea>
+  </label>
+  <div class="flex flex-wrap items-center gap-2">
+    <label class="btn">{{ icon('upload') }} {{ _('Take photo') }}
+      <input type="file" name="photo" accept="image/*" capture="environment" class="sr-only" data-capture-file></label>
+    <label class="btn">{{ icon('file') }} {{ _('Choose file') }}
+      <input type="file" name="file" accept="image/*,.csv,.tsv,.txt,.md,.json" class="sr-only" data-capture-file></label>
+    <button type="button" class="btn" data-capture-scan hidden>{{ icon('qrcode') }} {{ _('Scan a card') }}</button>
+  </div>
+  <div class="flex items-center gap-3" data-capture-preview hidden>
+    <img alt="" hidden style="width: 96px; height: 96px; object-fit: cover; border-radius: 8px;">
+    <span class="min-w-0 text-[12.5px] text-muted" data-capture-name></span>
+  </div>
+  <div><button type="submit" class="btn btn-primary">{{ icon('check') }} {{ _('Save') }}</button></div>
+  <p class="text-[12px] text-muted">{{ _('Only you see your captures. Add a photo, or a small CSV or text file.') }}</p>
+</form>
+
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  const form = document.querySelector('[data-capture-form]');
+  if (!form) return;
+  const files = form.querySelectorAll('[data-capture-file]');
+  const preview = form.querySelector('[data-capture-preview]');
+  const img = preview.querySelector('img');
+  const name = form.querySelector('[data-capture-name]');
+  files.forEach((input) => input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    files.forEach((other) => { if (other !== input) other.value = ''; });
+    preview.hidden = !file;
+    if (!file) return;
+    name.textContent = file.name;
+    img.hidden = !/^image\//.test(file.type);
+    if (!img.hidden) img.src = URL.createObjectURL(file);
+  }));
+
+  // Scan a card: the phone app's scanner or the camera (shell.js initPhone),
+  // and the card goes with the capture instead of opening.
+  const ios = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bmScan;
+  const camera = 'BarcodeDetector' in window && navigator.mediaDevices;
+  const scan = form.querySelector('[data-capture-scan]');
+  const at = form.querySelector('[data-capture-at]');
+  const atLabel = form.querySelector('[data-capture-at-label]');
+  window.bmScanned = (value) => {
+    let url = null;
+    try { url = new URL(String(value || '').trim(), location.href); } catch (e) {}
+    at.hidden = false;
+    if (!url || url.origin !== location.origin) { atLabel.textContent = form.dataset.notThisLab; return; }
+    form.querySelector('[data-capture-card]').value = url.href;
+    form.querySelector('[data-capture-kind]').value = '';
+    form.querySelector('[data-capture-id]').value = '';
+    atLabel.textContent = form.dataset.scanned;
+  };
+  if ((ios || camera) && !window.BioManagerApp) {
+    scan.hidden = false;
+    scan.addEventListener('click', () => {
+      const tab = document.querySelector('[data-phone-scan]');
+      if (tab) tab.click();
+    });
+  }
+})();
+</script>
+{% endblock %}

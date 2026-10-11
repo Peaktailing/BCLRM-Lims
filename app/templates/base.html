@@ -150,6 +150,21 @@
           });
         </script>
 
+        {# The Mac window's own tools, on the top row after its close, minimise
+           and zoom buttons, as in Safari or Claude: the sidebar, search, back
+           and forward (html.mac-window; elsewhere the sidebar keeps its own
+           toggle and the browser has back and forward). #}
+        <div class="wtools" role="toolbar" aria-label="{{ _('Window') }}">
+          <button type="button" class="wtool" data-rail-toggle
+                  aria-label="{{ _('Hide or show the sidebar') }}" title="{{ _('Hide or show the sidebar') }}">{{ icon('sidebar') }}</button>
+          <button type="button" class="wtool" data-wtool-search
+                  aria-label="{{ _('Search everything') }}" title="{{ _('Search everything') }} (⌘K)">{{ icon('search') }}</button>
+          <button type="button" class="wtool" data-wtool-back
+                  aria-label="{{ _('Go back') }}" title="{{ _('Go back') }} (⌘[)">{{ icon('back') }}</button>
+          <button type="button" class="wtool" data-wtool-forward
+                  aria-label="{{ _('Go forward') }}" title="{{ _('Go forward') }} (⌘])">{{ icon('back', 'is-forward') }}</button>
+        </div>
+
         <div class="shell-main">
 
           {# ---- Top row: tabs, search, notifications, account ---- #}
@@ -208,11 +223,20 @@
                     <a class="menu-item" href="{{ url_for('lab.notifications') }}" role="menuitem">
                       {{ icon('bell') }} {{ _('Notifications') }}
                     </a>
+                    {% if held_pending %}
+                      <a class="menu-item" href="{{ url_for('sync.page') }}" role="menuitem">
+                        {{ icon('error') }} {{ _('Needs your decision') }} <span class="badge">{{ held_pending }}</span>
+                      </a>
+                    {% endif %}
                     {% if proposals_pending is not none %}
                       <a class="menu-item" href="{{ url_for('proposals.page') }}" role="menuitem">
                         {{ icon('list-check') }} {{ _('Proposed changes') }}{% if proposals_pending %} <span class="badge">{{ proposals_pending }}</span>{% endif %}
                       </a>
                     {% endif %}
+                    {% set waiting_captures = captures_waiting() if captures_waiting is defined else 0 %}
+                    <a class="menu-item" href="{{ url_for('captures.page') }}" role="menuitem">
+                      {{ icon('note') }} {{ _('Captures') }}{% if waiting_captures %} <span class="badge">{{ waiting_captures }}</span>{% endif %}
+                    </a>
                     <div class="menu-rule"></div>
                     <form method="post" action="{{ url_for('logout') }}">
                       <button type="submit" class="menu-item menu-item-danger" role="menuitem">

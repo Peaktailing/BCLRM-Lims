@@ -7,10 +7,14 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
@@ -23,9 +27,16 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
@@ -37,6 +48,22 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
  */
 public class MainActivity extends Activity {
     private static final int PICK_FILE = 1;
+    /** The offline screens the app carries (app/static/offline/, copied into the assets). */
+    private static final String OFFLINE = "file:///android_asset/offline/";
+    private static final long REFRESH_EVERY = 15 * 60 * 1000L;
+
+    private OfflineStore store;
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler ticker = new Handler(Looper.getMainLooper());
+    private final Runnable refresh = new Runnable() {
+        @Override
+        public void run() {
+            io.execute(() -> store.sync());
+            ticker.postDelayed(this, REFRESH_EVERY);
+        }
+    };
+    /** The page now showing, for the bridges (asked from other threads). */
+    private volatile String currentUrl = "";
 
     private String server;
     private WebView web;
@@ -58,6 +85,7 @@ public class MainActivity extends Activity {
             finish();
             return;
         }
+        store = OfflineStore.get(this);
         setContentView(R.layout.activity_main);
         web = findViewById(R.id.web);
         progress = findViewById(R.id.progress);
@@ -70,8 +98,30 @@ public class MainActivity extends Activity {
         });
         findViewById(R.id.change_server).setOnClickListener(v -> changeServer());
         scanButton = findViewById(R.id.scan);
-        scanButton.setOnClickListener(v -> scan());
+        scanButton.setOnClickListener(v -> scan(false));
+        // Before walking into a facility with no signal: a fresh copy, or its screens now.
+        scanButton.setOnLongClickListener(v -> {
+            PopupMenu menu = new PopupMenu(this, v);
+            menu.getMenu().add(0, 1, 0, R.string.get_ready);
+            menu.getMenu().add(0, 2, 1, R.string.work_offline);
+            menu.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == 1) getReady(); else if (!openOffline()) toast(R.string.no_copy);
+                return true;
+            });
+            menu.show();
+            return true;
+        });
         hideWhileTyping(scanButton);
+        // Catch up whenever the network comes back.
+        ConnectivityManager net = getSystemService(ConnectivityManager.class);
+        if (net != null) {
+            net.registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    io.execute(() -> store.sync());
+                }
+            });
+        }
 
         configure(web);
         if (savedInstanceState != null) {
@@ -88,6 +138,7 @@ public class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);  // tabs and preferences live in localStorage
         settings.setUserAgentString(settings.getUserAgentString() + " BioManagerAndroid/" + BuildConfigVersion.name(this));
         view.addJavascriptInterface(new PageBridge(), "BioManagerApp");
+        view.addJavascriptInterface(new StoreBridge(), "BMNative");
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -97,13 +148,14 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
                 Uri link = request.getUrl();
-                if (Server.owns(server, link)) return false;
+                if (Server.owns(server, link) || link.toString().startsWith(OFFLINE)) return false;
                 openElsewhere(link);
                 return true;
             }
 
             @Override
             public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                currentUrl = url == null ? "" : url;
                 progress.setVisibility(View.VISIBLE);
                 // Each page says again whether it has its own Scan.
                 pageHasScan = false;
@@ -113,12 +165,20 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView v, String url) {
                 progress.setVisibility(View.GONE);
+                // Signed in through the page: this phone gets its own device token to sync with.
+                if (url != null && Server.owns(server, Uri.parse(url)) && store.token() == null) {
+                    String cookie = CookieManager.getInstance().getCookie(server);
+                    String agent = v.getSettings().getUserAgentString();
+                    io.execute(() -> store.registerIfNeeded(cookie, agent));
+                }
             }
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest request, WebResourceError error) {
                 if (!request.isForMainFrame()) return;
                 if (unreachable(error.getErrorCode())) {
+                    // With a copy of the facility, the offline screens; without, "can't reach".
+                    if (openOffline()) return;
                     offlineDetail.setText(getString(R.string.err_unreachable, server));
                     offline.setVisibility(View.VISIBLE);
                 } else {
@@ -204,7 +264,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void scan() {
             runOnUiThread(() -> {
-                if (fromServer()) MainActivity.this.scan();
+                if (fromServer()) MainActivity.this.scan(true);
             });
         }
 
@@ -214,6 +274,88 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * What the offline screens ask of this phone's copy (window.BMNative.post),
+     * answered with window.BMStoreReply. Only the screens the app carries are answered.
+     */
+    private final class StoreBridge {
+        @JavascriptInterface
+        public void post(String message) {
+            if (!currentUrl.startsWith(OFFLINE)) return;
+            io.execute(() -> answer(message));
+        }
+
+        private void answer(String message) {
+            int id = -1;
+            boolean ok = true;
+            JSONObject value = new JSONObject();
+            try {
+                JSONObject call = new JSONObject(message);
+                id = call.getInt("id");
+                switch (call.optString("name")) {
+                    case "load":
+                        JSONObject snap = store.snapshot();
+                        value.put("snapshot", snap == null ? JSONObject.NULL : snap).put("queue", store.queue())
+                                .put("status", store.status());
+                        break;
+                    case "add":
+                        value.put("ok", true).put("waiting", store.add(call.getJSONObject("arg")));
+                        break;
+                    case "sync":
+                        value.put("ok", true).put("status", store.sync());
+                        break;
+                    case "status":
+                        value.put("online", store.reachable()).put("store", store.status());
+                        break;
+                    case "strings":
+                        value = store.strings();
+                        break;
+                    case "online":
+                        runOnUiThread(() -> web.loadUrl(server + "/"));
+                        break;
+                    default:
+                        ok = false;
+                        value.put("error", "unknown call");
+                }
+            } catch (JSONException e) {
+                ok = false;
+                try {
+                    value = new JSONObject().put("error", String.valueOf(e.getMessage()));
+                } catch (JSONException ignored) {
+                    value = new JSONObject();
+                }
+            }
+            if (id < 0) return;
+            String script = "window.BMStoreReply(" + id + ", " + ok + ", " + value + ")";
+            runOnUiThread(() -> web.evaluateJavascript(script, null));
+        }
+    }
+
+    /** The offline screens, on this phone's copy. False when there is no copy yet. */
+    private boolean openOffline() {
+        if (!store.hasCopy()) return false;
+        offline.setVisibility(View.GONE);
+        web.loadUrl(OFFLINE + "index.html");
+        return true;
+    }
+
+    private void getReady() {
+        io.execute(() -> {
+            JSONObject status = store.sync();
+            boolean ready = status.optBoolean("has_copy") && status.optBoolean("online");
+            String error = status.optString("error", "");
+            runOnUiThread(() -> {
+                if (ready) toast(R.string.ready);
+                else if (!error.isEmpty()) Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                else toast(R.string.no_copy);
+            });
+        });
+    }
+
+    private void toast(int text) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+    }
+
     /** Errors that mean the server could not be reached at all. */
     private static boolean unreachable(int code) {
         return code == WebViewClient.ERROR_HOST_LOOKUP || code == WebViewClient.ERROR_CONNECT
@@ -221,12 +363,20 @@ public class MainActivity extends Activity {
                 || code == WebViewClient.ERROR_FAILED_SSL_HANDSHAKE || code == WebViewClient.ERROR_PROXY_AUTHENTICATION;
     }
 
-    /** Read a cage card and open the record its QR code points to. */
-    private void scan() {
+    /**
+     * Read a cage card. A page that asked for the scanner (bench mode), and the
+     * offline screens, get what was read (window.bmScanned), as on the iPhone;
+     * otherwise the record its QR code points to opens.
+     */
+    private void scan(boolean forPage) {
         GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this);
         scanner.startScan()
                 .addOnSuccessListener(barcode -> {
                     String value = barcode.getRawValue();
+                    if (value != null && (forPage || currentUrl.startsWith(OFFLINE))) {
+                        web.evaluateJavascript("window.bmScanned && window.bmScanned(" + JSONObject.quote(value) + ")", null);
+                        return;
+                    }
                     Uri link = value == null ? null : Uri.parse(value.trim());
                     if (link != null && Server.owns(server, link)) {
                         offline.setVisibility(View.GONE);
@@ -292,8 +442,19 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // This phone's copy of the facility stays fresh while the app is open.
+        if (store != null) {
+            ticker.removeCallbacks(refresh);
+            ticker.post(refresh);
+        }
+    }
+
+    @Override
     protected void onPause() {
         CookieManager.getInstance().flush();  // stay signed in after the app is closed
+        ticker.removeCallbacks(refresh);
         super.onPause();
     }
 }

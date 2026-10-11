@@ -67,8 +67,13 @@ services:
       # Set by deploy/host/internet-access.sh while guests can come in from
       # the internet (app/guests.py); empty means lab network only.
       BIOMANAGER_PUBLIC_URL: ${BIOMANAGER_PUBLIC_URL:-}
+      # The app writes the lab's key here for the backup service, which locks
+      # each backup with it (app/lab_key.py, backup/labkey.sh). Its own volume:
+      # never inside a backup, so a backup that leaks doesn't carry its key.
+      BIOMANAGER_LABKEY_DIR: /labkey
     volumes:
       - appdata:/data
+      - labkey:/labkey
       # Update now (Settings → Devices & copies) leaves a request here, which
       # host/update.sh picks up; host/install.sh sets the folder up.
       - ./control:/control
@@ -123,6 +128,7 @@ services:
       HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
     volumes:
       - appdata:/appdata:ro
+      - labkey:/labkey:ro
       - ${BACKUP_DIR:-./backups}:/backups
     depends_on:
       # The app creates the schema on its first start; a backup taken
@@ -143,6 +149,7 @@ services:
     environment: *backup_env
     volumes:
       - appdata:/appdata
+      - labkey:/labkey:ro
       - ${BACKUP_DIR:-./backups}:/backups
     depends_on:
       db:
@@ -157,5 +164,6 @@ networks:
 volumes:
   pgdata:
   appdata:
+  labkey:
   caddy_data:
   caddy_config:

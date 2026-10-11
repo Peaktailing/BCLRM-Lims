@@ -367,6 +367,13 @@
               <form method="post" action="{{ url_for('lab_move.save') }}"><button type="submit" class="btn btn-sm">{{ icon('download') }} {{ _('Save') }}</button></form>
             </span>
           </div>
+          {# The lab's key (app/lab_key.py): it locks backups, lab files and computers' copies. #}
+          {% set lk = lab_key_status() %}
+          <a class="set-row set-row-link" id="lab-key" href="{{ url_for('lab_move.lab_key_page') }}">
+            <span class="set-label"><b>{{ _('Lab key') }}</b><small>{{ _('Backups, lab files and the copies on your computers are locked with it, so a file that leaks can’t be read.') }}
+              {% if lk.shown_at %}{{ _('Its recovery key was last shown to %(who)s on %(when)s.', who=lk.shown_to, when=(lk.shown_at | local).strftime('%Y-%m-%d')) }}{% else %}<b class="text-warn-700">{{ _('Keep its recovery key somewhere safe.') }}</b>{% endif %}</small></span>
+            {{ icon('chevron-right', 'set-chev') }}
+          </a>
         {% endif %}
         <a class="set-row set-row-link" href="{% if lab_data %}#history{% else %}{{ url_for('batches_view') }}{% endif %}">
           <span class="set-label"><b>{{ _('Batch history') }}</b><small>{{ _('Changes made many records at a time (Add many, bulk edits, imports), each with Undo') }}</small></span>

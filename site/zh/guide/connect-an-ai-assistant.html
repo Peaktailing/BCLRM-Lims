@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Language" content="zh-CN">
+  <title>连接 AI 助手 — BioManager 用户指南</title>
+  <meta name="description" content="按助手应用逐一说明：添加一次 BioManager 插件，把它连接到你的实验室，登录，然后试一试。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#fbfdfc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1413" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://biomanager.org/zh/guide/connect-an-ai-assistant">
+  <link rel="alternate" hreflang="en" href="https://biomanager.org/guide/connect-an-ai-assistant">
+  <link rel="alternate" hreflang="zh-CN" href="https://biomanager.org/zh/guide/connect-an-ai-assistant">
+  <link rel="alternate" hreflang="x-default" href="https://biomanager.org/guide/connect-an-ai-assistant">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BioManager">
+  <meta property="og:url" content="https://biomanager.org/zh/guide/connect-an-ai-assistant">
+  <meta property="og:title" content="连接 AI 助手 — BioManager 用户指南">
+  <meta property="og:description" content="按助手应用逐一说明：添加一次 BioManager 插件，把它连接到你的实验室，登录，然后试一试。">
+  <meta property="og:image" content="https://biomanager.org/assets/social-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="../../assets/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+  <link rel="preload" href="../../assets/fonts/Geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../../style.css?v=da76782d6d">
+</head>
+<body class="docs-page">
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="../../"><img src="../../assets/icon.svg" alt="" width="28" height="28">BioManager</a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="../../features.html">功能</a>
+      <a href="../../server.html">为实验室部署</a>
+      <a class="nav-guide" href="../../guide.html" aria-current="page">用户指南</a>
+    </nav>
+    <a class="lang-link" href="../../guide/connect-an-ai-assistant.html" hreflang="en" lang="en" data-lang="en">English</a>
+    <a class="btn btn-small btn-primary" href="../../download.html">下载</a>
+  </div>
+</header>
+
+<div class="wrap docs">
+  <aside class="docs-nav" aria-label="目录">
+    <button type="button" class="docs-search" data-search data-pagefind="../../pagefind/">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span>搜索用户指南</span><kbd>/</kbd>
+    </button>
+    <details class="docs-toc" open>
+      <summary>目录</summary>
+      <ol>
+        <li class="docs-group"><span>入门</span>
+          <ol>
+            <li><a href="../guide.html">指南首页</a></li>
+            <li><a href="what-it-is.html">BioManager 是什么</a></li>
+            <li><a href="coming-from-excel.html">从 Excel 过来</a></li>
+            <li><a href="install.html">安装与设置</a></li>
+            <li><a href="try-it-first.html">先试一遍</a></li>
+            <li><a href="bring-your-lab-in.html">把实验室搬进来</a></li>
+            <li><a href="import-from-excel.html">从 Excel 导入</a></li>
+            <li><a href="home-page.html">首页</a></li>
+          </ol></li>
+        <li class="docs-group"><span>日常操作</span>
+          <ol>
+            <li><a href="sheets.html">在表格里工作</a></li>
+            <li><a href="many-at-once.html">批量操作</a></li>
+            <li><a href="finding-things.html">查找</a></li>
+            <li><a href="undo-and-history.html">撤销与历史</a></li>
+            <li><a href="notifications.html">通知</a></li>
+            <li><a href="keyboard-shortcuts.html">快捷键</a></li>
+          </ol></li>
+        <li class="docs-group"><span>小鼠鼠群</span>
+          <ol>
+            <li><a href="mouse-colony.html">小鼠鼠群</a></li>
+            <li><a href="record-a-litter.html">记录产仔</a></li>
+            <li><a href="genotype-a-litter.html">鉴定一窝的基因型</a></li>
+            <li><a href="wean-a-litter.html">断奶分笼</a></li>
+            <li><a href="print-cage-cards.html">打印笼卡</a></li>
+            <li><a href="phones-and-cage-cards.html">在实验台：手机与笼卡</a></li>
+          </ol></li>
+        <li class="docs-group"><span>鱼、果蝇和其他动物</span>
+          <ol>
+            <li><a href="zebrafish.html">斑马鱼</a></li>
+            <li><a href="flies-and-worms.html">果蝇和线虫</a></li>
+            <li><a href="any-organism.html">其他任意物种</a></li>
+          </ol></li>
+        <li class="docs-group"><span>分子生物学</span>
+          <ol>
+            <li><a href="plasmids.html">质粒、引物与菌种</a></li>
+          </ol></li>
+        <li class="docs-group"><span>样本与采购</span>
+          <ol>
+            <li><a href="samples-and-orders.html">样本、试剂、抗体、病毒</a></li>
+            <li><a href="receive-an-order.html">订单到货入库</a></li>
+          </ol></li>
+        <li class="docs-group"><span>实验与记录本</span>
+          <ol>
+            <li><a href="experiments.html">实验</a></li>
+            <li><a href="notebook.html">实验记录本与工具</a></li>
+            <li><a href="sign-a-notebook-page.html">签名实验记录</a></li>
+          </ol></li>
+        <li class="docs-group"><span>日程安排</span>
+          <ol>
+            <li><a href="calendar.html">日历</a></li>
+            <li><a href="book-equipment.html">预约仪器</a></li>
+          </ol></li>
+        <li class="docs-group"><span>实验室协作</span>
+          <ol>
+            <li><a href="who-can-do-what.html">谁能做什么</a></li>
+            <li><a href="project-groups.html">项目组</a></li>
+            <li><a href="people-and-guests.html">成员与访客</a></li>
+            <li><a href="invite-someone.html">邀请成员</a></li>
+            <li><a href="lab-setup.html">实验室设置</a></li>
+          </ol></li>
+        <li class="docs-group"><span>你的数据</span>
+          <ol>
+            <li><a href="your-data.html">数据与备份</a></li>
+            <li><a href="restore-a-backup.html">从备份恢复</a></li>
+            <li><a href="scripts-and-api.html">脚本与 API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI 助手</span>
+          <ol>
+            <li><a href="ai-assistants.html">AI 助手</a></li>
+            <li><a href="connect-an-ai-assistant.html" aria-current="page">连接 AI 助手</a></li>
+          </ol></li>
+        <li class="docs-group"><span>帮助</span>
+          <ol>
+            <li><a href="troubleshooting.html">疑难解答</a></li>
+            <li><a href="feedback.html">反馈</a></li>
+          </ol></li>
+      </ol>
+    </details>
+  </aside>
+  <main class="docs-main" data-pagefind-body>
+    <!-- page -->
+    <p class="eyebrow">怎么做</p>
+    <h1>连接 AI 助手</h1>
+    <p class="summary">按助手应用逐一说明：添加一次 BioManager 插件，把它连接到你的实验室，登录，然后试一试。</p>
+    <div class="badges"><span class="badge">实验室服务器或桌面版</span></div>
+
+      <p>连接只需几分钟，做一次就好。不管用哪个应用，都是同样的四步：</p>
+      <ol class="steps-list">
+        <li><b>确认你的应用能连上 BioManager</b>（见下表）。</li>
+        <li><b>添加 BioManager 插件</b>（如果你的应用支持插件）。它教助手怎么使用 BioManager，你就不必再解释。</li>
+        <li><b>用你的 BioManager 地址把它连接到实验室</b>，然后 <b>登录</b>：BioManager 会在浏览器里打开，按 <b>允许</b>。
+          不需要把密码或令牌交给助手。</li>
+        <li><b>试一试</b>：说 <i>我想在 BioManager 里改点东西</i>。</li>
+      </ol>
+      <p>需要的一切都在 BioManager 的 <b>帮助 → 连接 AI 助手</b> 里（也在 <b>设置 → AI 助手与令牌</b> 里），你的实验室地址
+        已经填好，有些应用有按钮，其他的有可以复制的命令。把它和这一页并排打开。</p>
+
+      <h2 id="reach">你的应用能连上 BioManager 吗？</h2>
+      <p>助手应用要么从你自己的电脑连接，要么从它公司在互联网上的服务器连接。这决定了它能连上什么：</p>
+      <table class="gtable">
+        <thead><tr><th>你的 BioManager</th><th>电脑上的应用</th><th>云端的应用</th></tr></thead>
+        <tbody>
+          <tr><td>桌面版，就在这台电脑上</td><td>可以</td><td>不行</td></tr>
+          <tr><td>实验室服务器，只在实验室网络里</td><td>可以，从实验室网络里的电脑</td><td>不行</td></tr>
+          <tr><td>在互联网上的实验室服务器</td><td>可以</td><td>可以</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><b>电脑上的应用</b>：Claude Code、Codex、Cursor、VS Code、Cherry Studio、千问办公（QwenWork）、Trae、电脑版豆包、
+          Qwen Code、Kimi Code，以及用令牌的 Claude Desktop。</li>
+        <li><b>云端的应用</b>：claude.ai（包括 Claude 桌面和手机应用里的对话）和 ChatGPT。它们需要实验室服务器在互联网上，
+          由管理员打开（见服务器手册里的 <i>互联网访问</i>）。在那之前，连接页面会说明这一点，只列出其他方式。</li>
+      </ul>
+      <p>连接页面会显示两个地址，都以 <code>/api/v1/mcp</code> 结尾：<b>连接器地址</b>（在互联网上，给云端应用用）和 <b>这台电脑或实验室网络</b> 上的应用用的地址。</p>
+
+      <h2 id="claude">Claude</h2>
+
+      <h3 id="claude-chat">网页版、桌面应用和手机上的 Claude</h3>
+      <p>需要实验室服务器在互联网上。在 claude.ai 或桌面应用里设置，手机应用随后也就有了。</p>
+      <ol class="steps">
+        <li><b>添加插件。</b> 打开 <b>Customize → Plugins</b>，选 <b>Add → Add marketplace</b>，输入
+          <code>gaspolymerase/biomanager</code>，再打开 <b>BioManager</b>，按 <b>Add</b>。<span class="sub">等 BioManager
+          上架 Claude 的插件目录后，也可以直接在 <b>Discover</b> 里找到它。</span></li>
+        <li><b>添加连接器。</b> 打开插件的 <b>Connectors</b> 标签（或 <b>Customize → Connectors</b>），选 <b>Add custom
+          connector</b>，名字填 <i>BioManager</i>，粘贴连接页面上的 <b>连接器地址</b>。</li>
+        <li><b>连接。</b> 按 <b>Connect</b>。会打开一个 BioManager 页面，要你输入 <b>连接码</b>。在连接页面（在实验室网络里）
+          按 <b>获取连接码</b>，输进去，再按 <b>允许</b>。连接码只能用一次，10 分钟内有效。</li>
+        <li><b>试一试。</b> 新开一个对话，确认对话的工具菜单里 BioManager 已打开，然后说 <i>我想在 BioManager 里改点东西</i>。
+          第一次它每用一个工具都会先问你；对 BioManager 的工具选 <b>Always allow</b>。这些工具只能读取和提议：
+          在你于 BioManager 里批准之前，什么都不会改变。</li>
+      </ol>
+      <div class="callout note"><b>Team 或 Enterprise 套餐</b> 由所有者为整个组织添加连接器，也可以给所有人装好插件
+        （<b>Installed by default</b>）。之后每个人只需用自己的连接码连接一次，助手就以本人的身份工作。</div>
+
+      <h3 id="claude-code">Claude Code</h3>
+      <p>可以连桌面版，也可以连实验室网络里的服务器。在 Claude Code 里：</p>
+      <ol class="steps">
+        <li>输入 <code>/plugin marketplace add gaspolymerase/biomanager</code>，再输入 <code>/plugin install
+          biomanager@biomanager</code>。</li>
+        <li>它会问 <b>BioManager's MCP address</b>：粘贴连接页面上 <b>这台电脑或实验室网络</b> 用的地址。</li>
+        <li>输入 <code>/mcp</code>，选 <i>biomanager</i>，再选 <b>Authenticate</b>。BioManager 会在浏览器里打开：按 <b>允许</b>。</li>
+        <li>说 <i>我想在 BioManager 里改点东西</i>。</li>
+      </ol>
+      <p>不装插件的话，用连接页面上的那一条命令连接（<code>claude mcp add …</code>），或者按 <b>复制这段话</b> 发给
+        Claude Code，它会自己设置好。</p>
+
+      <h3 id="claude-desktop">Claude Desktop 连接桌面版或实验室网络里的服务器</h3>
+      <p>Claude Desktop 自己的连接器走互联网，所以连不上的 BioManager，要改用 BioManager 源代码里的一个小程序。在连接页面按 <b>生成令牌</b>：下一页会给出粘贴到 Claude Desktop（<b>Settings → Developer → Edit Config</b>）的设置，地址和令牌都已填好。
+        具体步骤，以及安装所需依赖的那一条命令，在 <code>mcp/README.md</code> 里。Claude Desktop 的 <b>Code</b> 标签就是
+        Claude Code，按上面的方法连接。</p>
+
+      <h2 id="openai">ChatGPT 和 Codex</h2>
+
+      <h3 id="chatgpt">ChatGPT</h3>
+      <p>需要实验室服务器在互联网上，并且要用网页版 ChatGPT：ChatGPT 的手机应用不能添加你自己的服务器。ChatGPT 只允许 <b>Business、Enterprise 或 Edu</b> 工作区这样修改记录，且要由管理员打开开发者模式；其他套餐只能读取。</p>
+      <ol class="steps">
+        <li>打开 <b>Plugins</b>，按 <b>+</b>，选 <b>Add custom MCP server</b>。</li>
+        <li>名字填 <i>BioManager</i>，粘贴 <b>连接器地址</b>，选 <b>OAuth</b>，按 <b>I understand and want to continue</b>
+          确认，然后 <b>Create as a plugin</b> 并安装。</li>
+        <li>要求登录时，会有一个 BioManager 页面要你输入 <b>连接码</b>：在连接页面获取一个，输进去，按 <b>允许</b>。</li>
+        <li>在对话里选择 BioManager（输入 <code>@</code>），说 <i>我想在 BioManager 里改点东西</i>。在它的权限里选 <b>Allow read actions</b>，它就不会每次查找前都问你。</li>
+      </ol>
+
+      <h3 id="codex">Codex</h3>
+      <ol class="steps">
+        <li>添加插件：<code>codex plugin marketplace add gaspolymerase/biomanager</code>，然后在它的插件里安装
+          <i>BioManager</i>。</li>
+        <li>连接：<code>codex mcp add biomanager --url &lt;地址&gt;</code>，用 <b>这台电脑或实验室网络</b> 的地址（连接页面上有
+          填好地址的命令）。</li>
+        <li>登录：<code>codex mcp login biomanager</code>。BioManager 会在浏览器里打开：按 <b>允许</b>。</li>
+      </ol>
+
+      <h2 id="editors">Cursor 和 VS Code</h2>
+      <ol class="steps">
+        <li>在连接页面按 <b>添加到 Cursor</b> 或 <b>添加到 VS Code</b>。应用会打开，并在添加 BioManager 前先问你：同意即可。</li>
+        <li>登录：应用会显示 BioManager <i>needs login</i>，或请你允许；BioManager 会在浏览器里打开，按 <b>允许</b>。</li>
+        <li>在 VS Code 里还要添加插件：运行 <b>Chat: Install Plugin From Source</b>，填
+          <code>https://github.com/gaspolymerase/biomanager</code>。</li>
+      </ol>
+
+      <h2 id="china">国内常用的助手</h2>
+      <p>DeepSeek、千问和 Kimi 的聊天应用目前还不能连接其他应用。下面这些可以，在能连上 BioManager 的电脑上使用。</p>
+
+      <h3 id="cherry-studio">Cherry Studio，配 DeepSeek、千问、Kimi 或 GLM</h3>
+      <ol class="steps">
+        <li>按 Cherry Studio 的说明，用你的模型密钥（DeepSeek、千问、Kimi 或智谱 GLM）设置好 Cherry Studio。</li>
+        <li>在连接页面按 <b>添加到 Cherry Studio</b>。Cherry Studio 会打开，BioManager 已经加上但处于关闭状态：在 <b>设置 → MCP</b> 里把它打开。</li>
+        <li>BioManager 在浏览器里打开时登录：按 <b>允许</b>。</li>
+        <li>在对话里打开 BioManager 的工具，说 <i>我想在 BioManager 里改点东西</i>。</li>
+      </ol>
+
+      <h3 id="qwenwork">千问办公、Trae 和豆包</h3>
+      <p>这些应用用你的 BioManager 地址加一个令牌连接。在连接页面按 <b>生成令牌</b>；下一页会给出设置，地址和令牌都已填好。</p>
+      <ul>
+        <li><b>千问办公</b>：<b>扩展 → 连接器 → + 添加 → 粘贴 JSON 配置</b>，粘贴那段 JSON。</li>
+        <li><b>Trae</b>：<b>设置 → MCP → 添加 → 手动添加</b>，粘贴同一段 JSON。</li>
+        <li>电脑版 <b>豆包</b>：<b>技能 · 连接器 → 新建 → 新建自定义连接器</b>，传输类型选 <b>HTTP</b>，填地址，再加一个请求头
+          <code>Authorization</code>，值为 <code>Bearer</code> 加空格和令牌。</li>
+      </ul>
+      <p>令牌只显示一次：保存在应用里，不要记在笔记里。不再使用这个应用时，到 <b>设置 → AI 助手与令牌</b> 撤销它。</p>
+
+      <h3 id="qwen-code">Qwen Code 和 Kimi Code</h3>
+      <ul>
+        <li><b>Qwen Code</b>：用 <code>qwen extensions install
+          https://github.com/gaspolymerase/biomanager:biomanager</code> 添加插件，再用 <code>qwen mcp add --transport http
+          biomanager &lt;地址&gt;</code> 连接。它会自己在浏览器里登录。</li>
+        <li><b>Kimi Code</b>：<code>kimi mcp add -t http biomanager &lt;地址&gt; --auth oauth</code>，然后
+          <code>kimi mcp auth biomanager</code>。</li>
+      </ul>
+
+      <h3 id="deepseek">用 DeepSeek 或 GLM 运行 Claude Code</h3>
+      <p>DeepSeek 和智谱（GLM）都提供兼容 Claude API 的地址，所以 Claude Code（以及 BioManager 插件）可以用 DeepSeek 或智谱的
+        密钥运行。按它们自己的说明设置 Claude Code（DeepSeek 的 <i>Anthropic API</i> 指南、智谱的 <i>Claude Code</i> 指南），
+        然后按上面的 <a href="#claude-code">Claude Code</a> 操作。</p>
+
+      <h2 id="other-apps">其他应用</h2>
+      <p>支持 MCP 服务器的其他应用（Goose、OpenCode、LobeHub、Chatbox 等）需要这个地址，类型选 <b>streamable HTTP</b>。
+        如果它支持 OAuth 登录，请求头留空，在浏览器里登录；如果不支持，按 <b>生成令牌</b>，把下一页给出的请求头填进去。
+        只能启动命令的应用，像 Claude Desktop 那样运行 <code>mcp/biomanager_mcp.py</code>。</p>
+
+      <h2 id="check">确认连好了</h2>
+      <ol class="steps-list">
+        <li>说 <i>我想在 BioManager 里改点东西</i>。它应该列出今天的待办，问你做了什么，而不是问你 BioManager 怎么用。</li>
+        <li>告诉它一件真实的小事，比如 <i>称了 1043 号小鼠，24.1 克</i>。它会找到这只小鼠，发一个提议，并给你一个链接。</li>
+        <li>在 BioManager 里打开这个链接（或点铃铛）：提议在 <b>修改提议</b> 里等你。看一遍，按 <b>批准</b> 或 <b>丢弃</b>。</li>
+      </ol>
+      <p class="result">这个连接会以应用的名字列在 <b>设置 → AI 助手与令牌</b> 里。在那里撤销就能断开，助手之后什么都读不到。</p>
+
+    <section class="trouble">
+      <h2 id="troubleshooting">疑难解答</h2>
+      <h3>助手好像不认识 BioManager</h3>
+      <p>确认对话的工具里 BioManager 是打开的（Claude、ChatGPT、Cherry Studio 每个对话单独开关工具），并且插件已添加、已启用。
+        没有插件时，说 <i>先用 BioManager 的 lab_overview</i>。</p>
+      <h3>它连不上 BioManager</h3>
+      <p>电脑上的应用：确认 BioManager 正在运行，地址用的是 <b>这台电脑或实验室网络</b> 的那个。claude.ai 和 ChatGPT：<b>连接器地址</b> 应该能用不连实验室 Wi-Fi 的手机打开，显示一句要 API 令牌的提示。如果打不开，说明服务器还没有上互联网。</p>
+      <h3>连接时说连接码不对</h3>
+      <p>连接码只能用一次，10 分钟内有效。再按一次 <b>获取连接码</b>，用新的那个。</p>
+      <h3>ChatGPT 能读取但不能提议</h3>
+      <p>Business、Enterprise 和 Edu 以外的 ChatGPT 套餐，对你自己的服务器只能读取。用别的应用来提议，或者问你工作区的管理员
+        能否打开开发者模式。</p>
+      <h3>过几周又要我重新登录</h3>
+      <p>登录在 90 天不用后失效。用同样的方法再登录一次即可，其他什么都不会丢。</p>
+    </section>
+    <p class="related"><span>相关：</span> <a href="ai-assistants.html">AI 助手</a> <a href="scripts-and-api.html">脚本与 API</a> <a href="../server.html">为实验室部署</a></p>
+    <!-- /page -->
+      <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="ai-assistants.html"><small>上一页</small>AI 助手</a><a class="next" href="troubleshooting.html"><small>下一页</small>疑难解答</a></nav>
+      <div class="helpful" data-pagefind-ignore>
+        <span>这一页对你有帮助吗？</span>
+        <button type="button" data-helpful="yes" aria-pressed="false">有</button>
+        <a class="btn btn-small" data-helpful="no" href="https://github.com/gaspolymerase/biomanager/issues/new?title=用户指南：连接%20AI%20助手&amp;body=页面：https://biomanager.org/zh/guide/connect-an-ai-assistant%0A%0A哪里不清楚或缺了什么：" target="_blank" rel="noopener">没有</a>
+      </div>
+  </main>
+  <nav class="docs-rail" aria-label="本页内容">
+      <p>本页内容 · 阅读约 5 分钟</p>
+      <ol>
+        <li class="lvl2"><a href="#reach">你的应用能连上 BioManager 吗？</a></li>
+        <li class="lvl2"><a href="#claude">Claude</a></li>
+        <li class="lvl3"><a href="#claude-chat">网页版、桌面应用和手机上的 Claude</a></li>
+        <li class="lvl3"><a href="#claude-code">Claude Code</a></li>
+        <li class="lvl3"><a href="#claude-desktop">Claude Desktop 连接桌面版或实验室网络里的服务器</a></li>
+        <li class="lvl2"><a href="#openai">ChatGPT 和 Codex</a></li>
+        <li class="lvl3"><a href="#chatgpt">ChatGPT</a></li>
+        <li class="lvl3"><a href="#codex">Codex</a></li>
+        <li class="lvl2"><a href="#editors">Cursor 和 VS Code</a></li>
+        <li class="lvl2"><a href="#china">国内常用的助手</a></li>
+        <li class="lvl3"><a href="#cherry-studio">Cherry Studio，配 DeepSeek、千问、Kimi 或 GLM</a></li>
+        <li class="lvl3"><a href="#qwenwork">千问办公、Trae 和豆包</a></li>
+        <li class="lvl3"><a href="#qwen-code">Qwen Code 和 Kimi Code</a></li>
+        <li class="lvl3"><a href="#deepseek">用 DeepSeek 或 GLM 运行 Claude Code</a></li>
+        <li class="lvl2"><a href="#other-apps">其他应用</a></li>
+        <li class="lvl2"><a href="#check">确认连好了</a></li>
+        <li class="lvl2"><a href="#troubleshooting">疑难解答</a></li>
+      </ol>
+    </nav>
+</div>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-gh">
+      <p>BioManager 免费开源。如果它帮到了你的实验室，欢迎在 GitHub 上点个星标，让更多实验室找到它；遇到问题或有想法，也欢迎在 GitHub 上提给我们。</p>
+      <a class="btn btn-quiet" href="https://github.com/gaspolymerase/biomanager"><svg class="star" width="16" height="16" aria-hidden="true"><use href="../../assets/icons.svg?v=d44b577819#star"/></svg>在 GitHub 上标星</a>
+      <a class="btn btn-quiet" href="https://github.com/gaspolymerase/biomanager/issues/new/choose"><svg width="16" height="16" aria-hidden="true"><use href="../../assets/icons.svg?v=d44b577819#github"/></svg>提交反馈</a>
+    </div>
+    <div class="brand"><img src="../../assets/icon.svg" alt="" width="22" height="22">BioManager</div>
+    <p><a href="../../download.html">下载</a> · <a href="https://github.com/gaspolymerase/biomanager/releases">所有版本和更新内容</a></p>
+  </div>
+</footer>
+<script src="../../site.js?v=bd7f0aefcb"></script>
+</body>
+</html>

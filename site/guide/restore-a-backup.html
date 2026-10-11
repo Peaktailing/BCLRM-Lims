@@ -118,7 +118,11 @@
             <li><a href="your-data.html">Your data and backups</a></li>
             <li><a href="restore-a-backup.html" aria-current="page">Restore a backup</a></li>
             <li><a href="scripts-and-api.html">Scripts and the API</a></li>
+          </ol></li>
+        <li class="docs-group"><span>AI assistants</span>
+          <ol>
             <li><a href="ai-assistants.html">AI assistants</a></li>
+            <li><a href="connect-an-ai-assistant.html">Connect an AI assistant</a></li>
           </ol></li>
         <li class="docs-group"><span>Help</span>
           <ol>
@@ -155,6 +159,10 @@
     <p>A server backs up every night and restores the newest backup every week to prove it works. Restoring is one command, run by whoever
       looks after the server, and never deletes what it replaces: see <code>deploy/RUNBOOK.md</code> in the server bundle and
       <a href="../server.html#safe">Keeping the data safe</a>. For a mistake in a bulk change, <b>Settings → History → Undo</b> is enough.</p>
+    <p>The backups are locked with <a href="your-data.html#lab-key">the lab's key</a>, so a backup that leaks can't be read. On the
+      same server they open by themselves. On a new machine, which doesn't have the key, the restore is given the lab's recovery key
+      (the runbook says how); once the lab is back, an admin enters the recovery key under <b>Settings → Your data → Lab key → A lab
+      back without its key</b>, so the lab files and copies it locked open there again.</p>
     <section class="trouble">
       <h2 id="troubleshooting">Troubleshooting</h2>
       <h3>BioManager won't start: the lab's database is an empty file</h3>

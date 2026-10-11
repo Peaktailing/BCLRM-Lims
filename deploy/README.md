@@ -182,12 +182,18 @@ The `backup` service runs nightly at `BACKUP_TIME`, and once when it starts:
 1. `pg_dump` of the database, checked with `pg_restore --list` before it is kept.
 2. A tarball of the app volume: uploads, and the signing key that decrypts
    stored Google tokens.
-3. The newest `KEEP_LOCAL` of each are kept in `BACKUP_DIR` (default
+3. Both are locked with **the lab's key** (age; `.dump.age` and
+   `.tar.gz.age`), so a backup that leaks can't be read. The app writes the
+   key into its own `labkey` volume, never into a backup; the weekly test and
+   `restore.sh` open the backups with it. An admin keeps the lab's
+   **recovery key** (Settings → Your data → Lab key): on a new machine it is
+   the only way to open them (`RUNBOOK.md`, *The server is lost*).
+4. The newest `KEEP_LOCAL` of each are kept in `BACKUP_DIR` (default
    `deploy/backups/`). Put that on a different disk if you can.
-4. **Off-site**, if `RESTIC_REPOSITORY` is set: encrypted before it leaves,
+5. **Off-site**, if `RESTIC_REPOSITORY` is set: encrypted before it leaves,
    and kept for 30 days, 12 weeks and 24 months. Keep `RESTIC_PASSWORD`
    somewhere other than this server.
-5. It pings `HEALTHCHECK_PING_URL`, if set, after every good backup. A
+6. It pings `HEALTHCHECK_PING_URL`, if set, after every good backup. A
    service like healthchecks.io then tells you when backups **stop** — a
    failed backup can't send its own alert.
 

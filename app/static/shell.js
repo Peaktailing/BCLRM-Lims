@@ -373,6 +373,32 @@
       el.addEventListener('click', () => toast(el.dataset.soon));
     });
 
+    // The Mac window's tools beside its buttons: search as the omnibox does,
+    // and back and forward, greyed where there is nowhere to go (where the
+    // browser can say: the Navigation API).
+    const wtools = document.querySelector('.wtools');
+    if (wtools) {
+      wtools.querySelector('[data-wtool-search]').addEventListener('click', () => {
+        if (window.BiomanagerTabs) window.BiomanagerTabs.cancelNewTab();
+        if (window.BiomanagerSearch) window.BiomanagerSearch.open();
+      });
+      const back = wtools.querySelector('[data-wtool-back]');
+      const forward = wtools.querySelector('[data-wtool-forward]');
+      back.addEventListener('click', () => history.back());
+      forward.addEventListener('click', () => history.forward());
+      const nav = window.navigation;
+      if (nav && 'canGoBack' in nav) {
+        const sync = () => { back.disabled = !nav.canGoBack; forward.disabled = !nav.canGoForward; };
+        sync();
+        nav.addEventListener('currententrychange', sync);
+        // The Mac window's web view fills in what lies ahead a moment after a
+        // page loads, and a page brought back from the back-forward cache
+        // says nothing: ask again then, and as the pointer comes near.
+        window.addEventListener('pageshow', () => { sync(); setTimeout(sync, 400); });
+        wtools.addEventListener('pointerenter', sync);
+      }
+    }
+
     // The omnibox searches in the tab you are already in; "+" (below) opens
     // a new tab on your start page.
     const omnibox = document.querySelector('#app-global-search');
@@ -440,13 +466,14 @@
 
     const native = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bmWindow;
     if (!native || !root.classList.contains('mac-window')) return;
-    // The bare rows themselves, and the sidebar's top strip beside the lights.
+    // The bare rows themselves, and the sidebar's top strip beside the lights
+    // (or, with the sidebar collapsed below the top row, the window above it).
     const rowHeight = () => parseFloat(getComputedStyle(root).getPropertyValue('--tabbar-h')) || 46;
     const bare = (event) => {
       const el = event.target;
       if (!el.matches) return false;
       if (el.matches('.topstrip, .strip-actions, .toolbar, .toolbar > .min-w-0, .toolbar-spacer, .toolbar-title, .toolbar-sub')) return true;
-      return el.matches('.rail, .rail-top') && event.clientY < rowHeight();
+      return el.matches('.rail, .rail-top, .shell') && event.clientY < rowHeight();
     };
     let press = null;
     document.addEventListener('mousedown', (event) => {

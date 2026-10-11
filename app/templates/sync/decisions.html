@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block page_title %}{{ _('Needs your decision') }}{% endblock %}
+{% block page_heading %}{{ _('Needs your decision') }}{% endblock %}
+{% block page_subtitle %}{{ _('Changes made offline that clashed with one made meanwhile. Nothing is overwritten until you choose.') }}{% endblock %}
+
+{% block page_actions %}
+  {% if current_user.role == 'admin' %}
+    {% if everyone %}
+      <a class="btn" href="{{ url_for('sync.page') }}">{{ icon('user') }} {{ _('Only mine') }}</a>
+    {% elif others %}
+      <a class="btn" href="{{ url_for('sync.page', everyone=1) }}">{{ icon('users') }} {{ _('Everyone’s') }} <span class="badge">{{ others }}</span></a>
+    {% endif %}
+  {% endif %}
+  <a class="btn" href="{{ url_for('batches_view') }}">{{ icon('layers') }} {{ _('Batch history') }}</a>
+{% endblock %}
+
+{% macro value(v) %}{% if v is none or v == '' %}—{% elif v is sameas true %}{{ _('yes') }}{% elif v is sameas false %}{{ _('no') }}{% elif v is iterable and v is not string %}{{ v|reject('equalto', '')|join('; ') or '—' }}{% else %}{{ v }}{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="grid max-w-[820px] grid-cols-1 gap-3">
+  {% for card in cards %}
+    <section class="card p-5" id="held-{{ card.id }}">
+      <p class="text-[12.5px] text-muted">
+        {% if everyone %}{{ card.user }} · {% endif %}
+        {% if card.made_at %}{{ _('Done offline %(when)s', when=card.made_at|when) }} · {% endif %}
+        {{ _('reached the lab %(when)s', when=card.received|when) }}
+      </p>
+      <p class="mt-2 text-[14.5px] font-medium text-ink">{{ card.summary }}</p>
+      {% if card.message %}<p class="mt-1 text-[13px] text-warn-700">{{ card.message }}</p>{% endif %}
+      <div class="mt-3 grid gap-2">
+        {% for r in card.records %}
+          <div class="rounded-lg bg-sand-100 p-3 text-[13px] leading-snug">
+            <p class="font-medium text-ink">{{ r.label }}</p>
+            {% if r.by %}<p class="text-muted">{{ _('Changed meanwhile by %(who)s, %(when)s', who=r.by, when=r.at|when if r.at else '') }}</p>{% endif %}
+            {% for name, f in r.fields.items() %}
+              <p class="mt-1"><span class="text-muted">{{ name|tr }}:</span>
+                {{ _('you saw') }} <b>{{ value(f.saw) }}</b> · {{ _('now') }} <b>{{ value(f.now) }}</b> · {{ _('yours') }} <b>{{ value(f.mine) }}</b></p>
+            {% endfor %}
+            {% if r.message and r.message != card.message %}<p class="mt-1 text-muted">{{ r.message }}</p>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('sync.page_decide', held_id=card.id) }}" class="mt-4 flex flex-wrap items-center gap-2">
+        {% if everyone %}<input type="hidden" name="everyone" value="1">{% endif %}
+        <button type="submit" name="decision" value="mine" class="btn btn-primary">{{ icon('check') }} {{ _('Keep mine') }}</button>
+        <button type="submit" name="decision" value="theirs" class="btn">{{ icon('close') }} {{ _('Keep theirs') }}</button>
+        <button type="submit" name="decision" value="edit" class="btn">{{ icon('edit') }} {{ _('Edit') }}</button>
+        <span class="text-[12px] text-muted">{{ _('Keep mine makes your change now, with its own entry in History; Edit opens the record to set it by hand.') }}</span>
+      </form>
+    </section>
+  {% else %}
+    <div class="card empty-state">
+      {{ icon('check') }}
+      <p>{{ _('Nothing needs your decision.') }}</p>
+      <p class="text-[12.5px] text-muted">{{ _('When a change made offline on a phone or this computer clashes with one made meanwhile, it waits here.') }}</p>
+    </div>
+  {% endfor %}
+
+  {% if refused and not everyone %}
+    <section class="card p-5">
+      <h2 class="text-[15px] font-semibold text-ink">{{ _('Refused') }}</h2>
+      <p class="mt-1 text-[12.5px] text-muted">{{ _('Changes made offline in the last 30 days that the lab refused, and why.') }}</p>
+      <ul class="mt-3 grid gap-2">
+        {% for op in refused %}
+          <li class="text-[13px] leading-snug">
+            <span class="font-medium text-ink">{{ op.action|replace('_', ' ') }}</span>
+            <span class="text-muted">· {{ op.received_at|when }}</span>
+            <span class="block text-warn-700">{{ op.message }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

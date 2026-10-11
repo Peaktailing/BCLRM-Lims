@@ -34,7 +34,7 @@ import json
 import re
 import secrets
 from datetime import datetime, timedelta
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import delete, select
@@ -47,6 +47,8 @@ from .models import ApiToken, OAuthClient, OAuthCode, OAuthGrant, OAuthLinkCode,
 bp = Blueprint("oauth", __name__)
 
 SCOPE = "propose"
+# Advertised as well: ChatGPT asks for a refresh token only when it sees it (one is always given).
+SCOPES_SUPPORTED = [SCOPE, "offline_access"]
 CODE_FOR = timedelta(minutes=5)
 LINK_CODE_FOR = timedelta(minutes=10)
 ACCESS_FOR = timedelta(hours=1)
@@ -92,7 +94,7 @@ def _not_cached(response):
 @bp.get("/.well-known/oauth-protected-resource")
 @bp.get("/.well-known/oauth-protected-resource/api/v1/mcp")
 def protected_resource():
-    return jsonify({"resource": resource(), "authorization_servers": [issuer()], "scopes_supported": [SCOPE],
+    return jsonify({"resource": resource(), "authorization_servers": [issuer()], "scopes_supported": SCOPES_SUPPORTED,
                     "bearer_methods_supported": ["header"], "resource_name": "BioManager"})
 
 
@@ -108,7 +110,7 @@ def authorization_server():
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
-        "scopes_supported": [SCOPE],
+        "scopes_supported": SCOPES_SUPPORTED,
         "authorization_response_iss_parameter_supported": True,
         "service_documentation": "https://biomanager.org/guide/ai-assistants",
     })
@@ -388,6 +390,36 @@ def _signed_in():
     return None
 
 
+# The plugin that teaches an assistant BioManager (plugins/biomanager/), from this repository's marketplace.
+PLUGIN_MARKETPLACE = "gaspolymerase/biomanager"
+
+
+def one_click_links(url: str) -> list[tuple[str, str]]:
+    """Apps on this computer that add an MCP address from a link: each
+    app's name and its link, with the address filled in. Each opens the
+    app, which asks before adding it; signing in follows, in the browser."""
+    def b64(data: dict) -> str:
+        return base64.b64encode(json.dumps(data).encode()).decode()
+    return [
+        ("Cursor", "cursor://anysphere.cursor-deeplink/mcp/install?name=biomanager&config="
+         + quote(b64({"url": url}), safe="")),
+        ("VS Code", "vscode:mcp/install?" + quote(json.dumps({"name": "biomanager", "type": "http", "url": url}),
+                                                  safe="")),
+        ("Cherry Studio", "cherrystudio://mcp/install?servers="
+         + quote(b64({"name": "BioManager", "type": "streamableHttp", "baseUrl": url}), safe="")),
+    ]
+
+
+def _connect_page(allowed: bool, code: str | None):
+    from .guests import public_url
+    public = public_url()
+    local_url = issuer() + "/api/v1/mcp"
+    return render_template("oauth/connect.html", allowed=allowed, public=public,
+                           connector_url=(public + "/api/v1/mcp") if public else "",
+                           local_url=local_url, code=code, links=one_click_links(local_url),
+                           marketplace=PLUGIN_MARKETPLACE)
+
+
 @bp.get("/settings/assistant")
 def connect_page():
     """Settings → AI assistant & tokens → Connect an AI assistant: the ways in."""
@@ -395,13 +427,9 @@ def connect_page():
     if blocked:
         return blocked
     from .api import may_make_tokens
-    from .guests import public_url
     with SessionLocal() as s:
         allowed = may_make_tokens(s, s.get(UserAccount, g.user.id))
-    public = public_url()
-    return render_template("oauth/connect.html", allowed=allowed, public=public,
-                           connector_url=(public + "/api/v1/mcp") if public else "",
-                           local_url=issuer() + "/api/v1/mcp", code=None)
+    return _connect_page(allowed, None)
 
 
 @bp.post("/settings/assistant/code")
@@ -410,7 +438,6 @@ def make_link_code():
     if blocked:
         return blocked
     from .api import may_make_tokens
-    from .guests import public_url
     with SessionLocal() as s:
         user = s.get(UserAccount, g.user.id)
         if not may_make_tokens(s, user):
@@ -418,7 +445,4 @@ def make_link_code():
         s.execute(delete(OAuthLinkCode).where(OAuthLinkCode.expires_at < datetime.utcnow() - timedelta(days=1)))
         code = new_link_code(s, user)
         s.commit()
-    public = public_url()
-    return render_template("oauth/connect.html", allowed=True, public=public,
-                           connector_url=(public + "/api/v1/mcp") if public else "",
-                           local_url=issuer() + "/api/v1/mcp", code=code)
+    return _connect_page(True, code)

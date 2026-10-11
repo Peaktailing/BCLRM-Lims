@@ -25,10 +25,22 @@ token.
   An app that can't sign in takes the address and `Authorization: Bearer
   <token>`, from **Make a token** on the same page, which shows the setup.
 
+- **Codex**: `codex mcp add biomanager --url <address>`, then
+  `codex mcp login biomanager`. **Cursor**, **VS Code** and **Cherry Studio**:
+  the **Add to …** buttons on the same page, with the address filled in.
+
 - **claude.ai, the Claude apps and ChatGPT**, as a custom connector, when
   your lab's server is on the internet (`deploy/host/internet-access.sh`):
   the address `https://<server>:8443/api/v1/mcp`, signed in with OAuth and a
-  one-time connection code from the same page.
+  one-time connection code from the same page. (ChatGPT, on the web:
+  Plugins → + → Add custom MCP server.)
+
+**The BioManager plugin** (`plugins/biomanager/`) is what an assistant
+learns BioManager from: a skill and three commands, made from the same words
+as these tools by `scripts/assistant-packages.py`. Add it once from the
+`gaspolymerase/biomanager` marketplace (Claude: Customize → Plugins → Add
+marketplace; Codex: `codex plugin marketplace add gaspolymerase/biomanager`),
+and "I want to change something in BioManager" is enough to start.
 
 Use this program for **Claude Desktop** on the lab network (Desktop's own
 connectors go through the internet), or for an app that only starts
@@ -90,9 +102,10 @@ be more than one, and replies with a link to the proposal. Open it in
 BioManager (or from the bell), read the summary, and press **Approve** or
 **Discard**.
 
-It also comes with three prompts: *Log today's work from my notes*, *Log from
-a photo of my notebook, whiteboard or cage card*, and *Plan tomorrow from
-what's due*.
+It also comes with seven prompts: *Log today's work from my notes*, *Log
+from a photo of my notebook, whiteboard or cage card*, *Turn my captures from
+the bench into records*, *Plan tomorrow from what's due*, *Review the lab
+this week*, *Design an experiment* and *Write the methods for an experiment*.
 
 ## Tools
 
@@ -103,8 +116,12 @@ what's due*.
 | `get`, `list` | Read a record or a list from the API |
 | `whats_due` | What is due, as Home lists it, with the change that records each done |
 | `list_actions` | Everything a proposal may contain, with its fields |
-| `propose_changes` | Send one proposal; returns each change's summary, warnings and errors, and the review link |
-| `proposal_status`, `discard_proposal` | Follow a proposal up, or withdraw it |
+| `propose_changes` | Send one proposal, each change with its evidence; returns each change's summary, warnings and errors, and the review link |
+| `proposal_status`, `discard_proposal` | Follow a proposal up (sent back: the person's reason), or withdraw it |
+| `list_captures`, `get_capture` | What the person wrote down or photographed at the bench, waiting to become records; a photo comes back as an image |
+| `search`, `history`, `lineage` | Search records and notebook text; a record's change history; a plasmid's or mouse's family tree |
+| `availability`, `breeding_plan`, `randomize`, `power_analysis` | Animals free by genotype, sex and age; matings to set up and by when; balanced random groups; animals per group. Worked out by BioManager, with their assumptions |
+| `reorder_forecast`, `lab_checks`, `experiment_summary` | When stock runs out; the week's checks; an experiment's facts for its methods and its ARRIVE checklist |
 
 What may be proposed comes from your BioManager (`/api/v1/actions`), so an
 update to BioManager reaches the assistant without changing this program.

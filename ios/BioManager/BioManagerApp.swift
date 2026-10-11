@@ -1,3 +1,4 @@
+import BackgroundTasks
 import SwiftUI
 
 /// BioManager for iPhone and iPad: a companion for the lab's BioManager server.
@@ -7,6 +8,27 @@ import SwiftUI
 @main
 struct BioManagerApp: App {
     @State private var server: URL? = Server.saved
+    @Environment(\.scenePhase) private var phase
+
+    init() {
+        // This phone's copy of the facility stays fresh (OfflineStore): when the
+        // network comes back, and in the background when iOS allows.
+        OfflineStore.shared.start()
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: OfflineStore.refreshTask, using: nil) { task in
+            BioManagerApp.scheduleRefresh()
+            let work = Task {
+                await OfflineStore.shared.sync()
+                task.setTaskCompleted(success: true)
+            }
+            task.expirationHandler = { work.cancel() }
+        }
+    }
+
+    static func scheduleRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: OfflineStore.refreshTask)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 60 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +41,10 @@ struct BioManagerApp: App {
                 }
             }
             .tint(Color.accentColor)
+            .onChange(of: phase) { now in
+                if now == .active { Task { await OfflineStore.shared.sync() } }
+                if now == .background { BioManagerApp.scheduleRefresh() }
+            }
         }
     }
 }

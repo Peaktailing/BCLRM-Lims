@@ -23,6 +23,8 @@ from .formutil import form_changed
 # Importing this registers the SQLAlchemy flush listener that writes
 # audit_log rows for every tracked change; nothing here calls into it.
 from . import audit  # noqa: F401
+from . import sync_clock  # noqa: F401  (numbers each change to what devices keep)
+from . import lab_devices
 from . import undo as undo_service
 from . import custom_fields, feature_library, feature_pack, plannotate, plasmid_lineage, plasmid_versions, primer_records  # noqa: E402
 from .models import (
@@ -336,6 +338,17 @@ def load_current_user():
         g.lang = i18n.DEFAULT
         api.authenticate()
         return
+    # A device that joined the lab (the desktop's relay, a phone syncing): its
+    # token alone signs it in, as its person (app/lab_devices.py).
+    g.device = None
+    if lab_devices.authenticate():
+        if g.user is not None:
+            # Their language from Settings; else the window's own (Accept-Language).
+            with SessionLocal() as db_session:
+                chosen = i18n.preference(db_session, g.user.username)
+            if chosen in i18n.LANGUAGES:
+                g.lang = chosen
+        return
     user_id = session.get("user_id")
     g.user = None
     if user_id is None:
@@ -348,7 +361,8 @@ def load_current_user():
         if (user is None or getattr(user, "disabled", False)
                 or (user.expires_at is not None and user.expires_at <= datetime.utcnow())
                 or not security.session_matches(session.get("auth"), user, db_session)
-                or security.signed_out(db_session)):
+                or security.signed_out(db_session)
+                or not lab_devices.browser_ok(db_session, user)):
             session.clear()
             g.user = None
             return
@@ -394,6 +408,10 @@ app.jinja_env.filters["initials"] = door.initials
 # The whole lab as one file, and moving it to a server (app/lab_move.py).
 from . import lab_move  # noqa: E402
 app.register_blueprint(lab_move.bp)
+# Devices that joined the lab, each signed in on its own (app/lab_devices.py).
+app.register_blueprint(lab_devices.bp)
+from . import sync as lab_sync  # noqa: E402
+app.register_blueprint(lab_sync.bp)
 # Whether this request is the desktop app's own window (not a network visitor).
 app.jinja_env.globals["this_computer"] = lambda: devices.on_this_computer()
 
@@ -417,6 +435,7 @@ app.register_blueprint(server_setup.bp)
 # done to them, planned and recorded (app/experiment_steps.py).
 from . import experiments as experiment_pages  # noqa: E402
 from . import experiment_steps  # noqa: E402
+from . import experiment_plan  # noqa: E402  (the plan kept at Start, and the changes from it)
 app.register_blueprint(experiment_pages.bp)
 app.register_blueprint(experiment_steps.bp)
 # Signing a notebook page, which locks it (app/signatures.py).
@@ -429,6 +448,9 @@ app.register_blueprint(public_api.pages)
 # Proposed changes: what an assistant proposed, approved here (app/proposals.py).
 from . import proposals as lab_proposals  # noqa: E402
 app.register_blueprint(lab_proposals.bp)
+# Captures: what someone wrote down or photographed at the bench, for an assistant (app/captures.py).
+from . import captures as lab_captures  # noqa: E402
+app.register_blueprint(lab_captures.bp)
 # Assistant apps signing in to use BioManager as a connector (app/oauth.py).
 from . import oauth as lab_oauth  # noqa: E402
 app.register_blueprint(lab_oauth.bp)
@@ -1698,10 +1720,11 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
         open_experiments = []
         if active_view in ("mice", "cages", "breeders"):
             open_experiments = [
-                {"id": e.id, "name": e.name}
+                # one started with a plan asks why its groups change (experiment_plan)
+                {"id": e.id, "name": e.name, "fixed": experiment_plan.fixed(e)}
                 for e in db_session.scalars(
                     select(Experiment)
-                    .where(Experiment.status.in_(["active", "paused"]), Experiment.db == "colony")
+                    .where(Experiment.status.in_(["planned", "active", "paused"]), Experiment.db == "colony")
                     .order_by(Experiment.name)
                 ).all()
             ]
@@ -2773,6 +2796,7 @@ def restore_lab():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    lab_devices.forget_browser()
     with SessionLocal() as db_session:
         security.sign_out(db_session)
     flash(gettext("You have been signed out."), "success")
@@ -2821,7 +2845,28 @@ def colony():
 # ---------------------------------------------------------------------------
 
 
-EXPERIMENT_STATUSES = ("active", "paused", "done", "cancelled")
+EXPERIMENT_STATUSES = ("planned", "active", "paused", "done", "cancelled")
+
+
+def _experiment_groups_refusal(db_session, exp, before, reason):
+    """After a change to a colony experiment's mice: None, or the page's
+    answer asking why when it was started with a plan (app/experiment_plan.py)."""
+    place = experiment_pages.place_for(db_session, exp.db or "colony")
+    problem = experiment_plan.groups_changed(db_session, exp, place, before, reason) if place else None
+    if problem is None:
+        return None
+    db_session.rollback()
+    if request.headers.get("X-Autosave") == "1" or request.is_json:
+        return experiment_plan.ask_response(problem)
+    flash(problem, "error")
+    return redirect(url_for("experiment_detail", experiment_id=exp.id))
+
+
+def _experiment_members_before(db_session, exp):
+    if not experiment_plan.fixed(exp):
+        return {}
+    place = experiment_pages.place_for(db_session, exp.db or "colony")
+    return experiment_plan.members(db_session, exp, place) if place else {}
 
 
 def _experiment_refusal(exp):
@@ -2912,6 +2957,8 @@ def update_experiment(experiment_id: int):
                             end=end.isoformat(), start=start.isoformat())
         elif status and status not in EXPERIMENT_STATUSES:
             error = gettext("“%(status)s” is not an experiment status.", status=status)
+        else:
+            error = experiment_pages.status_refusal(exp, status)
         if error:
             if autosave:
                 return jsonify({"ok": False, "error": error}), 409
@@ -2972,6 +3019,7 @@ def experiment_add_cage(experiment_id: int):
             flash(gettext("Cage '%(cage)s' not found.", cage=cage_id_raw), "error")
             return redirect(url_for("experiment_detail", experiment_id=experiment_id))
         existing = {em.mouse_id_fk for em in exp.memberships}
+        before = _experiment_members_before(db_session, exp)
         added = skipped = 0
         for mouse in cage.mice:
             if mouse.id in existing or not mouse_is_active(mouse):
@@ -2985,6 +3033,9 @@ def experiment_add_cage(experiment_id: int):
                 treatment_group="",
             ))
             added += 1
+        refused = _experiment_groups_refusal(db_session, exp, before, request.form.get("reason", "")) if added else None
+        if refused:
+            return refused
         db_session.commit()
     if added or skipped:
         if skipped:
@@ -3021,11 +3072,15 @@ def experiment_add_mouse(experiment_id: int):
             flash(access.reason_denied(mouse), "error")
             return redirect(url_for("experiment_detail", experiment_id=experiment_id))
         if not any(em.mouse_id_fk == mouse.id for em in exp.memberships):
+            before = _experiment_members_before(db_session, exp)
             db_session.add(ExperimentMouse(
                 experiment_id_fk=exp.id,
                 mouse_id_fk=mouse.id,
                 treatment_group=treatment_group,
             ))
+            refused = _experiment_groups_refusal(db_session, exp, before, request.form.get("reason", ""))
+            if refused:
+                return refused
             db_session.commit()
     return redirect(url_for("experiment_detail", experiment_id=experiment_id))
 
@@ -3040,11 +3095,18 @@ def experiment_member_update(experiment_id: int, membership_id: int):
         if not access.can_edit_experiment(em.experiment):
             return jsonify({"ok": False, "error": access.denied_message(
                 "experiment", em.experiment.owner_username)}), 403
+        exp = em.experiment
+        before = _experiment_members_before(db_session, exp)
         # Present but blank clears the group; absent leaves it alone.
         if "treatment_group" in request.form:
             em.treatment_group = (request.form.get("treatment_group") or "").strip()
         if "note" in request.form:
             em.note = (request.form.get("note") or "").strip()
+        place = experiment_pages.place_for(db_session, exp.db or "colony")
+        problem = experiment_plan.groups_changed(db_session, exp, place, before, request.form.get("reason", "")) if place else None
+        if problem:
+            db_session.rollback()
+            return experiment_plan.ask_response(problem)
         db_session.commit()
         return jsonify({"ok": True})
 
@@ -3058,7 +3120,12 @@ def experiment_member_remove(experiment_id: int, membership_id: int):
             refused = _experiment_refusal(em.experiment)
             if refused:
                 return refused
+            exp = em.experiment
+            before = _experiment_members_before(db_session, exp)
             db_session.delete(em)
+            refused = _experiment_groups_refusal(db_session, exp, before, request.form.get("reason", ""))
+            if refused:
+                return refused
             db_session.commit()
     return redirect(url_for("experiment_detail", experiment_id=experiment_id))
 
@@ -3480,6 +3547,7 @@ def bulk_add_to_experiment():
                                 "experiment_mice")
         batch_row = batch_ctx.__enter__()
         existing = {em.mouse_id_fk for em in exp.memberships}
+        before = _experiment_members_before(db_session, exp)
         for mouse in _selected_mice(db_session, request.form):
             if not can_edit_mouse(mouse):
                 skipped += 1
@@ -3494,6 +3562,15 @@ def bulk_add_to_experiment():
             ))
             added += 1
         batch_row.record_count = added
+        if added:
+            place = experiment_pages.place_for(db_session, exp.db or "colony")
+            problem = experiment_plan.groups_changed(db_session, exp, place, before,
+                                                     request.form.get("reason", "")) if place else None
+            if problem:
+                batch_ctx.__exit__(None, None, None)
+                db_session.rollback()
+                flash(problem, "error")
+                return redirect(request.referrer or url_for("colony", view="mice"))
         batch_ctx.__exit__(None, None, None)
         db_session.commit()
         name = exp.name
@@ -4484,6 +4561,16 @@ def add_mouse_from_cage(cage_row_id: int):
     return redirect(url_for("colony", view="cages"))
 
 
+def _not_breeding(cage) -> str | None:
+    """Litters, genotyping and weaning are a Breeding (mating) cage's alone
+    (services.is_breeding_cage). The page shows the buttons only there; the
+    server says so too, for the API, an assistant's proposals and a phone
+    syncing what was done offline."""
+    if cage is None or is_breeding_cage(cage.purpose):
+        return None
+    return gettext("Cage %(cage)s isn't a Breeding cage: only a mating cage has litters, genotyping and weaning. Set its purpose to Breeding first.", cage=cage.cage_id)
+
+
 @app.route("/colony/cages/<int:cage_row_id>/give-birth", methods=["POST"])
 @login_required
 def cage_give_birth(cage_row_id: int):
@@ -4492,6 +4579,10 @@ def cage_give_birth(cage_row_id: int):
         blocked = deny(cage, "cages")
         if blocked:
             return blocked
+        not_breeding = _not_breeding(cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return _back_to_colony("cages")
         if cage is not None:
             # The date the person confirmed in the Litter born dialog (today
             # when a form sends none).
@@ -4528,6 +4619,10 @@ def cage_genotyping(cage_row_id: int):
         blocked = deny(cage, "cages")
         if blocked:
             return blocked
+        not_breeding = _not_breeding(cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return redirect(url_for("colony", view="cages"))
         raw_pups = (request.form.get("total_pups") or "").strip()
         if not raw_pups.isdigit() or not 1 <= int(raw_pups) <= 40:
             flash(gettext("Pups must be a whole number from 1 to 40, not “%(value)s”. No litter was created.",
@@ -4570,6 +4665,10 @@ def cage_wean(cage_row_id: int):
         blocked = deny(cage, "cages")
         if blocked:
             return blocked
+        not_breeding = _not_breeding(cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return _back_to_colony("cages")
         if cage is not None:
             young = _too_young_to_wean(cage)
             if young:
@@ -4641,6 +4740,10 @@ def cage_wean_distribute(cage_row_id: int):
         if blocked:
             return blocked
         source_cage_label = source_cage.cage_id
+        not_breeding = _not_breeding(source_cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return redirect(url_for("colony", view="cages"))
         young = _too_young_to_wean(source_cage)
         if young:
             flash(young, "error")
@@ -5933,18 +6036,26 @@ def global_search():
     strains, plasmids, inventory items, vials, notebook pages. Each result has { type, id, label, sublabel, url }.
     Empty `q` returns nothing — the palette only fires on non-empty input.
     """
-    q = (request.args.get("q") or "").strip()
+    q, results = search_results(request.args.get("q") or "")
+    return jsonify({"ok": True, "results": results, **({"query": q} if q else {})})
+
+
+def search_results(q: str, limit: int = 5) -> tuple[str, list[dict]]:
+    """The search itself, as the signed-in person: (what was looked for,
+    up to `limit` matches per section). Each match also carries `ref`, the
+    row it is ({"kind", "id"}), which the assistants' search
+    (lookup.search) hands on."""
+    q = (q or "").strip()
     # "#44" is how the app writes mouse 44 everywhere; search for the number.
     if re.fullmatch(r"#\s*\d+", q):
         q = q.lstrip("#").strip()
     if not q:
-        return jsonify({"ok": True, "results": []})
+        return "", []
     # % and _ are what they are, not LIKE's wildcards (they matched everything).
     like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     # A record's number: digits, not a 21-digit "number" and not "0012" (a
     # lot or catalogue number); those are text to look for.
     is_digit = _record_number(q) is not None
-    limit = 5
     starts = like[1:]                               # "S20%": a name that starts with it
 
     def by_name(column, *then):
@@ -5967,6 +6078,7 @@ def global_search():
             results.append({
                 "type": "mouse",
                 "id": m.mouse_id,
+                "ref": {"kind": "mouse", "id": m.id},
                 "label": gettext("Mouse #%(id)s", id=m.mouse_id),
                 "sublabel": " · ".join([m.gender or "?", m.genotype or gettext("(no genotype)"),
                                         m.owner or gettext("no owner")]),
@@ -5985,6 +6097,7 @@ def global_search():
             results.append({
                 "type": "cage",
                 "id": cage.id,
+                "ref": {"kind": "cage", "id": cage.id},
                 "label": gettext("Cage %(id)s", id=cage.cage_id),
                 "sublabel": " · ".join(filter(None, [cage.purpose, gettext("%(n)s live", n=live), cage.owner])),
                 "url": url_for("colony", view="cages", scope="all", q=cage.cage_id),
@@ -5996,6 +6109,7 @@ def global_search():
             results.append({
                 "type": "litter",
                 "id": litter.id,
+                "ref": {"kind": "litter", "id": litter.id},
                 "label": gettext("Litter %(id)s", id=litter.litter_id),
                 "sublabel": " · ".join(filter(None, [
                     gettext("born %(date)s", date=litter.date_of_birth.isoformat()) if litter.date_of_birth else "",
@@ -6006,9 +6120,12 @@ def global_search():
             Experiment.name.ilike(like, escape="\\") | Experiment.description.ilike(like, escape="\\")
             | Experiment.treatment_plan.ilike(like, escape="\\"))
         for exp in db_session.scalars(exp_stmt.order_by(Experiment.created_at.desc()).limit(limit)).all():
+            if experiment_pages.place_for(db_session, exp.db or "colony") is None:
+                continue              # on a database this person can't open (someone's own)
             results.append({
                 "type": "experiment",
                 "id": exp.id,
+                "ref": {"kind": "experiment", "id": exp.id},
                 "label": exp.name,
                 "sublabel": " · ".join(filter(None, [pgettext("experiment", exp.status) if exp.status else "",
                                                      gettext("%(n)s mice", n=len(exp.memberships))
@@ -6022,6 +6139,7 @@ def global_search():
             results.append({
                 "type": "strain",
                 "id": strain.id,
+                "ref": {"kind": "strain", "id": strain.id},
                 "label": strain.strain_name,
                 "sublabel": " · ".join(filter(None, [strain.strain_number, strain.strain_background, strain.supplier])),
                 "url": url_for("colony", view="strains", q=strain.strain_name),
@@ -6044,6 +6162,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
             results.append({
                 "type": "plasmid",
                 "id": p.plasmid_id,
+                "ref": {"kind": "plasmid", "id": p.id},
                 "label": gettext("Plasmid #%(id)s · %(name)s", id=p.plasmid_id, name=p.name or gettext("(no name)")),
                 "sublabel": " · ".join([p.backbone or "?", p.resistance or gettext("no resistance"),
                                         p.owner or gettext("no owner")]) + (f" · {where}" if where else ""),
@@ -6082,6 +6201,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
             results.append({
                 "type": kind_type.get(module.kind, "item"),
                 "id": item.number,
+                "ref": {"kind": "inventory_item", "id": item.id},
                 "label": f"{i18n.translate_value(module.label)} #{item.number} · "
                          + (item.name or gettext("(unnamed)")),
                 "sublabel": " · ".join(filter(None, [item.category, item.status, item.vendor,
@@ -6109,6 +6229,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
             results.append({
                 "type": "vial",
                 "id": unit.number,
+                "ref": {"kind": "stock_unit", "id": unit.id},
                 "label": f"{mv.code(unit)} · " + (unit.genotype or gettext("(no genotype)")),
                 "sublabel": " · ".join(filter(None, [i18n.translate_value(mv.label), mv.purpose_label(unit.purpose),
                                                      unit.rack.name if unit.rack else "", unit.owner])),
@@ -6123,7 +6244,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
                        | TankRecord.owner.ilike(like, escape="\\") | TankRecord.notes.ilike(like, escape="\\"))
                 .order_by(TankRecord.tank_id).limit(limit)).all():
             results.append({
-                "type": "tank", "id": t.id, "label": gettext("Tank %(id)s", id=t.tank_id),
+                "type": "tank", "id": t.id, "ref": {"kind": "tank", "id": t.id}, "label": gettext("Tank %(id)s", id=t.tank_id),
                 "sublabel": " · ".join(filter(None, [t.purpose, t.line.name if t.line else "", t.owner])),
                 "url": url_for("zebrafish", view="tanks") + f"#tank-{t.id}",
             })
@@ -6132,7 +6253,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
                                        | FishLine.allele.ilike(like, escape="\\") | FishLine.transgene_summary.ilike(like, escape="\\"))
                 .order_by(FishLine.name).limit(limit)).all():
             results.append({
-                "type": "fish-line", "id": ln.id, "label": ln.name,
+                "type": "fish-line", "id": ln.id, "ref": {"kind": "fish_line", "id": ln.id}, "label": ln.name,
                 "sublabel": " · ".join(filter(None, [gettext("Zebrafish line"), ln.zfin_name, ln.background])),
                 "url": url_for("zebrafish_line_detail", line_id=ln.id),
             })
@@ -6140,7 +6261,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
                 select(ClutchRecord).where(ClutchRecord.clutch_id.ilike(like, escape="\\") | ClutchRecord.notes.ilike(like, escape="\\"))
                 .order_by(ClutchRecord.date_of_fertilization.desc()).limit(limit)).all():
             results.append({
-                "type": "clutch", "id": c.id, "label": gettext("Clutch %(id)s", id=c.clutch_id),
+                "type": "clutch", "id": c.id, "ref": {"kind": "clutch", "id": c.id}, "label": gettext("Clutch %(id)s", id=c.clutch_id),
                 "sublabel": " · ".join(filter(None, [c.date_of_fertilization.isoformat() if c.date_of_fertilization else "",
                                                      gettext("%(n)s embryos", n=c.embryo_count) if c.embryo_count else "",
                                                      c.owner])),
@@ -6162,6 +6283,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
             results.append({
                 "type": "page",
                 "id": page.id,
+                "ref": {"kind": "notebook_page", "id": page.id},
                 "label": page.title or gettext("Untitled page"),
                 "sublabel": (gettext("Notebook · %(tab)s", tab=page.tab.title)
                              if page.tab and page.tab.owner_username == g.user.username
@@ -6182,7 +6304,7 @@ PlasmidRecord.name.ilike(like, escape="\\") | PlasmidRecord.backbone.ilike(like,
     if not features.get("notebook", True):
         off_types |= {"notebook", "page", "notebook-page"}
     results = [r for r in results if r.get("type") not in off_types]
-    return jsonify({"ok": True, "results": results, "query": q})
+    return q, results
 
 
 @app.route("/import/<entity>", methods=["POST"])

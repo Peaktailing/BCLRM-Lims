@@ -30,9 +30,11 @@ ARG BIOMANAGER_VERSION=""
 RUN if [ -n "$BIOMANAGER_VERSION" ]; then echo "$BIOMANAGER_VERSION" > VERSION; fi
 
 # Everything the app writes lives on /data: the signing key, the setup code
-# and uploads. The code itself is read-only to the app's user.
+# and uploads. The code itself is read-only to the app's user. /labkey is
+# where it writes the lab's key for the backup service (deploy/compose.yaml):
+# a named volume mounted there takes its owner from this folder.
 RUN useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin biomanager \
- && mkdir -p /data/uploads && chown -R biomanager:biomanager /data
+ && mkdir -p /data/uploads /labkey && chown -R biomanager:biomanager /data /labkey
 USER biomanager
 
 ENV BIOMANAGER_DATA_DIR=/data \

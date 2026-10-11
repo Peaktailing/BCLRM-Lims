@@ -119,8 +119,31 @@ full screen) so the page leaves room for the lights. The empty parts of the
 two rows stand in for the title bar: `static/shell.js` posts `drag` or
 `zoom` to the `bmWindow` message handler, and the window moves natively
 (`performWindowDragWithEvent:`), or zooms or minimises as the person's
-"Double-click a window's title bar" setting says. Windows and Linux keep
-their own frames.
+"Double-click a window's title bar" setting says. After the lights come
+the window's tools (`.wtools` in `base.html`, shown under `html.mac-window`):
+the sidebar, search, back and forward, as in Safari or Claude; search
+replaces the top row's search box there, and the sidebar's own toggle is
+hidden. Back and forward grey out by the Navigation API (`canGoBack`,
+`canGoForward`), asked again after `pageshow` and on hover, since the web
+view fills in what lies ahead a moment after a page loads. With the
+sidebar collapsed the top row runs the window's width, the tabs after the
+tools, and the sidebar starts below it. Windows and Linux keep their own
+frames.
+
+Collapsed (`body[data-rail="closed"]`, everywhere), the sidebar is a
+76px column of tiles, as Benchling's: each place's glyph over its name in
+10px type (two lines at most), groups parted by a hairline, and Settings and
+Help pinned to its foot while the rest scrolls.
+
+macOS 26 draws its current look, and the larger lights (14 points, 23
+apart, not 12 and 20), only for an app built with its SDK, judged by the
+app's executable. That is PyInstaller's launcher, built with SDK 12, so
+`scripts/build-desktop.sh` restamps it as SDK 26 with `vtool` and signs it
+again. The window also has an empty unified toolbar: with SDK 26 the lights
+can't be moved down to the top row without one. Run from source, the
+window has the interpreter's look; to see the packaged one, run a copy of
+the interpreter restamped the same way (`xcrun vtool -set-build-version
+macos 11.0 26.0 -replace -output <copy> <python>`, then `codesign -s -`).
 
 ### Icons
 
@@ -1138,7 +1161,14 @@ fetches a copy when the last good one is over 20 hours old: checksum and
 `<data>/lab-copies/<host>/db/`, uploads mirrored into `uploads/` (never
 deleted). A snapshot loads into a new server with
 `scripts/migrate-to-postgres.py` (`tests/test_lab_copy.py` proves it on
-PostgreSQL).
+PostgreSQL). The snapshot's `X-BioManager-Lab-Recipient` header is the lab
+key's public half: `pull()` locks the copy (`….db.age`, with a `.json`
+sidecar) and each mirrored file (`.age`, sizes in `uploads/.sizes.json`) to
+it and to this computer's own key (`_recipients`), so a member's computer
+reads its copy and nobody else's can; `open_copy`/`open_uploads` unlock.
+A device that joined (below) takes its copy with its device token instead
+of a copy key (`_authorised` returns its `LabDevice`; the rate limit is
+`last_copy_at`).
 
 ## One master copy, many devices
 
@@ -1162,9 +1192,13 @@ copy), version and address, kept on its `lab_copy_keys` row
 (`device_role`, `device_version`, `device_url`, `last_seen_at`, migration
 0014). `linked_devices()` lists them for the master's admins and says why
 one can't take over (not open in the last 10 minutes, another version, a
-non-admin's key). **Open the lab in this window** saves the server's
-address as the desktop prefs' `window_url`, which `desktop.py` opens
-instead of the local app; Go → This Computer's BioManager clears it.
+non-admin's key). **Open the lab in this window** joins the lab as a device
+(below) and sets the desktop prefs' `window_url` to `"relay"`; `desktop.py`
+then opens the relay instead of the local app. The window never opens a
+server's address itself: a move to a server (`lab_move._moved`, with the
+device `door.take_in` makes for its admin), a give-back and an old
+`window_url` all go through joining. Go → This Computer's BioManager clears
+it; Go → Your Lab's BioManager opens the relay again.
 
 The hand-over is a phase in `app_settings` `devices:state`: `asked` (an
 admin chose a desktop), `frozen` (that desktop took over and is taking its
@@ -1189,6 +1223,112 @@ in again on the new master. A lost desktop is written off with **Make this
 the master again** (clears `away`); a desktop that gave the lab back can
 reload its own lab from `own_backup` (`/settings/devices/own-again`).
 `tests/test_devices.py` covers both directions on SQLite and PostgreSQL.
+
+## The lab's key
+
+`app/lab_key.py`. Each lab has an age X25519 identity (pyrage), kept in
+`lab_keys` (`secret` is `EncryptedText`, so it opens only with this
+device's `SECRET_KEY`). The newest `active` row locks; every row is kept so
+older files still open. `lab_transfer.build` locks a `.biomanager` file to
+it (`age-encryption.org/v1` header), `open_file` tries the keys given (a
+typed recovery key, the `X-BioManager-Lab-Key` header a desktop sends when
+it moves a lab) and this device's own, and `door.take_in` adopts the key a
+file opened with. `lab_keys`, `lab_devices` and `device_pairings` are
+`MACHINE_TABLES`: kept across `load_lab` and `lab_transfer.apply`. The
+recovery key is the `AGE-SECRET-KEY-1…` string (checksummed), shown under
+Settings → Your data → Lab key after a password check (`lab_move.lab_key_page`,
+which also adopts one). On a server with `BIOMANAGER_LABKEY_DIR`,
+`export_if_asked()` writes `lab.pub` and `lab.key` (0600) into the `labkey`
+volume at start-up; `deploy/backup/labkey.sh` locks each dump and tarball
+with `age -R lab.pub` and opens them with `lab.key` or
+`BIOMANAGER_RECOVERY_KEY`. The key is never in a backup.
+`tests/test_lab_key.py`.
+
+## Devices that join the lab
+
+`app/lab_devices.py`. Every device is a `lab_devices` row: an app (desktop,
+phone) with a `bmd_…` token (only its SHA-256 kept) sent as
+`Authorization: Bearer`, or a browser sign-in (`kind="browser"`, keyed by
+the session `sid`'s hash: `note_browser` at sign-in, `browser_ok` on every
+request, so signing one out from another device ends that session). An app
+joins with `POST /api/devices/join` (username and password, throttled), with
+a code (`POST /api/devices/pair` gives an `XXXX-XXXX` code and a `bmp_`
+secret; someone signed in approves it at `/settings/devices/approve`; the
+app polls with `Authorization: Pair …` and gets its token once), or, for the
+phone apps, from their signed-in page (`POST /api/devices/this-app`, the
+app's User-Agent, same-origin). `authenticate()` (from
+`app.load_current_user`) signs a token's requests in as its person and sets
+`g.device`; `security.cross_site_reason` exempts `bmd_` bearer requests,
+which no form can send. An admin's join answer carries the lab's key (for
+their desktop's copies and hand-overs); a member's doesn't. Guests can't
+join. Settings → Devices & copies lists `listing()`: your devices, and for
+admins everyone's.
+
+The desktop side is `app/desktop_join.py` (the token, encrypted, in the
+desktop prefs `joined_lab`; the lab's key adopted inactive; the copy
+settings pointed at the device) and `app/relay.py`: a threaded werkzeug
+server on `127.0.0.1` (port kept as `relay_port`) that forwards each
+request to the server with the token, keeps the server's cookies in its own
+jar, rewrites `Location`, and refuses another Host (421) and cross-site
+writes (403), the same check the server makes. `/logout` becomes
+`/_relay/leave` (Sign this computer out of the lab?), which revokes the
+device and forgets the lab. `tests/test_relay.py` runs it against a real
+server thread.
+
+## Working offline
+
+The offline design: devices record what is done with no signal as a queue
+of actions (`app/actions.py`), and the server replays them through the
+pages' own routes. Nothing is merged; the lab keeps one master copy.
+
+- **Versions.** `app/sync_clock.py`: every record a device keeps
+  (`SYNCED_TABLES`: mice, cages, litters, weights, tasks, racks, vials,
+  tanks) has `sync_version`, set in a `before_flush` hook from one lab-wide
+  count (`sync_clock`, advanced by an UPDATE that PostgreSQL holds locked to
+  commit, so numbers follow commit order). Deletions go to
+  `sync_deletions`. The hook is off before Alembic has run
+  (`services.init_database`).
+- **The feed.** `app/sync.py`: `GET /api/sync/snapshot` (as the person may
+  see it: the colony, living mice and those dead in the last 90 days, the
+  last five weights, their to-dos for 14 days, vials of the stock databases
+  they may open, tanks, dropdowns, weaning due) and `GET /api/sync/changes?since=`
+  (rows above the cursor, rows they may no longer see as `gone`; `reset`
+  past 20 000).
+- **The queue.** `POST /api/sync/push`: ops in order, each `{op, made_at,
+  cursor, action, target, fields, base, creates}`. A `sync_ops` row claims
+  the op id first, so a resend answers the stored result. `_check` compares
+  `base` (`"mouse:12": {"v": …, field: …}`) with the record: same version
+  fits; moved on with other fields changed merges; the same field changed
+  to something else is held (`held_changes`), with per-action rules (both
+  dead agree, a move to where it is is done, a second litter at genotyping
+  is held, a weight that day by someone else is held, a wean whose pups
+  moved is refused). Later ops about a held record, or naming its temporary
+  ids, answer `waiting` and are sent again. Fitting ops run
+  `actions.run(..., apply=True)` as their person, one batch each ("Done
+  offline on …"); `creates` maps `tmp:` ids to the records made, by table
+  and order. `task_done` is the one new action.
+- **Deciding.** `/decisions` (Needs your decision, in the account menu once
+  something is held; Home reminds after three days) and
+  `POST /api/sync/held/<id>`: Keep mine replays the change as an ordinary
+  edit, Keep theirs and Edit drop it. Refused ops of the last 30 days are
+  listed there.
+- **The screens.** `app/static/offline/` is one bundle for every device.
+  It talks to a store through fetch (`/_relay/store`, `/_relay/store/queue`,
+  `/_relay/sync`, `/_relay/status`) on the desktop, or
+  `window.webkit.messageHandlers.bmStore` / `window.BMNative` answered with
+  `window.BMStoreReply` in the phone apps. Its words are
+  `app/translations/zh/js-offline.json`.
+- **Stores.** The desktop: `app/offline_store.py` (snapshot, queue and
+  state encrypted with this computer's secret, refreshed every 5 minutes by
+  a thread `desktop_join.start_relay` starts); the relay redirects a page
+  it can't fetch to `/_offline/` once there is a copy. iPhone:
+  `ios/BioManager/OfflineStore.swift` (Keychain token, files with Data
+  Protection, `NWPathMonitor`, `BGAppRefreshTask`). Android:
+  `OfflineStore.java` (private storage, a network callback, a 15-minute
+  timer); Gradle copies the bundle into the assets.
+
+`tests/test_sync.py` covers the rules; `tests/test_relay.py` the desktop
+going offline and back.
 
 ## Notifications
 
@@ -1383,6 +1523,36 @@ morning notification of what is due is `notify.daily_experiment_reminder`
 `auto` items on the calendar (`experiment_steps.calendar_items`). Which
 notebook page is a person's for an experiment is the app setting
 `experiment_notebook_page:<experiment>:<username>`.
+
+**Planned experiments and changes from the plan** (`app/experiment_plan.py`,
+revision 0033). Status `planned` comes before `active`: an assistant's
+`experiment_new` makes one through `POST /experiments/in/<db>/design` (the
+groups go in as Add does, `experiments.add_animals`, the steps as the
+Regimen saves them, `_fill_step`), and nothing of it is due: `schedule()`
+marks its days `planned`, and the calendar, Home's agenda (`lookup`) and the
+morning reminder only read `active` experiments. **Start**
+(`POST /experiments/<id>/start`, a person's button; `status_refusal` stops
+the status field and `experiment_change` from doing it) sets day 1 (today
+unless set), makes it active and keeps `snapshot()` in
+`experiments.plan_json`: the groups and their animals, the main readout,
+`readout_day`, the regimen and `planned_test` (a key of `TESTS`, the tests
+`exp_stats` runs). From then on (`fixed()`), the routes that change the main
+readout, its day, the test, the animals and their groups (the experiment's
+own and the colony's older ones, and the mouse sheet's **Add to
+experiment**), and leaving an animal out of the analysis
+(`…/subjects/<key>/leave-out`; `left_out`, the reason, on `experiment_mice`
+and `experiment_subjects`, which `exp_stats.by_day` and the chart skip)
+compare before and after; a change with no `reason` is rolled back and
+answered 409 `needs_reason`, which the page turns into a question
+(`sendReason` in `experiment-page.js`, BioDialog) and sends again. Each is
+an `experiment_deviations` row (what, before, after, each change in
+`detail`, reason, who, when); more of the same kind by the same person
+within ten minutes join the last one instead of asking again
+(`CONTINUE_WITHIN`), except an animal left out. `page_data()` adds `plan`,
+`deviations` and the Planned → done `comparison` to the page's data, the
+export adds a "Plan and deviations" sheet, and `GET /api/v1/experiments/<id>`
+has `plan`, `planned_test`, `readout_day` and `deviations`. An experiment
+with no `plan_json` (all from before) never asks.
 
 **Signed pages** (`app/signatures.py`, table `record_signatures`): sign,
 witness and amend events, each with the SHA-256 of the title and text at
@@ -1602,9 +1772,20 @@ from `ENDPOINTS`, so a new endpoint goes there too.
   past `PER_MINUTE` (600) per token per worker (`_Rate`, in memory).
 - **Lists** page by row id: `?limit` (100, at most 1000) and `?after`;
   the reply's `next` is the URL of the following page. Filters are in SQL.
+  `_page` calls `_only_filters()`: a query parameter that isn't in the
+  list's `ENDPOINTS` row (or `limit`, `after`) is a 400 naming the ones it
+  takes, rather than a filter quietly ignored. `/experiments?status=` is
+  one of `experiments.STATUSES` or `all`.
+- **One record**: `/mice/<number>` has its weights and `experiments` (id,
+  name, group, status, and `left_out` when set); `/plasmids/<number>` its
+  box `position` (`plasmid_service.label`); `/experiments/<id>` is
+  `experiments.payload` without `PAGE_ONLY` (the step kinds, regimens,
+  reagents, sample inventories and tests the page offers as choices).
 - **Writes reuse the pages' code**, so their rules hold: `PATCH /mice/<id>`
   fills a form from `mouse_display_row`, overlays the fields sent, and calls
-  `populate_mouse_from_form` (flashed refusals come back as `warnings`);
+  `populate_mouse_from_form` (flashed refusals come back as `warnings`;
+  a `version` that isn't the mouse's `sync_version` now is a 409, so a
+  client that sends back what it read never overwrites a change since);
   inventory items go through `inventory_routes._item_from_form`, vials
   through `stock_routes._unit_from_form` (both copy only the fields sent),
   readouts through `experiments.set_reading`. Permission checks are the
@@ -1614,10 +1795,17 @@ from `ENDPOINTS`, so a new endpoint goes there too.
 - **For assistants** (`app/lookup.py`): `/resolve?q=` finds the records a
   phrase means across every database the person can open ("cage 88" looks
   only at cages; a mouse by its number, a vial by its prefix and number),
-  each with a reference `{"kind", "id"}` (the kinds are `actions.KINDS`);
-  `/vocabulary` is the lab's own words; `/due` is Home's agenda
-  (`home_layouts.build_agenda`), whose items carry `ref` and `propose`, the
-  change that records each done; `/actions` is `actions.catalogue()`.
+  each with a reference `{"kind", "id"}` (the kinds are `actions.KINDS`)
+  and, for a kind read one at a time, the `path` GET reads it at
+  (`lookup.path_of`: `cages/<code>`, `mice/<number>`, `plasmids/<number>`,
+  `inventories/<key>/items/<number>`, `experiments/<id>`); `/path?kind=&id=`
+  gives that path for a reference, which is how the `get` tool reads a
+  `ref`. `/vocabulary` is the lab's own words (a mouse's statuses as the
+  sheet offers them: built-in, the lab's dropdown, then any in use);
+  `/due` is Home's agenda (`home_layouts.build_agenda`), whose items carry
+  `ref` and `propose`, the change that records each done (an inventory
+  item's `ref` and its inventory as `database`; the colony's age and
+  genotyping items also `mice`); `/actions` is `actions.catalogue()`.
 
 ## Proposed changes: running the pages on someone's behalf
 
@@ -1656,6 +1844,38 @@ page itself.
   called while another batch is open joins it (yielding a stand-in, no
   second row), so Batch history undoes the whole proposal as one; anything
   failing keeps nothing.
+- Beyond the animals, the catalogue covers inventories, plasmids, the
+  notebook and the calendar. Inventory items are written through the API's
+  item writes (`_item_from_form`), so required columns, statuses and Low at
+  behave as on the sheet. `inventory_quantity_used` takes an amount off a
+  numeric quantity, and the status follows Low at; an amount in another unit
+  ("40 mg", or `unit`) is converted within mass or volume (`UNITS`, powers
+  of ten), any other unit only matching itself. `order_received` marks an
+  order received; with `to_stock` it saves the stock record that **Add to
+  stock** would make (`_stock_from_order`, with `name`, `quantity`, `unit`
+  and the rest given over it: `_restock`) with `from_order`, so the two are
+  linked; its summary lists the new record's name, amount, lot and expiry,
+  and its `warn` names an item of the same name already in that inventory.
+  An `Action`'s optional `warn(s, target, values)` adds warnings of its own;
+  `side_effects()` adds one for a record whose sharing changed though
+  `shared` wasn't asked (a cage leaving Breeder is un-shared by
+  `models._breeder_cages_start_shared`). `litter_born` with `pups` adds
+  "<date>: litter born, N pups" to the cage's notes: the cage keeps a birth
+  date only, and the count is the litter's once genotyping makes it. `sample_from_animal` fills a sample's Source with the mouse, tank
+  or animal. Plasmids go through `/plasmids` and `/plasmids/<id>/update`,
+  with a pasted sequence through upload-sequence. Glycerol stocks and primers
+  are items in those inventories, and a primer pair goes through
+  `/items/pair`. `notebook_page_new` makes the page through the notebook's
+  Import, from a template or starter if given, starting with "Drafted by
+  <source>" and never signed. `notebook_page_append` adds a section with the
+  plain-text save and is refused while the page is open in the editor.
+  `calendar_event_new` posts to `/calendar/items` and `equipment_booking_new`
+  to `/calendar/bookings`. The kinds `inventory_item`, `plasmid`, `equipment`
+  and `notebook_template` are found by `/resolve`, and `/vocabulary` lists
+  each inventory's statuses, categories, columns and boxes, plasmid boxes,
+  instruments and templates. `experiment_new` makes a **planned** experiment
+  (*Planned experiments and changes from the plan*, above); no action starts
+  one.
 
 ### Proposals (`app/proposals.py`)
 
@@ -1670,9 +1890,12 @@ page itself.
   left out of members' lab copies (`lab_copy.ADMIN_ONLY`).
 - `create()` previews with `actions.run` in the owner's language
   (`i18n.language_for`; `contained.run(lang=…)` makes the pages answer in
-  it too), stores the result (pending, or invalid with the reasons), marks
-  `replaces` superseded and notifies the owner (`notify.send`, linking to
-  `/proposals`). It commits the session's read before the preview starts,
+  it too), stores the result (pending, or invalid with the reasons), keeps
+  `replaces` (one of the owner's) as `replaces_id` and marks it superseded
+  when it is pending, sent back or invalid (`REPLACEABLE`), and notifies the
+  owner (`notify.send`, linking to `/proposals`). `POST /proposals` answers
+  with each change's records (`as_dict(records=True)`), so an assistant sees
+  every before → after at once. It commits the session's read before the preview starts,
   so SQLite's lock is not held across it.
 - `approve()` refuses unless pending; refuses when a record the preview
   changed (not one it made) has a change-history row after `audit_mark`
@@ -1710,13 +1933,97 @@ What an assistant gets, standard library only so both servers below share
 it: `INSTRUCTIONS` (resolve every record, ask rather than guess, send one
 proposal, give the review link), `PROMPTS`, and `TOOLS`, each a
 description, an input JSON Schema and a function over `Api` (a small
-urllib client of `/api/v1`): `lab_overview` → `/me` and `/vocabulary`,
-`resolve`, `get`/`list` limited to the API's read paths (`READABLE`),
+urllib client of `/api/v1`): `lab_overview` → `/me`, `/vocabulary` and
+today's part of `/due` (`DUE_TODAY` at most; the person's own first, each
+marked `mine`, as an admin's list is the whole lab's), with `INSTRUCTIONS` as
+`how_to_work`: a tool result reaches the model in every app, while not
+every app passes on a server's `instructions`, and its description is
+written to be picked for a vague start ("I want to change something in
+BioManager"), `resolve`, `get`/`list` limited to the API's read paths (`READABLE`),
 `whats_due`, `list_actions`, `propose_changes` → `POST /proposals`,
 `proposal_status`, `discard_proposal`. `propose_changes`' description is
 built from the lab's own `/actions` (`description(api, name)`).
 `call_tool()` turns an `ApiError` or bad arguments into `{"error": …}` for
 the assistant to read.
+
+**Evidence, Send back and Captures.** A proposed change may carry
+`evidence` (`{quote, capture, where}` or a string; `proposals.evidence_of`),
+kept in `request_json`, shown on Proposed changes and stripped by
+`_runnable` before `actions.run`. **Send back** (`proposals.send_back`,
+`POST /proposals/<id>/send-back`) sets `sent_back` with `proposals.reason`;
+`as_dict` then gives `reason` and a `next` telling the assistant to propose
+again with `replaces`. Captures (`app/captures.py`, table `captures`,
+revision `0032_assistant_inbox`) are what a person wrote or photographed at
+the bench: text and one file (kept by `services.save_uploaded_file`, served
+to its owner only by `/captures/<id>/file`), with the record it was taken at
+(`at_kind`, `at_id`, `at_label`; from Bench mode or a scanned card's link,
+`from_card`). Status is waiting → used or dismissed. `GET
+/api/v1/captures[/<id>]` serve them; `for_assistant` inlines a photo as
+base64 (downscaled with Pillow when present, else refused over 5 MB) or a
+text file's first 20,000 characters. `list_captures` and `get_capture` are
+tools; a tool returning `_content` has those MCP content items appended
+after the text by `mcp_http._call` (the local server uses
+`mcp.types.ImageContent`). `propose_changes`' `captures` (and evidence's
+capture ids) must be the owner's and are kept in `proposals.captures_json`;
+`approve` marks them used with the proposal and batch
+(`captures.mark_used`). Captures are in a member's lab copy as their own
+rows only (`lab_copy.OWN_ROWS`).
+
+**Looking up and working out (`app/assistant_compute.py`,
+`lookup.search/history/record/mouse_lineage/plasmid_lineage`).** BioManager
+computes; the model talks. `/search`, `/history`, `/lineage`,
+`/availability`, `/reorder-forecast`, `/lab-checks`,
+`/experiments/<id>/summary` and `/regimens` read; `/breeding-plan`,
+`/randomize` and `/power` are POSTs that change nothing (`api.COMPUTING`,
+open to any token). Each runs as the token's person: `lookup.record` 404s a
+record in a database they can't open, history shows only their own changes
+unless they are an admin, and search is the ⌘K search
+(`app.search_results`, which gives each match a `ref`). The genotype model
+counts copies of the allele that matters at each autosomal, unlinked locus
+(one to three loci); a strain or background wanted (`is_strain`: the
+`BACKGROUND` pattern, C57BL/6J, BALB/c…, or a background in the lab's
+Strains, `lab_strains`) is no locus but both parents of it, odds 1, with
+breeders whose genotype names it (and asking it het or wt is refused);
+litter sizes are the line's own mean when it has three
+litters with pup counts, else the lab's, else 6; power is exact, from the
+noncentral F distribution over `exp_stats.inc_beta` (two groups are the t² =
+F case, planned with one SD; the experiment's Welch's test has practically
+the same power then, as its assumptions say), and matches G*Power.
+`availability` leaves out animals booked in a planned, active or paused
+experiment (`BUSY`). A breeding plan's crosses say what a mate carries beyond
+the loci asked (`also_carries`; those crosses come after the ones that don't)
+and `males_short`, counting a male with up to two females.
+`randomize` also returns `groups` in `experiment_new`'s shape, which takes
+them and the `seed` (kept in the description) as they are. The pure parts (genotype model, binomial
+matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
+builder) take plain values and are tested in
+`tests/test_assistant_compute.py`. `lab_checks`' `summary` counts each record
+once per severity (`_distinct`: by reference, as often as the check that has
+it most), though an expired reagent is also an overdue job; `reorder_forecast`
+names what it can't forecast (`without_enough_history`). The endpoints are
+tested in `tests/test_api_compute.py`, and what an end-to-end run of the tools
+found wanting in the reads in `tests/test_assistant_fixes_read.py`.
+The prompts `weekly_review`, `design_experiment` and `write_methods` drive
+them.
+
+### The plugin (`plugins/biomanager/`)
+
+What an assistant app installs once to know BioManager: the skill
+`skills/biomanager/SKILL.md` (`INSTRUCTIONS`, then how to connect) and
+`commands/` (`PROMPTS`), with a manifest per family of apps:
+`.claude-plugin/plugin.json` (Claude; it also asks Claude Code for the
+lab's MCP address, `userConfig.mcp_address`, which chat and Cowork ignore),
+`plugin.json` (Agent Plugins 1.0: ChatGPT, Codex, VS Code) and
+`.cursor-plugin/plugin.json`. `.claude-plugin/marketplace.json`,
+`.agents/plugins/marketplace.json` and `.cursor-plugin/marketplace.json` at
+the repository root list it, so `gaspolymerase/biomanager` is a marketplace
+for Claude, Codex, VS Code and Qwen Code (Cursor takes plugins only from its
+own marketplace, by submission). Everything but its README is
+written by `scripts/assistant-packages.py`; `tests/test_assistant_packages.py`
+fails while a file is out of date, and when the skill or a command changed
+without a new `VERSION` (apps keep people on the version they have).
+`claude plugin validate ./plugins/biomanager` checks it as Anthropic's
+directory will.
 
 ### The local MCP server (`mcp/`)
 
@@ -1782,12 +2089,15 @@ redirect.
   `/oauth/register` skip the cross-site check (no cookie is involved).
 - **Connect an AI assistant** (`oauth.connect_page`, `oauth/connect.html`;
   linked from Help for everyone but guests, from Settings → AI assistant & tokens and
-  from an empty Proposed changes): the connector address and **Get a
+  from an empty Proposed changes): how to add the plugin (`#plugin`,
+  `PLUGIN_MARKETPLACE`); the connector address and **Get a
   connection code** when the lab is on the internet; for coding assistants
   a message to paste into their chat (`#agent-message`: the address, the
-  Claude Code command and Cursor's `mcp.json` entry, how to sign in, and to
-  start with `lab_overview`), the Claude Code command that signs in with
-  OAuth and a loopback redirect (no token), and **Make a token** (scope
+  Claude Code and Codex commands and Cursor's `mcp.json` entry, how to sign
+  in, and to start with `lab_overview`), **Add to Cursor / VS Code / Cherry
+  Studio** (`one_click_links`: each app's install link with the address in
+  it), the Claude Code command that signs in with OAuth and a loopback
+  redirect (no token), Codex's two, and **Make a token** (scope
   `propose`), after which `api/token.html` shows the address-and-header
   setup and the local server's.
 - The four tables are admin-only in a lab copy (`lab_copy.ADMIN_ONLY`).

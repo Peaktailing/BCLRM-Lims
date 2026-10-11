@@ -10,6 +10,7 @@ final class LabPage: ObservableObject {
     @Published var download: URL?          // a finished download, to hand to the share sheet
     @Published var scanForPage = false     // the page (bench mode) asked for the scanner
     @Published var pageHasScan = false     // the page shows a Scan of its own (its phone tab bar)
+    @Published var usingOffline = false    // the offline screens, on this phone's copy (OfflineStore)
     weak var webView: WKWebView?
 
     /// What the scanner read, handed to the page that asked (window.bmScanned).
@@ -22,6 +23,19 @@ final class LabPage: ObservableObject {
     func load(_ url: URL) {
         offline = false
         webView?.load(URLRequest(url: url))
+    }
+
+    /// The offline screens the app carries (app/static/offline/), working on
+    /// this phone's copy of the facility. False when there is no copy yet.
+    @discardableResult
+    func openOffline() -> Bool {
+        guard OfflineStore.shared.hasCopy,
+              let index = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "offline")
+        else { return false }
+        offline = false
+        usingOffline = true
+        webView?.loadFileURL(index, allowingReadAccessTo: index.deletingLastPathComponent())
+        return true
     }
 
     func reload() {
@@ -45,6 +59,8 @@ struct LabWebView: UIViewRepresentable {
         config.allowsInlineMediaPlayback = true
         // Bench mode asks for the scanner: window.webkit.messageHandlers.bmScan.postMessage("scan").
         config.userContentController.add(context.coordinator, name: "bmScan")
+        // The offline screens reach this phone's copy: window.webkit.messageHandlers.bmStore.
+        config.userContentController.add(context.coordinator, name: "bmStore")
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = context.coordinator
         web.uiDelegate = context.coordinator
@@ -80,10 +96,62 @@ struct LabWebView: UIViewRepresentable {
         /// phone tab bar says "page-has-scan": it has a Scan of its own, which asks
         /// for the scanner here, so the app's floating button stays hidden.
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "bmStore" { return storeCall(message) }
             guard message.name == "bmScan", message.frameInfo.securityOrigin.host == server.host else { return }
             let hasOwn = (message.body as? String) == "page-has-scan"
             Task { @MainActor in
                 if hasOwn { page.pageHasScan = true } else { page.scanForPage = true }
+            }
+        }
+
+        /// What the offline screens ask of this phone's copy (only the screens the
+        /// app carries, from its own files): answered with window.BMStoreReply.
+        private func storeCall(_ message: WKScriptMessage) {
+            guard message.frameInfo.securityOrigin.protocol == "file",
+                  let text = message.body as? String, let data = text.data(using: .utf8),
+                  let call = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let id = call["id"] as? Int, let name = call["name"] as? String,
+                  let web = message.webView else { return }
+            let store = OfflineStore.shared
+            let server = self.server
+            let page = self.page
+            Task {
+                var ok = true
+                var value: [String: Any] = [:]
+                switch name {
+                case "load":
+                    let snap: Any = store.snapshot().map { $0 as Any } ?? NSNull()
+                    value = ["snapshot": snap, "queue": store.queue(), "status": store.status()]
+                case "add":
+                    do {
+                        let waiting = try store.add(call["arg"] as? [String: Any] ?? [:])
+                        value = ["ok": true, "waiting": waiting]
+                    } catch {
+                        ok = false
+                        value = ["error": error.localizedDescription]
+                    }
+                case "sync":
+                    let status = await store.sync()
+                    value = ["ok": true, "status": status]
+                case "status":
+                    let online = await store.reachable()
+                    value = ["online": online, "store": store.status()]
+                case "strings":
+                    value = store.strings()
+                case "online":
+                    await MainActor.run {
+                        page.usingOffline = false
+                        page.load(server)
+                    }
+                default:
+                    ok = false
+                    value = ["error": "unknown call"]
+                }
+                let json = (try? JSONSerialization.data(withJSONObject: ["v": value]))
+                    .flatMap { String(data: $0, encoding: .utf8) } ?? "{\"v\":null}"
+                await MainActor.run {
+                    web.evaluateJavaScript("window.BMStoreReply(\(id), \(ok), (\(json)).v)")
+                }
             }
         }
 
@@ -104,6 +172,9 @@ struct LabWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = action.request.url else { return decisionHandler(.cancel) }
+            if url.isFileURL {          // the offline screens the app carries
+                return decisionHandler(.allow)
+            }
             if url.scheme == "about" || url.scheme == "blob" || url.scheme == "data" || Server.owns(url, server: server) {
                 return decisionHandler(action.shouldPerformDownload ? .download : .allow)
             }
@@ -154,9 +225,13 @@ struct LabWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            let onServer = webView.url.map { Server.owns($0, server: server) } ?? false
             Task { @MainActor in
                 page.loading = false
                 page.offline = false
+                page.usingOffline = webView.url?.isFileURL == true
+                // Signed in through the page: this phone gets its own device token to sync with.
+                if onServer { OfflineStore.shared.registerIfNeeded(webView) }
             }
         }
 
@@ -180,7 +255,8 @@ struct LabWebView: UIViewRepresentable {
             case .notConnectedToInternet?, .cannotFindHost?, .cannotConnectToHost?, .timedOut?,
                  .networkConnectionLost?, .dnsLookupFailed?, .secureConnectionFailed?,
                  .serverCertificateUntrusted?, .serverCertificateHasUnknownRoot?:
-                Task { @MainActor in page.offline = true }
+                // With a copy of the facility, the offline screens; without, "can't reach".
+                Task { @MainActor in if !page.openOffline() { page.offline = true } }
             default:
                 if (error as NSError).domain == "WebKitErrorDomain" { return }  // e.g. a download took over
                 webView.load(URLRequest(url: server))

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{# The lab's key and its recovery key, for an admin (app/lab_move.py lab_key_page, app/lab_key.py). #}
+{% block page_title %}{{ _('Lab key') }}{% endblock %}
+{% block page_heading %}{{ _('Lab key') }}{% endblock %}
+{% block page_subtitle %}{{ _('What locks the lab’s backups and files, and how to open them on a new server') }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ url_for('settings') }}#data">{{ icon('back') }} {{ _('Settings') }}</a>
+{% endblock %}
+{% block content %}
+<div class="grid max-w-[680px] grid-cols-1 gap-3">
+  <section class="card p-5">
+    <p class="text-[13px] leading-relaxed text-ink-soft">
+      {{ _('The lab has its own key. The server’s nightly backups, Save the whole lab files and the daily copies on your computers are locked with it: anyone who gets hold of one sees random bytes. The server, and the computers of the lab’s admins that join it, hold the key and open them for you.') }}
+    </p>
+    <p class="mt-2 text-[13px] leading-relaxed text-ink-soft">
+      {{ _('If the server and every admin’s computer were lost, the recovery key is the only way to open a backup. Keep it on paper or in a password manager, away from the backups themselves. Anyone with it can read the lab’s backups.') }}
+    </p>
+    <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[12.5px]">
+      <dt class="text-muted">{{ _('Key') }}</dt><dd class="font-mono">{{ info.key_id }}</dd>
+      <dt class="text-muted">{{ _('Made') }}</dt><dd>{{ (info.made | local).strftime('%Y-%m-%d') }}</dd>
+      <dt class="text-muted">{{ _('Recovery key') }}</dt>
+      <dd>{% if info.shown_at %}{{ _('last shown to %(who)s on %(when)s', who=info.shown_to, when=(info.shown_at | local).strftime('%Y-%m-%d %H:%M')) }}{% else %}<b class="text-warn-700">{{ _('not yet kept by anyone') }}</b>{% endif %}</dd>
+      {% if info.older %}<dt class="text-muted">{{ _('Older keys') }}</dt><dd>{{ ngettext('%(num)d, which still opens what it locked', '%(num)d, which still open what they locked', info.older) }}</dd>{% endif %}
+    </dl>
+  </section>
+
+  <section class="card p-5" id="recovery-key">
+    <h2 class="text-[15px] font-semibold text-ink">{{ _('The recovery key') }}</h2>
+    {% if shown %}
+      <p class="mt-2 text-[12.5px] text-muted">{{ _('Write it down or store it now. Letters and spaces both count; case doesn’t.') }}</p>
+      <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg border border-hairline bg-canvas p-3 font-mono text-[13px] leading-relaxed text-ink" data-recovery>{{ shown }}</pre>
+      <button type="button" class="btn btn-sm mt-2" data-copy-recovery>{{ icon('copy') }} {{ _('Copy') }}</button>
+      <script nonce="{{ csp_nonce() }}">
+        document.querySelector('[data-copy-recovery]').addEventListener('click', function () {
+          navigator.clipboard && navigator.clipboard.writeText(document.querySelector('[data-recovery]').textContent.trim());
+        });
+      </script>
+    {% else %}
+      <form method="post" class="mt-3 flex flex-col gap-3">
+        <input type="hidden" name="action" value="show">
+        {% if needs_password %}
+          <label class="field-label">{{ _('Your password') }}
+            <input type="password" name="password" required autocomplete="current-password">
+          </label>
+        {% endif %}
+        <div><button type="submit" class="btn btn-primary">{{ icon('key') }} {{ _('Show the recovery key') }}</button></div>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-[15px] font-semibold text-ink">{{ _('A lab back without its key') }}</h2>
+    <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('A server put back from a backup on a new machine can’t read the key it had. Enter the lab’s recovery key, and the backups and lab files it locked open here again.') }}</p>
+    <form method="post" class="mt-3 flex flex-col gap-3">
+      <input type="hidden" name="action" value="adopt">
+      <label class="field-label">{{ _('Lab recovery key') }}
+        <input name="recovery_key" required autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…" class="font-mono">
+      </label>
+      <div><button type="submit" class="btn">{{ _('Use this key') }}</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

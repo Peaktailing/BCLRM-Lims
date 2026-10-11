@@ -234,7 +234,9 @@ class MemberCopyTests(CopyCase):
             (uploads_dir() / name).write_text("image")
             self.addCleanup((uploads_dir() / name).unlink)
         self.member_name = make_user(uniq("member"))
-        self.words = {w: uniq(w) for w in ("private", "shared", "own", "personal", "feedback", "note", "batch", "oldkey")}
+        self.words = {w: uniq(w) for w in ("private", "shared", "own", "personal", "feedback", "note", "batch", "oldkey",
+                                           "todo-own", "todo-lab", "todo-theirs", "todo-group", "todo-other-group",
+                                           "event-theirs", "event-lab")}
         with SessionLocal() as s:
             tab = NotebookTab(owner_username=self.admin, title=uniq("Admin topic "))
             mine = NotebookTab(owner_username=self.member_name, title=uniq("Member topic "))
@@ -259,6 +261,24 @@ class MemberCopyTests(CopyCase):
             s.add(Feedback(username=self.admin, text=self.words["feedback"]))
             s.add(NotificationRecord(recipient_username=self.admin, title=self.words["note"]))
             s.add(ApiToken(user_id_fk=user_id(self.admin), label="script", token_hash=uniq("hash")))
+            # To-dos and events: someone else's personal ones are theirs alone.
+            from datetime import date
+            from app.models import CalendarEvent, LabGroup, LabGroupMember, NotebookEntry, TaskItem
+            in_it, not_in = LabGroup(name=uniq("Group ")), LabGroup(name=uniq("Group "))
+            s.add_all([in_it, not_in])
+            s.flush()
+            s.add(LabGroupMember(group_id_fk=in_it.id, username=self.member_name))
+            s.add_all([TaskItem(title=self.words["todo-own"], owner=self.member_name),
+                       TaskItem(title=self.words["todo-lab"], owner=self.admin, is_shared=True),
+                       TaskItem(title=self.words["todo-theirs"], owner=self.admin, is_shared=False),
+                       TaskItem(title=self.words["todo-group"], owner=self.admin, is_shared=True, share_group_id=in_it.id),
+                       TaskItem(title=self.words["todo-other-group"], owner=self.admin, is_shared=True,
+                                share_group_id=not_in.id)])
+            theirs = CalendarEvent(title=self.words["event-theirs"], event_date=date.today(), owner=self.admin,
+                                   is_shared=False)
+            s.add_all([theirs, CalendarEvent(title=self.words["event-lab"], event_date=date.today(), owner=self.admin)])
+            s.flush()
+            s.add(NotebookEntry(title=uniq("entry "), event_id_fk=theirs.id))
             s.commit()
         self.key = self.make_key(client_for(self.member_name))
 
@@ -289,6 +309,13 @@ class MemberCopyTests(CopyCase):
             self.assertFalse(any(self.words["batch"] in d for (d,) in con.execute("select description from batches")))
             self.assertNotIn(self.words["oldkey"], {k for (k,) in con.execute("select old_key from database_aliases")})
             self.assertEqual(con.execute("select count(*) from mice").fetchone()[0], one("select count(*) from mice"))
+            todos = {t for (t,) in con.execute("select title from tasks")}
+            self.assertTrue({self.words["todo-own"], self.words["todo-lab"], self.words["todo-group"]} <= todos)
+            self.assertNotIn(self.words["todo-theirs"], todos)
+            self.assertNotIn(self.words["todo-other-group"], todos)
+            events = {t for (t,) in con.execute("select title from calendar_events")}
+            self.assertIn(self.words["event-lab"], events)
+            self.assertNotIn(self.words["event-theirs"], events)
 
     def test_an_admin_s_copy_is_the_whole_lab(self):
         with self.copy(self.make_key()) as con:
@@ -310,14 +337,16 @@ class MemberCopyTests(CopyCase):
         from app import lab_copy
         from app.db import Base
         decided = (set(lab_copy.ADMIN_ONLY) | set(lab_copy.OWN_ROWS) | set(lab_copy.PAGE_ROWS)
-                   | set(lab_copy.PERSONAL_DATABASES) | set(lab_copy.MEMBER_SEES_WHOLE))
+                   | set(lab_copy.PERSONAL_DATABASES) | set(lab_copy.MEMBER_SEES_WHOLE) | set(lab_copy.OWN_OR_SHARED))
         personal = {"user_id_fk", "recipient_username", "owner_username", "private_to", "password_hash", "page_id_fk"}
         for table in Base.metadata.sorted_tables:
             names = {c.name for c in table.columns}
             in_personal_db = any(fk.parent.name == "module_id_fk" and fk.column.table.name in lab_copy.PERSONAL_DATABASES
                                  for fk in table.foreign_keys)
             secret = any(isinstance(c.type, __import__("app.models").models.EncryptedText) for c in table.columns)
-            if (names & personal or secret) and not in_personal_db:
+            # An owner whose row can be personal (not shared) is someone's own too.
+            own_unless_shared = {"owner", "is_shared"} <= names and table.name not in lab_copy.EDIT_SHARED_ONLY
+            if (names & personal or secret or own_unless_shared) and not in_personal_db:
                 self.assertIn(table.name, decided, f"{table.name}: decide what a member's copy keeps (app/lab_copy.py)")
 
 
@@ -372,6 +401,22 @@ class DesktopTests(CopyCase):
         from app import lab_copy
         return lab_copy.copies_dir(self.server)
 
+    def test_a_copy_opens_with_the_lab_s_key_or_this_computer_s_own(self):
+        # A member's computer has no lab key: it reads its copy with its own.
+        from pyrage import x25519
+        from app import lab_copy, lab_key
+        from app.db import SessionLocal
+        the_lab = x25519.Identity.generate()
+        with tempfile.TemporaryDirectory() as tmp:
+            plain, locked = Path(tmp) / "copy.db", Path(tmp) / "copy.db.age"
+            plain.write_bytes(b"what the member can see")
+            lab_key.lock_file(plain, locked, lab_copy._recipients(str(the_lab.to_public())))
+            with SessionLocal() as s:
+                mine = lab_key.identities(s)
+            for keys in ([the_lab], mine):
+                self.assertEqual(lab_copy.open_copy(locked, Path(tmp) / "out.db", keys).read_bytes(),
+                                 b"what the member can see")
+
     def test_a_copy_arrives_checked_with_its_uploaded_files(self):
         from app.paths import uploads_dir
         name = f"{uniq('mirror')}.txt"
@@ -379,12 +424,28 @@ class DesktopTests(CopyCase):
         self.addCleanup((uploads_dir() / name).unlink)
         result = self.pull()
         self.assertTrue(result["ok"], result)
-        [db] = list((self.folder() / "db").glob("biomanager-*.db"))
-        with sqlite3.connect(db) as con:
-            self.assertIn(self.admin, {u for (u,) in con.execute("select username from users")})
-        info = json.loads(db.with_suffix(".json").read_text())
+        from app import lab_copy, lab_key
+        from app.db import SessionLocal
+        [db] = list((self.folder() / "db").glob("biomanager-*.db.age"))
+        # Kept locked with the lab's key: a leaked copy is unreadable.
+        self.assertTrue(lab_key.is_locked(db))
+        self.assertEqual(list((self.folder() / "db").glob("biomanager-*.db")), [])
+        self.assertTrue(lab_key.is_locked(self.folder() / "uploads" / (name + ".age")))
+        self.assertFalse((self.folder() / "uploads" / name).exists())
+        with SessionLocal() as s:
+            keys = lab_key.identities(s)
+        with tempfile.TemporaryDirectory() as tmp:
+            opened = lab_copy.open_copy(db, Path(tmp) / "copy.db", keys)
+            with sqlite3.connect(opened) as con:
+                self.assertIn(self.admin, {u for (u,) in con.execute("select username from users")})
+            files = lab_copy.open_uploads(self.server, Path(tmp) / "uploads", keys)
+            self.assertEqual((files / name).read_text(), "plasmid map")
+        info = json.loads(lab_copy._sidecar(db).read_text())
         self.assertEqual(info["server"], self.server)
-        self.assertEqual((self.folder() / "uploads" / name).read_text(), "plasmid map")
+        self.assertTrue(info["locked"])
+        # A second copy doesn't fetch the unchanged file again.
+        self.fresh(self.key)
+        self.assertEqual(self.pull()["files_fetched"], 0)
         page = self.get_ok(self.a, "/settings")
         self.assertIn("Last copy:", page)
         self.assertIn(db.name, page)
@@ -398,8 +459,8 @@ class DesktopTests(CopyCase):
         for _ in range(4):
             self.fresh(self.key)
             self.assertTrue(self.pull(tamper=stamp)["ok"])
-        names = sorted(p.name for p in (self.folder() / "db").glob("biomanager-*.db"))
-        self.assertEqual(names, [f"biomanager-2026010{d}-000000Z.db" for d in (2, 3, 4)])
+        names = sorted(p.name for p in (self.folder() / "db").glob("biomanager-*.db.age"))
+        self.assertEqual(names, [f"biomanager-2026010{d}-000000Z.db.age" for d in (2, 3, 4)])
         self.assertEqual(len(lab_copy.list_copies(self.server)), 3)
 
     def test_a_damaged_copy_is_thrown_away(self):

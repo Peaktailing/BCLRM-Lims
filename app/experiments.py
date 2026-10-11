@@ -39,7 +39,9 @@ from .models import (CageRecord, ClutchRecord, Experiment, ExperimentMouse, Expe
 
 bp = Blueprint("experiments", __name__, url_prefix="/experiments")
 
-STATUSES = ["active", "paused", "done", "cancelled"]
+# "planned": designed, not started; nothing of it is due until Start (app/experiment_plan.py).
+STATUSES = ["planned", "active", "paused", "done", "cancelled"]
+STARTED = STATUSES[1:]
 
 # ---------------------------------------------------------------- readouts
 
@@ -224,6 +226,11 @@ class Subject:
     record: object = None     # the animal's own record
 
     @property
+    def left_out(self) -> str:
+        """Why it is left out of the analysis; blank when it is in."""
+        return (getattr(self.row, "left_out", "") or "") if self.row is not None else ""
+
+    @property
     def card(self) -> str:
         """The anchor its cage or housing card's QR code opens (#cage-12…),
         for scanning in bench mode."""
@@ -239,7 +246,7 @@ class Subject:
     def as_dict(self) -> dict:
         return {"key": self.key, "label": self.label, "sex": self.sex, "genotype": self.genotype,
                 "housing": self.housing, "group": self.group, "start": self.start, "note": self.note,
-                "alive": self.alive, "card": self.card}
+                "alive": self.alive, "card": self.card, "left_out": self.left_out}
 
 
 def subjects(session, exp: Experiment, place: Place, group: str = "") -> list[Subject]:
@@ -467,7 +474,8 @@ def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | 
             pct = [round(v / first * 100, 1) if (v is not None and first) else None for v in values]
         rows.append({"key": s.key, "mouse": s.id if s.kind == "mouse" else None,
                      "mouse_id": s.label.lstrip("#") if s.kind == "mouse" else s.label, "label": s.label,
-                     "group": s.group, "sex": s.sex, "start": s.start, "values": values, "pct": pct})
+                     "group": s.group, "sex": s.sex, "start": s.start, "values": values, "pct": pct,
+                     "left_out": s.left_out})
     table = {"dates": [d.isoformat() for d in dates],
              "days": [((d - start).days + 1) if start else None for d in dates], "rows": rows, "readout": readout}
     from . import exp_stats
@@ -478,10 +486,12 @@ def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | 
 # ---------------------------------------------------------------- the page's data
 
 def payload(session, exp: Experiment, place: Place) -> dict:
+    from . import experiment_plan
     from . import experiment_steps as xs
     subs = subjects(session, exp, place)
     readout = readout_of(exp, place)
     groups = sorted({s.group for s in subs if s.group})
+    table = readout_table(session, exp, place, subs)
     return {
         "id": exp.id, "name": exp.name, "status": exp.status, "owner": exp.owner_username,
         "db": place.key, "db_label": place.label, "family": place.family, "noun": place.noun, "nouns": place.nouns,
@@ -492,10 +502,11 @@ def payload(session, exp: Experiment, place: Place) -> dict:
         "kinds": [{"key": k, "label": label, "icon": icon} for k, label, icon in kinds_for(place.family)],
         "steps": [xs.step_dict(st, place.family, session) for st in exp.steps],
         "schedule": xs.schedule(session, exp, place, subs),
-        "table": readout_table(session, exp, place, subs),
+        "table": table,
         "regimens": xs.regimens_for(session, place.family),
         "reagents": reagent_choices(session),
         "sample_inventories": sample_inventories(session),
+        **experiment_plan.page_data(session, exp, place, subs, table),
     }
 
 
@@ -573,8 +584,9 @@ def render_page(experiment_id: int):
         info = {"id": exp.id, "name": exp.name, "description": exp.description, "treatment_plan": exp.treatment_plan,
                 "status": exp.status, "owner": exp.owner_username, "editable": data["editable"],
                 "start_date": data["start_date"], "end_date": exp.end_date.isoformat() if exp.end_date else ""}
+        statuses = ["planned", "cancelled"] if exp.status == "planned" else STARTED
         return render_template(
-            "experiment.html", experiment=info, place=place, data=data, statuses=STATUSES,
+            "experiment.html", experiment=info, place=place, data=data, statuses=statuses,
             readouts=readout_choices(place), readout=data["readout"], add=candidates(s, exp, place) if data["editable"] else None,
             notebook_on=lab.feature_on(s, "notebook"), notebook_page=xs.my_notebook_page(s, exp.id),
             back_url=place.list_url)
@@ -662,11 +674,102 @@ def create(db_key: str):
         return redirect(page_url(exp))
 
 
+@bp.post("/in/<db_key>/design")
+def design(db_key: str):
+    """A whole design as one planned experiment (an assistant's
+    `experiment_new`): JSON {name, description, notes, via, readout
+    ({"key"} or {"label", "unit", "kind"}), readout_day, planned_test,
+    start_date, groups: [{"name", "add": [{"how": "one" | "group", "value"}]}],
+    steps: [{days, kind, agent, dose, route, concentration, group, notes}]}.
+    The animals go in as Add does and the steps as the Regimen saves them,
+    so their rules hold; nothing is due until a person presses Start."""
+    from . import experiment_plan as plan
+    from . import experiment_steps as xs
+    from .services import parse_date
+    data = request.get_json(silent=True) or {}
+    with SessionLocal() as s:
+        place = place_for(s, db_key)
+        if place is None:
+            return jsonify({"ok": False, "error": gettext("There is no database “%(key)s” to plan an experiment in.", key=db_key)}), 404
+        name = str(data.get("name") or "").strip()[:200]
+        if not name:
+            return jsonify({"ok": False, "error": gettext("Give the experiment a name.")}), 400
+        readout = data.get("readout") or {}
+        if isinstance(readout, str):
+            readout = {"key": readout}
+        if not isinstance(readout, dict):
+            readout = {}
+        if readout.get("key") in READOUTS:
+            readout_json = json.dumps({"key": readout["key"]})
+        elif readout.get("label"):
+            kind = readout.get("kind") if readout.get("kind") in ("value", "fraction") else "value"
+            readout_json = json.dumps({"key": "custom", "label": str(readout["label"])[:60],
+                                       "unit": str(readout.get("unit") or "")[:20], "kind": kind})
+        elif readout.get("key"):
+            return jsonify({"ok": False, "error": gettext("“%(readout)s” is not a readout; give its label, unit and kind for your own.", readout=readout.get("key"))}), 400  # noqa: E501
+        else:
+            readout_json = ""
+        test = str(data.get("planned_test") or "").strip()
+        if test and test not in plan.TESTS:
+            return jsonify({"ok": False, "error": gettext("“%(test)s” is not a test the app runs.", test=test)}), 400
+        day = data.get("readout_day")
+        if day not in (None, "") and not (str(day).isdigit() and 0 < int(day) <= 1000):
+            return jsonify({"ok": False, "error": gettext("“%(value)s” isn't a day of the experiment (day 1 is the start date).", value=day)}), 400  # noqa: E501
+        description = str(data.get("description") or "").strip()
+        via = str(data.get("via") or "").strip()[:80]
+        if via:
+            description = "\n\n".join(filter(None, [description, f"Designed with {via}."]))
+        exp = Experiment(name=name, description=description, treatment_plan=str(data.get("notes") or "").strip(),
+                         status="planned", owner_username=g.user.username,
+                         start_date=parse_date(str(data.get("start_date") or "")), db=place.key, readout=readout_json,
+                         readout_day=int(day) if day not in (None, "") else None, planned_test=test)
+        s.add(exp)
+        s.flush()
+        said = []
+        for group in [x for x in data.get("groups") or [] if isinstance(x, dict)]:
+            gname = str(group.get("name") or "").strip()[:80]
+            for add in [x for x in group.get("add") or [] if isinstance(x, dict)]:
+                added, skipped = add_animals(s, exp, place, str(add.get("how") or "one"), str(add.get("value") or ""), gname)
+                if skipped:
+                    said.append(gettext("%(count)s skipped: not yours to change.", count=skipped))
+                if not added and not skipped:
+                    said.append(gettext("Nothing to add from %(value)s for %(group)s.", value=add.get("value"), group=gname or "-"))
+                s.flush()
+        for st in [x for x in data.get("steps") or [] if isinstance(x, dict)]:
+            try:
+                days = xs.parse_days(str(st.get("days", "")))
+            except ValueError as error:
+                s.rollback()
+                return jsonify({"ok": False, "error": str(error)}), 400
+            s.refresh(exp)
+            _step, error = xs._fill_step(s, exp, place, {**st, "id": 0}, days)
+            if error:
+                s.rollback()
+                return error
+        s.commit()
+        return jsonify({"ok": True, "id": exp.id, "url": page_url(exp), "warnings": said})
+
+
 # ---------------------------------------------------------------- changing it
+
+def status_refusal(exp: Experiment, status: str) -> str | None:
+    """A planned experiment starts only with Start (a person's button), and
+    one that has started is never planned again."""
+    if status == (exp.status or "") or not status:
+        return None
+    if exp.status == "planned" and status != "cancelled":
+        return gettext("“%(name)s” is planned: press Start on its page to start it.", name=exp.name)
+    if status == "planned":
+        return gettext("“%(name)s” has started, so it can't be planned again.", name=exp.name)
+    return None
+
 
 @bp.post("/<int:experiment_id>/update")
 def update(experiment_id: int):
-    """The details, autosaved one field at a time, and the readout."""
+    """The details, autosaved one field at a time, and the readout. After
+    Start, a change to the main readout, its day or the test planned asks
+    for a reason (`reason`; app/experiment_plan.py)."""
+    from . import experiment_plan as plan
     from .services import parse_date
     form = request.form
     with SessionLocal() as s:
@@ -682,6 +785,22 @@ def update(experiment_id: int):
                                                           end=end.isoformat(), start=start.isoformat())}), 409
         if status and status not in STATUSES:
             return jsonify({"ok": False, "error": gettext("“%(status)s” is not an experiment status.", status=status)}), 409
+        problem = status_refusal(exp, status)
+        if problem:
+            return jsonify({"ok": False, "error": problem}), 409
+        readout_day = exp.readout_day
+        if "readout_day" in form:
+            raw = (form.get("readout_day") or "").strip().lower().removeprefix("day").strip()
+            if raw and not (raw.lstrip("-").isdigit() and 0 < int(raw) <= 1000):
+                return jsonify({"ok": False, "error": gettext("“%(value)s” isn't a day of the experiment (day 1 is the start date).", value=raw)}), 409  # noqa: E501
+            readout_day = int(raw) if raw else None
+        planned_test = exp.planned_test or ""
+        if "planned_test" in form:
+            planned_test = (form.get("planned_test") or "").strip()
+            if planned_test and planned_test not in plan.TESTS:
+                return jsonify({"ok": False, "error": gettext("“%(test)s” is not a test the app runs.", test=planned_test)}), 409
+        was = {"readout": plan.readout_text(readout_of(exp, place)), "readout_day": str(exp.readout_day or ""),
+               "test": plan.test_name(exp.planned_test or "")}
         for name in ("name", "description", "treatment_plan"):
             if name in form:
                 value = (form.get(name) or "").strip() if name == "name" else form.get(name, "")
@@ -695,16 +814,60 @@ def update(experiment_id: int):
                                           "unit": (form.get("readout_unit") or "")[:20], "kind": kind})
             elif key in READOUTS:
                 exp.readout = json.dumps({"key": key})
+        exp.readout_day, exp.planned_test = readout_day, planned_test
         exp.status, exp.start_date, exp.end_date = status or "active", start, end
         exp.updated_at = datetime.utcnow()
+        now = {"readout": plan.readout_text(readout_of(exp, place)), "readout_day": str(exp.readout_day or ""),
+               "test": plan.test_name(exp.planned_test or "")}
+        for what in ("readout", "readout_day", "test"):
+            problem = plan.note(s, exp, what, was[what], now[what], form.get("reason", ""))
+            if problem:
+                s.rollback()
+                return plan.ask_response(problem)
         s.commit()
         return jsonify({"ok": True, **payload(s, exp, place)})
 
 
+def add_animals(session, exp: Experiment, place: Place, how: str, value: str, group: str) -> tuple[int, int]:
+    """Put a cage, tank, rack or housing of animals ("group"), or one
+    ("one"), in the experiment: (added, skipped as not this person's)."""
+    from .app import can_edit_mouse, mouse_is_active
+    session.flush()
+    session.expire(exp, ["memberships"])        # mice added a moment ago count as in it
+    have = {x.key for x in subjects(session, exp, place)}
+    added = skipped = 0
+    if place.subject_kind == "mouse":
+        if how == "group":
+            cage = session.scalar(select(CageRecord).where(CageRecord.cage_id == value))
+            mice = list(cage.mice) if cage else []
+        else:
+            mice = [m for m in [session.get(MouseRecord, int(value))] if m] if value.isdigit() else []
+        for m in mice:
+            if f"mouse:{m.id}" in have or not mouse_is_active(m):
+                continue
+            if not can_edit_mouse(m):
+                skipped += 1
+                continue
+            session.add(ExperimentMouse(experiment_id_fk=exp.id, mouse_id_fk=m.id, treatment_group=group))
+            have.add(f"mouse:{m.id}")
+            added += 1
+    else:
+        for kind, rec, start in _records_to_add(session, place, how, value):
+            key = f"{kind}:{rec.id}"
+            if key in have:
+                continue
+            session.add(ExperimentSubject(experiment_id_fk=exp.id, subject_kind=kind, subject_id=rec.id,
+                                          treatment_group=group, start_count=start))
+            have.add(key)
+            added += 1
+    return added, skipped
+
+
 @bp.post("/<int:experiment_id>/subjects/add")
 def add_subjects(experiment_id: int):
-    """A cage, tank, rack or housing of animals ("group"), or one ("one")."""
-    from .app import can_edit_mouse, mouse_is_active
+    """A cage, tank, rack or housing of animals ("group"), or one ("one").
+    After Start, with a plan, it asks for a reason (`reason`)."""
+    from . import experiment_plan as plan
     data = request.get_json(silent=True) or request.form.to_dict()
     how, value, group = data.get("how"), str(data.get("value") or ""), str(data.get("group") or "").strip()[:80]
     with SessionLocal() as s:
@@ -712,32 +875,12 @@ def add_subjects(experiment_id: int):
         refused = _refuse(exp)
         if refused:
             return refused
-        have = {x.key for x in subjects(s, exp, place)}
-        added = skipped = 0
-        if place.subject_kind == "mouse":
-            if how == "group":
-                cage = s.scalar(select(CageRecord).where(CageRecord.cage_id == value))
-                mice = list(cage.mice) if cage else []
-            else:
-                mice = [m for m in [s.get(MouseRecord, int(value))] if m] if value.isdigit() else []
-            for m in mice:
-                if f"mouse:{m.id}" in have or not mouse_is_active(m):
-                    continue
-                if not can_edit_mouse(m):
-                    skipped += 1
-                    continue
-                s.add(ExperimentMouse(experiment_id_fk=exp.id, mouse_id_fk=m.id, treatment_group=group))
-                added += 1
-        else:
-            records = _records_to_add(s, place, how, value)
-            for kind, rec, start in records:
-                key = f"{kind}:{rec.id}"
-                if key in have:
-                    continue
-                s.add(ExperimentSubject(experiment_id_fk=exp.id, subject_kind=kind, subject_id=rec.id,
-                                        treatment_group=group, start_count=start))
-                have.add(key)
-                added += 1
+        before = plan.members(s, exp, place) if plan.fixed(exp) else {}
+        added, skipped = add_animals(s, exp, place, how, value, group)
+        problem = plan.groups_changed(s, exp, place, before, str(data.get("reason") or "")) if added else None
+        if problem:
+            s.rollback()
+            return plan.ask_response(problem)
         s.commit()
         s.refresh(exp)
         if added:
@@ -786,6 +929,9 @@ def _plain_records(session, place: Place, how: str, ident: int) -> list[tuple[ob
 
 @bp.post("/<int:experiment_id>/subjects/<path:key>/update")
 def update_subject(experiment_id: int, key: str):
+    """Its group (`whole_group`: every one in its group), note, or count at
+    the start. After Start, with a plan, a group or count asks for a reason."""
+    from . import experiment_plan as plan
     data = request.get_json(silent=True) or request.form.to_dict()
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
@@ -795,9 +941,15 @@ def update_subject(experiment_id: int, key: str):
         subject = find_subject(s, exp, place, key)
         if subject is None:
             return jsonify({"ok": False, "error": gettext("That one is no longer in the experiment.")}), 404
+        before = plan.members(s, exp, place) if plan.fixed(exp) else {}
         row = subject.row
         if "group" in data:
-            row.treatment_group = str(data.get("group") or "").strip()[:80]
+            new_group = str(data.get("group") or "").strip()[:80]
+            # The whole group at once: renaming it, or merging it into another.
+            if data.get("whole_group") and subject.group.strip():
+                for other in subjects(s, exp, place, group=subject.group):
+                    other.row.treatment_group = new_group
+            row.treatment_group = new_group
         if "note" in data:
             row.note = str(data.get("note") or "").strip()[:200]
         if "start" in data and isinstance(row, ExperimentSubject):
@@ -805,6 +957,10 @@ def update_subject(experiment_id: int, key: str):
             if raw and not raw.isdigit():
                 return jsonify({"ok": False, "error": gettext("“%(value)s” isn't a number of animals.", value=raw)}), 400
             row.start_count = int(raw) if raw else None
+        problem = plan.groups_changed(s, exp, place, before, str(data.get("reason") or ""))
+        if problem:
+            s.rollback()
+            return plan.ask_response(problem)
         s.commit()
         s.refresh(exp)
         return jsonify({"ok": True, **payload(s, exp, place)})
@@ -812,6 +968,8 @@ def update_subject(experiment_id: int, key: str):
 
 @bp.post("/<int:experiment_id>/subjects/<path:key>/remove")
 def remove_subject(experiment_id: int, key: str):
+    from . import experiment_plan as plan
+    data = request.get_json(silent=True) or request.form.to_dict()
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
         refused = _refuse(exp)
@@ -819,10 +977,75 @@ def remove_subject(experiment_id: int, key: str):
             return refused
         subject = find_subject(s, exp, place, key)
         if subject is not None:
+            before = plan.members(s, exp, place) if plan.fixed(exp) else {}
             s.delete(subject.row)
+            problem = plan.groups_changed(s, exp, place, before, str(data.get("reason") or ""))
+            if problem:
+                s.rollback()
+                return plan.ask_response(problem)
             s.commit()
             s.refresh(exp)
         return jsonify({"ok": True, **payload(s, exp, place), "add": candidates(s, exp, place)})
+
+
+@bp.post("/<int:experiment_id>/subjects/<path:key>/leave-out")
+def leave_out(experiment_id: int, key: str):
+    """{"reason": why, "back": false}: leave an animal out of the analysis
+    (the tests by day and the chart; its readout stays), or put it back.
+    Leaving out always says why; after Start, with a plan, it is a change
+    from the plan, and so is putting it back."""
+    from . import experiment_plan as plan
+    data = request.get_json(silent=True) or request.form.to_dict()
+    reason = str(data.get("reason") or "").strip()[:200]
+    back = str(data.get("back") or "").lower() in ("1", "true", "yes", "on")
+    with SessionLocal() as s:
+        exp, place = _load(s, experiment_id)
+        refused = _refuse(exp)
+        if refused:
+            return refused
+        subject = find_subject(s, exp, place, key)
+        if subject is None:
+            return jsonify({"ok": False, "error": gettext("That one is no longer in the experiment.")}), 404
+        if not back and not reason:
+            return jsonify({"ok": False, "needs_reason": True,
+                            "error": gettext("Say why %(label)s is left out of the analysis.", label=subject.label)}), 409
+        was = plan.LEFT_OUT if subject.left_out else plan.IN_ANALYSIS
+        subject.row.left_out = "" if back else reason
+        now = plan.IN_ANALYSIS if back else plan.LEFT_OUT
+        line = subject.label if back else f"{subject.label}: {reason}"
+        problem = plan.note(s, exp, "left_out", was, now, reason, [line]) if was != now else None
+        if problem:
+            s.rollback()
+            return plan.ask_response(problem)
+        exp.updated_at = datetime.utcnow()
+        s.commit()
+        s.refresh(exp)
+        return jsonify({"ok": True, **payload(s, exp, place)})
+
+
+@bp.post("/<int:experiment_id>/start")
+def start(experiment_id: int):
+    """Start a planned experiment: day 1 is today unless a start date is
+    set; it becomes active, and a copy of its design is kept, so a change
+    from it later asks why (app/experiment_plan.py). Only from the page:
+    no assistant's change does this."""
+    from . import experiment_plan as plan
+    with SessionLocal() as s:
+        exp, place = _load(s, experiment_id)
+        if not access.can_edit_experiment(exp):
+            flash(access.denied_message("experiment", exp.owner_username), "error")
+            return redirect(page_url(exp))
+        if exp.status != "planned":
+            flash(gettext("“%(name)s” has already started.", name=exp.name), "error")
+            return redirect(page_url(exp))
+        exp.start_date = exp.start_date or date.today()
+        exp.status = "active"
+        exp.plan_json = json.dumps(plan.snapshot(s, exp, place), ensure_ascii=False)
+        exp.updated_at = datetime.utcnow()
+        s.commit()
+        flash(gettext("Started %(name)s: day 1 is %(date)s. The plan is kept; a change to its groups, main readout, readout day or test will ask why.",  # noqa: E501
+                      name=exp.name, date=i18n.strftime(exp.start_date, "%b %d, %Y")), "success")
+        return redirect(page_url(exp))
 
 
 @bp.post("/<int:experiment_id>/readings")
@@ -888,14 +1111,16 @@ def _rows_for_export(session, exp, place):
     readout = table["readout"]
     unit = f" ({readout['unit']})" if readout["unit"] else ""
     long_rows = [["Experiment", "Database", place.noun.capitalize(), "Group", "Sex", "Genotype", place.housing.capitalize(),
-                  "Date", "Day", f"{readout['label']}{unit}", "At start", "% of first" if readout["kind"] == "value" else "% of start"]]
+                  "Date", "Day", f"{readout['label']}{unit}", "At start", "% of first" if readout["kind"] == "value" else "% of start",
+                  "Left out of the analysis"]]
     for r in table["rows"]:
         x = by_key.get(r["key"])
         for i, d in enumerate(table["dates"]):
             if r["values"][i] is None:
                 continue
             long_rows.append([exp.name, place.label, r["label"], r["group"], r["sex"], x.genotype if x else "",
-                              x.housing if x else "", d, table["days"][i], r["values"][i], r["start"], r["pct"][i]])
+                              x.housing if x else "", d, table["days"][i], r["values"][i], r["start"], r["pct"][i],
+                              r.get("left_out", "")])
     wide = [[place.noun.capitalize(), "Group"] + [f"Day {n}" if n is not None else d for d, n in zip(table["dates"], table["days"])]]
     wide += [[r["label"], r["group"]] + r["values"] for r in table["rows"]]
     manip = [["Day", "Date planned", "Done on", "Done by", "What", "Kind", "Dose", "Route", "Group", place.noun.capitalize(),
@@ -928,15 +1153,18 @@ def _rows_for_export(session, exp, place):
 @bp.get("/<int:experiment_id>/export.<fmt>")
 def export(experiment_id: int, fmt: str):
     """The readout (long, for Prism or R, and wide), each animal's
-    manipulations, and the day-by-day tests: an Excel workbook, or the
-    long readout as CSV."""
+    manipulations, the day-by-day tests and, for one started with a plan,
+    the plan and the changes from it: an Excel workbook, or the long
+    readout as CSV."""
     import csv
     import io
     import re as _re
     from flask import Response
+    from . import experiment_plan
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
         long_rows, wide, manip, stats = _rows_for_export(s, exp, place)
+        plan_rows = experiment_plan.export_rows(s, exp, place)
         base = _re.sub(r"[^A-Za-z0-9._-]+", "-", exp.name).strip("-")[:60] or "experiment"
     from .services import csv_text
     if fmt == "csv":
@@ -947,8 +1175,10 @@ def export(experiment_id: int, fmt: str):
     from openpyxl import Workbook
     from openpyxl.styles import Font
     book = Workbook()
-    for i, (title, rows) in enumerate((("Readout", long_rows), ("Readout, wide", wide), ("Manipulations", manip),
-                                       ("Tests by day", stats))):
+    sheets = [("Readout", long_rows), ("Readout, wide", wide), ("Manipulations", manip), ("Tests by day", stats)]
+    if plan_rows:
+        sheets.append(("Plan and deviations", plan_rows))
+    for i, (title, rows) in enumerate(sheets):
         sheet = book.active if i == 0 else book.create_sheet()
         sheet.title = title
         for row in rows:

@@ -146,7 +146,8 @@ export function mountExperiment(host, ctx) {
     const pct = data.percent;
     const xs = w.days.every((d) => d !== null) ? w.days : w.dates.map((_d, i) => i + 1);
     const groups = new Map();
-    w.rows.forEach((r) => {
+    // An animal left out of the analysis stays in the table, not the chart.
+    w.rows.filter((r) => !r.left_out).forEach((r) => {
       const key = r.group || 'All mice';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(pct ? r.pct : r.values);

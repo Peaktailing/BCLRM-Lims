@@ -36,10 +36,12 @@ class Tools(Base):
     def test_from_overview_to_a_proposal(self):
         api = TestApi(self.token(self.m, scope="propose"))
         code = uniq("88")
-        cage = self.make_cage(self.m, code)
+        cage = self.make_cage(self.m, code, purpose="Breeding")
         overview = bm.lab_overview(api)
         self.assertEqual(overview["you"]["username"], self.member)
         self.assertEqual(overview["lab"]["today"], days_ago(0))
+        self.assertEqual(overview["how_to_work"], bm.INSTRUCTIONS)
+        self.assertIsInstance(overview["due_today"], list)
         [hit] = bm.resolve(api, f"cage {code}")
         self.assertEqual(hit["ref"], {"kind": "cage", "id": cage})
         self.assertIn("litter_born", bm.describe_actions(bm.list_actions(api)))

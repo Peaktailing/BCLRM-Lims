@@ -25,6 +25,7 @@ somewhere other than the server (a password manager note works well).
 | Settings and secrets | `/opt/biomanager/Biomanager/deploy/.env` (readable only by you) | |
 | Services | `db` (PostgreSQL 16), `app` (gunicorn), `caddy` (HTTPS), `backup` | |
 | Backups on the server | `BACKUP_DIR` in `.env` (`deploy/backups/` unless set): nightly at `BACKUP_TIME`, `KEEP_LOCAL` kept, restore-tested each `RESTORE_TEST_WEEKDAY` | |
+| The lab's key | the `labkey` volume (`/labkey` in the app, read only in `backup`): the app writes it there and every backup is locked with it (age, `.age` files), so a backup that leaks is unreadable. It is never inside a backup. Its **recovery key** is with an admin (**Settings → Your data → Lab key → Show the recovery key**), on paper or in a password manager: the only way to open a backup on a new machine | |
 | Backups elsewhere | off-site with restic, if `RESTIC_REPOSITORY` is set (its password is in your password manager, not only in `.env`); a copy on an admin's Mac, if `deploy/mac/install.sh` was run (it pulls from `/opt/biomanager/backups`; set `BIOMANAGER_SERVER_BACKUPS` to your `BACKUP_DIR` when installing it if yours is elsewhere) | |
 | Alerts | the ntfy topic in `/etc/biomanager/watchdog.env`, if `sudo deploy/host/install.sh` was run; macOS notifications from the Mac's copy | |
 | Automatic jobs | with `deploy/host/install.sh`: a check every 5 minutes, the images refreshed on Sundays at 03:30, and the updater that **Update now** in Settings starts (`host/update.sh`). The app looks for a new release once a day and tells its admins. With `cloud-init.yaml`: operating system security updates nightly, restarting at 04:30 if they need to | |
@@ -81,9 +82,13 @@ that backup is lost, so check the time first.
 docker compose exec backup ls -lt /backups/db /backups/files   # pick a time
 docker compose stop app
 docker compose --profile restore run --rm restore \
-  /backups/db/biomanager-<time>.dump /backups/files/biomanager-files-<time>.tar.gz
+  /backups/db/biomanager-<time>.dump.age /backups/files/biomanager-files-<time>.tar.gz.age
 docker compose start app
 ```
+
+Backups are locked with the lab's key (`.age`); on the same server the
+restore opens them with the key in the `labkey` volume. (Backups from before
+the lab's key end in `.dump` and `.tar.gz` and restore the same way.)
 
 The replaced database is kept as `biomanager_before_<time>` and the replaced
 files in `/data/.before-restore-<time>/`. When you are sure:
@@ -94,7 +99,7 @@ docker compose exec db psql -U biomanager -d postgres -c 'DROP DATABASE "biomana
 ```
 
 To check a backup without replacing anything, run a restore test on it:
-`docker compose exec backup restore-test.sh /backups/db/<file>.dump` restores
+`docker compose exec backup restore-test.sh /backups/db/<file>.dump.age` restores
 that one (with no file named, the newest) into a scratch database, checks it
 and drops it again.
 
@@ -126,7 +131,11 @@ docker compose start app
 ## The server is lost
 
 The machine was deleted, or its disk is unreadable. Rebuild from a copy of
-the backups that was not on it: off-site, or an admin's Mac.
+the backups that was not on it: off-site, or an admin's Mac. The backups are
+locked with the lab's key, which was on the lost machine: have the lab's
+**recovery key** (`AGE-SECRET-KEY-1…`, from whoever keeps it) ready, and give
+it to each restore below as `-e BIOMANAGER_RECOVERY_KEY='…'`. The restored
+files bring the lab's key back, so later backups open by themselves.
 
 1. Set up a new server as in [README.md](README.md) (for a cloud VM,
    `cloud-init.yaml` does the first steps).
@@ -147,12 +156,13 @@ the backups that was not on it: off-site, or an admin's Mac.
 
    ```bash
    # Mac
-   scp ~/BioManagerBackups/db/<newest>.dump ~/BioManagerBackups/files/<newest>.tar.gz <your server>:/tmp/
+   scp ~/BioManagerBackups/db/<newest>.dump.age ~/BioManagerBackups/files/<newest>.tar.gz.age <your server>:/tmp/
    # server: into BACKUP_DIR (see .env), which the backup service sees as /backups
-   sudo mv /tmp/biomanager-*.dump <BACKUP_DIR>/db/
-   sudo mv /tmp/biomanager-files-*.tar.gz <BACKUP_DIR>/files/
+   sudo mv /tmp/biomanager-*.dump.age <BACKUP_DIR>/db/
+   sudo mv /tmp/biomanager-files-*.tar.gz.age <BACKUP_DIR>/files/
    docker compose stop app
-   docker compose --profile restore run --rm restore /backups/db/<newest>.dump /backups/files/<newest>.tar.gz
+   docker compose --profile restore run --rm -e BIOMANAGER_RECOVERY_KEY='AGE-SECRET-KEY-1…' restore \
+     /backups/db/<newest>.dump.age /backups/files/<newest>.tar.gz.age
    docker compose start app
    ```
 
@@ -173,8 +183,8 @@ the backups that was not on it: off-site, or an admin's Mac.
    docker compose exec backup restic restore <ID> --target /backups/from-offsite
    docker compose exec backup sh -c 'ls /backups/from-offsite/backups/db /backups/from-offsite/backups/files'
    docker compose stop app
-   docker compose --profile restore run --rm restore \
-     /backups/from-offsite/backups/db/<name>.dump /backups/from-offsite/backups/files/<name>.tar.gz
+   docker compose --profile restore run --rm -e BIOMANAGER_RECOVERY_KEY='AGE-SECRET-KEY-1…' restore \
+     /backups/from-offsite/backups/db/<name>.dump.age /backups/from-offsite/backups/files/<name>.tar.gz.age
    docker compose start app
    ```
 5. **server** `sudo host/install.sh` for the watchdog and weekly
@@ -201,6 +211,7 @@ The same as [The server is lost](#the-server-is-lost), but first take a
 fresh backup (`docker compose exec backup backup.sh`), copy it off the old
 server (an admin's Mac: `~/Library/Application\ Support/BioManager/pull-backups.sh`),
 and stop the old app (`docker compose stop app`) so nobody writes to it meanwhile.
+The new machine needs the lab's recovery key for the restore, as there.
 
 ## Bringing a lab from the desktop app
 

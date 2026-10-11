@@ -236,7 +236,7 @@ jobs:
           host/load-image.sh "$GITHUB_WORKSPACE/biomanager-image-amd64.tar.gz"
           cp .env.example .env
           sed -i "s|^DOMAIN=.*|DOMAIN=localhost|; s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" .env
-          docker compose up -d
+          docker compose up -d || { docker compose ps; docker compose logs; exit 1; }
           for i in $(seq 60); do
             if curl -fsSk -o /dev/null https://localhost/healthz && curl -fsSk -o /dev/null https://localhost/register; then
               echo "the bundled server answered"; docker compose down -v; exit 0

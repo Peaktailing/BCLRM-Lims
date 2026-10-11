@@ -400,7 +400,7 @@
                   class="selbar-group" data-selection-form>
               <select name="experiment_id" aria-label="{{ _('Experiment') }}">
                 {% for exp in open_experiments %}
-                  <option value="{{ exp.id }}">{{ exp.name }}</option>
+                  <option value="{{ exp.id }}"{% if exp.fixed %} data-ask-reason="{{ _('%(name)s was started with a plan: adding mice changes its groups. Why?', name=exp.name) }}"{% endif %}>{{ exp.name }}</option>
                 {% endfor %}
               </select>
               <input name="treatment_group" placeholder="{{ _('treatment group') }}"
@@ -1249,7 +1249,7 @@
             <button type="button" class="dt-chip" data-experiment-filter="" aria-pressed="true">
               {{ _('All') }} <span class="dt-chip-count">{{ experiments_list|length }}</span>
             </button>
-            {% for status in ['active', 'paused', 'done', 'cancelled'] %}
+            {% for status in ['planned', 'active', 'paused', 'done', 'cancelled'] %}
               {% set n = experiments_list|selectattr('status', 'equalto', status)|list|length %}
               <button type="button" class="dt-chip" data-experiment-filter="{{ status }}" aria-pressed="false">
                 {% set status_label = status|tr("experiment") %}{{ status_label|capitalize if status_label == status else status_label }} <span class="dt-chip-count">{{ n }}</span>

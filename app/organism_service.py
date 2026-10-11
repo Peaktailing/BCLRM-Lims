@@ -1234,12 +1234,14 @@ def search(session, q: str, limit: int = 5) -> list[dict]:
     if not q:
         return []
     like = like_pattern(q)
-    modules = {m.id: m for m in session.scalars(select(OrganismModule))}
+    # Only the databases this person may open: not someone else's own (app/lab.py).
+    modules = {m.id: m for m in list_modules(session)}
     out: list[dict] = []
+    kinds = {"animals": "org_animal", "housing": "org_housing", "lines": "org_line"}
 
     def add(module, entity_view, label, sub, row_id):
         out.append({
-            "type": "organism", "id": row_id, "label": label,
+            "type": "organism", "id": row_id, "ref": {"kind": kinds[entity_view], "id": row_id}, "label": label,
             "sublabel": " · ".join(filter(None, [module.label] + sub)),
             "url": url_for("organisms.module", key=module.key, view=entity_view),
         })

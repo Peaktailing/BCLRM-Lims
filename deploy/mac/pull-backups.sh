@@ -10,7 +10,8 @@
 # /opt/biomanager/Biomanager/deploy/backups> deploy/mac/install.sh. Only new
 # files are copied and nothing is deleted because the server deleted it, so
 # a damaged or compromised server cannot empty this copy. Each new database
-# dump is checked readable. The newest KEEP are kept.
+# dump is checked readable (a dump locked with the lab's key, .age, is checked
+# to be a whole locked file: only the lab's key opens it). The newest KEEP are kept.
 #
 # A macOS notification says when it fails, or when the server's newest
 # backup is more than STALE_HOURS old: the server's own alerts cannot
@@ -43,12 +44,12 @@ done
 
 # Every dump that arrived this run must be readable.
 new_dumps=$(ls -1 "$DEST/db" | sort | comm -13 "$had" -)
-if command -v pg_restore >/dev/null; then
-  for dump in $new_dumps; do
-    pg_restore --list "$DEST/db/$dump" > /dev/null 2>&1 \
-      || { log "UNREADABLE: $dump"; notify "BioManager backup copy" "A copied backup is unreadable: $dump"; }
-  done
-fi
+for dump in $new_dumps; do
+  case "$dump" in
+    *.age) [ "$(head -c 21 "$DEST/db/$dump")" = "age-encryption.org/v1" ] && [ "$(wc -c < "$DEST/db/$dump")" -gt 200 ] ;;
+    *) ! command -v pg_restore >/dev/null || pg_restore --list "$DEST/db/$dump" > /dev/null 2>&1 ;;
+  esac || { log "UNREADABLE: $dump"; notify "BioManager backup copy" "A copied backup is unreadable: $dump"; }
+done
 
 # Keep the newest KEEP of each (names sort by date).
 prune() { local total; total=$(ls -1 "$1" | wc -l); [ "$total" -gt "$KEEP" ] || return 0
@@ -57,8 +58,8 @@ prune "$DEST/db"; prune "$DEST/files"
 
 newest=$(ls -1 "$DEST/db" | sort | tail -n 1)
 [ -n "$newest" ] || fail "No backups on the server yet."
-# biomanager-20260925-194531Z.dump -> 2026-09-25 19:45:31 UTC
-stamp=$(echo "$newest" | sed -E 's/biomanager-([0-9]{8})-([0-9]{6})Z\.dump/\1\2/')
+# biomanager-20260925-194531Z.dump(.age) -> 2026-09-25 19:45:31 UTC
+stamp=$(echo "$newest" | sed -E 's/biomanager-([0-9]{8})-([0-9]{6})Z\.dump(\.age)?/\1\2/')
 taken=$(date -j -u -f "%Y%m%d%H%M%S" "$stamp" +%s 2>/dev/null || echo 0)
 age=$(( ($(date +%s) - taken) / 3600 ))
 if [ "$age" -ge "$STALE_HOURS" ]; then

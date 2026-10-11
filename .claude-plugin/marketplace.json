@@ -1,0 +1,15 @@
+{
+  "name": "biomanager",
+  "owner": {
+    "name": "BioManager",
+    "url": "https://biomanager.org"
+  },
+  "description": "BioManager, a lab's animals, stocks and notebook, for AI assistants.",
+  "plugins": [
+    {
+      "name": "biomanager",
+      "source": "./plugins/biomanager",
+      "description": "Tell your assistant what you did in the lab, in your words or with a photo of your notes; it proposes the records in your lab's BioManager, and you approve them there."
+    }
+  ]
+}

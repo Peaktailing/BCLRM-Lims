@@ -20,6 +20,10 @@
     <label class="door-field">{{ _('Lab file') }}
       <input type="file" name="lab_file" accept=".biomanager" required>
     </label>
+    <label class="door-field">{{ _('Lab recovery key') }}
+      <input name="recovery_key" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…" class="font-mono">
+      <small>{{ _('A lab file is locked with its lab’s key. Enter the lab’s recovery key, which its admin was shown under Settings → Your data → Lab key.') }}</small>
+    </label>
     {% if needs_setup_code %}
       <label class="door-field">{{ _('Setup code') }}
         <input name="setup_code" autocomplete="off" spellcheck="false" required placeholder="xxxx-xxxx-xxxx" class="font-mono">

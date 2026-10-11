@@ -1,0 +1,22 @@
+{
+  "Why the change from the plan?": "为什么与计划不同？",
+  "A reason, in a line": "一句话写明原因",
+  "Save with this reason": "连同原因保存",
+  "Not changed": "未更改",
+  "Left out of the analysis: %(reason)s": "排除在分析之外：%(reason)s",
+  "left out": "已排除",
+  "Count it in the tests and the chart again": "重新计入检验和图表",
+  "Put back": "重新计入",
+  "Leave it out of the tests by day and the chart; its readout stays": "不计入逐日检验和图表；它的观测数据保留",
+  "Leave out…": "排除…",
+  "Leave it out": "排除",
+  "Every %(noun)s in “%(group)s” (%(n)s): rename or merge the group": "「%(group)s」中的每个%(noun)s（%(n)s）：重命名或合并这个分组",
+  "Leave %(label)s out of the analysis?": "把 %(label)s 排除在分析之外？",
+  "Its readout stays in the sheet; the tests by day and the chart leave it out. Say why.": "它的观测数据仍留在表格中，逐日检验和图表不再计入它。请说明原因。",
+  "%(n)s change": "%(n)s 项修改",
+  "%(n)s changes": "%(n)s 项修改",
+  "No changes from the plan.": "与计划没有不同。",
+  "changed": "已更改",
+  "plan::Planned": "计划",
+  "plan::Done": "实际"
+}

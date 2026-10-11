@@ -89,6 +89,7 @@ PATCH /api/v1/inventories/samples/items/57   {"status": "used up"}
 POST  /api/v1/inventories/samples/items      {"name": "Liver, 1043", "box": "Freezer A box 3", "position": "B4",
                                               "fields": {"source": {"kind": "mouse", "ref": "1043"}}}
 POST  /api/v1/experiments/12/readings        {"date": "2026-09-28", "values": {"1043": 23.8, "1044": 25.1}}</pre>
+    <p class="mt-2 text-[13px] text-muted">{{ _('A mouse read from the API carries its version. Send it back with a change ("version": 17) and a mouse someone changed meanwhile is refused with 409 instead of overwritten.') }}</p>
   </section>
 </div>
 {% endblock %}

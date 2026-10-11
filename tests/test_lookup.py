@@ -80,8 +80,13 @@ class Vocabulary(Base):
 class Due(Base):
     def test_a_weaning_due_comes_with_the_change_that_records_it(self):
         tok = self.token(self.m, scope="read")
-        cage = self.make_cage(self.m, date_give_birth=days_ago(21))
+        cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(21))
+        elsewhere = self.make_cage(self.m, purpose="Experiments", date_give_birth=days_ago(21))
         r = self.call("get", "/due?days=3", tok)
+        # A litter dated in a cage that isn't a Breeding cage is due, but
+        # weaning it there would be refused: no change is offered.
+        [other] = [d for d in r.get_json()["data"] if d["ref"] == {"kind": "cage", "id": elsewhere}]
+        self.assertIsNone(other["propose"])
         self.assertEqual(r.status_code, 200, r.get_json())
         [item] = [d for d in r.get_json()["data"] if d["ref"] == {"kind": "cage", "id": cage}
                   and d["propose"]]

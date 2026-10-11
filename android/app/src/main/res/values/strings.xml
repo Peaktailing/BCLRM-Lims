@@ -20,4 +20,8 @@
     <string name="scan_other_server">That code is for a different server: %1$s</string>
     <string name="scan_not_link">That code isn\'t a BioManager link.</string>
     <string name="downloading">Downloading %1$s…</string>
+    <string name="get_ready">Get ready for the facility</string>
+    <string name="work_offline">Work offline</string>
+    <string name="ready">Ready: this phone has a fresh copy of the lab to work on without a signal.</string>
+    <string name="no_copy">This phone has no copy of the lab yet. Open BioManager once with a signal, signed in, and it keeps one.</string>
 </resources>

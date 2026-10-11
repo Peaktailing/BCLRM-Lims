@@ -7,6 +7,8 @@
 set -euo pipefail
 : "${BACKUP_ROOT:=/backups}" "${APPDATA_DIR:=/appdata}" "${KEEP_LOCAL:=30}"
 log() { echo "[$(date -Is)] $*"; }
+# shellcheck source=labkey.sh
+. "$(dirname "$0")/labkey.sh"
 
 # A dump of the wrong (or an empty) database would look like a backup.
 if ! accounts=$(psql -XAtc "SELECT count(*) FROM users" 2>/dev/null); then
@@ -44,13 +46,23 @@ if ! tar -C "$APPDATA_DIR" --exclude="./.before-restore-*" -czf "$files.partial"
 fi
 mv "$files.partial" "$files"
 
+# Locked with the lab's key (labkey.sh): a backup that leaks, here or
+# off-site, can't be read without it.
+plain_dump=$dump plain_files=$files
+if ! dump=$(labkey_lock "$plain_dump") || ! files=$(labkey_lock "$plain_files"); then
+  for f in "$plain_dump" "$plain_files"; do rm -f -- "$f" "$f.age" "$f.age.partial"; done
+  log "could not lock the backup with the lab's key. No backup taken."
+  exit 1
+fi
+case "$dump" in *.age) ;; *) log "the lab's key isn't here yet ($LABKEY_DIR): this backup is not locked" ;; esac
+
 log "backed up: $(basename "$dump") ($(du -h "$dump" | cut -f1)), $(basename "$files") ($(du -h "$files" | cut -f1))"
 
 prune() {  # keep the newest KEEP_LOCAL files matching $1
   ls -1t $1 2>/dev/null | tail -n +$(( KEEP_LOCAL + 1 )) | while read -r old; do rm -f -- "$old"; done
 }
-prune "$BACKUP_ROOT/db/biomanager-*.dump"
-prune "$BACKUP_ROOT/files/biomanager-files-*.tar.gz"
+prune "$BACKUP_ROOT/db/biomanager-*.dump*"
+prune "$BACKUP_ROOT/files/biomanager-files-*.tar.gz*"
 
 # Off-site: a failure here does not undo the local backup (it is recorded
 # above as a success), but it is reported on its own: exit status 2, and no
