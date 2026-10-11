@@ -47,9 +47,32 @@ INVENTORY_WORDS = {"sample": "samples", "order": "orders", "reagent": "reagents"
 KIND_WORDS.update({word: ["inventory_item"] for word in INVENTORY_WORDS})
 
 
-def _hit(kind: str, row, label: str, database: str, exact: bool) -> dict:
+def _hit(kind: str, row, label: str, database: str, exact: bool, path: str | None = None) -> dict:
+    """A match: its reference (for proposals, history and lineage) and,
+    for a kind the API reads one at a time, the path `get` reads it at."""
+    path = path or path_of(None, kind, row)
     return {"kind": kind, "id": row.id, "ref": {"kind": kind, "id": row.id}, "label": label,
-            "database": database, "exact": exact}
+            "database": database, "exact": exact, **({"path": path} if path else {})}
+
+
+def path_of(session, kind: str, row) -> str | None:
+    """Where /api/v1 reads one record: by what the lab writes on it (cages/88,
+    mice/1043, plasmids/14, inventories/reagents/items/12), or an
+    experiment's id; None for a kind it reads only in lists."""
+    from urllib.parse import quote
+    if kind == "mouse":
+        return f"mice/{row.mouse_id}"
+    if kind == "cage":
+        return f"cages/{quote(row.cage_id, safe='')}"
+    if kind == "plasmid":
+        return f"plasmids/{row.plasmid_id}"
+    if kind == "experiment":
+        return f"experiments/{row.id}"
+    if kind == "inventory_item" and session is not None:
+        from .models import InventoryModule
+        module = session.get(InventoryModule, row.module_id_fk)
+        return f"inventories/{module.key}/items/{row.number}" if module is not None else None
+    return None
 
 
 def _rack_where(rack, row, col) -> str:
@@ -203,7 +226,8 @@ def _resolve_inventories(session, q: str, want, only_kind: str | None = None) ->
             bits = [f"{mv.item_noun.capitalize()} #{i.number}", i.name or "", i.category or "", i.status or "",
                     " ".join(b for b in (i.quantity or "", i.unit or "") if b), where, i.owner or ""]
             out.append(_hit("inventory_item", i, " · ".join(b for b in bits if b), module.label,
-                            number.isdigit() or (i.name or "").lower() == q.lower()))
+                            number.isdigit() or (i.name or "").lower() == q.lower(),
+                            path=f"inventories/{module.key}/items/{i.number}"))
     return out
 
 
@@ -290,7 +314,7 @@ def _database_labels(session) -> dict[str, str]:
 def vocabulary(session) -> dict:
     from . import organism_service as org_svc
     from . import stock_service as stock_svc
-    from .app import cage_purposes
+    from .app import _merged_choices, cage_purposes
     from .models import FISH_SEX_OPTIONS, FISH_STATUS_OPTIONS, MOUSE_STATUS_OPTIONS, TANK_PURPOSE_OPTIONS
     from .services import dropdown_options_map
     features = lab.request_features()
@@ -307,8 +331,11 @@ def vocabulary(session) -> dict:
                                           MouseRecord.transgene_4).where(MouseRecord.date_of_death.is_(None))):
             transgenes.update(t.strip() for t in row if t and t.strip())
         out["databases"].append({"kind": "mouse colony", "key": "colony", "label": labels.get("colony", "Mouse colony")})
+        in_use = session.scalars(select(MouseRecord.status).distinct())
         out["mouse_colony"] = {
-            "statuses": sorted(set(MOUSE_STATUS_OPTIONS) | set(options.get("status", []))),
+            # As the mouse sheet offers them: the built-in ones, the lab's
+            # own, then any others its mice have (app.mouse_sheet_meta).
+            "statuses": _merged_choices(MOUSE_STATUS_OPTIONS, options.get("status", []), in_use),
             "cage_purposes": cage_purposes(options),
             "strains": [n for (n,) in session.execute(select(StrainRecord.strain_name).order_by(StrainRecord.strain_name))],
             "transgenes_in_use": sorted(transgenes)[:300],
@@ -400,9 +427,10 @@ def due(session, days: int) -> list[dict]:
     for it in items:
         group, name, _url = tracks.get(it["track"], ("", "", ""))
         out.append({"due": it["due"].isoformat(), "status": it["status"], "title": it["title"],
-                    "detail": it.get("detail", ""), "database": group, "list": name,
+                    "detail": it.get("detail", ""), "database": it.get("database") or group, "list": name,
                     "where": (it.get("loc") or {}).get("text", ""), "owner": it.get("owner", ""),
-                    "ref": it.get("ref"), "propose": it.get("propose"),
+                    "ref": it.get("ref"), **({"mice": it["mice"]} if it.get("mice") else {}),
+                    "propose": it.get("propose"),
                     "url": request.host_url.rstrip("/") + it["url"] if it.get("url") else ""})
     out += _experiment_due(session, today, today + timedelta(days=days))
     out.sort(key=lambda i: i["due"])

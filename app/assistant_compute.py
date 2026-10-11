@@ -1157,12 +1157,13 @@ def reorder_forecast(session, within_days: int = 30, lead_days: int = 14, window
                 before, after = isvc.amount(pair[0]), isvc.amount(pair[1])
                 if before is not None and after is not None:
                     changes.setdefault(e.record_id, []).append((e.changed_at, before, after))
-    out, unknown = [], 0
+    out, unknown = [], []
     for item, quantity in items:
         start = max(since, item.created_at or since)
         rate = usage_rate(changes.get(item.id, []), start, now)
         if rate is None:
-            unknown += 1
+            unknown.append({"ref": {"kind": "inventory_item", "id": item.id}, "name": item.name or "",
+                            "database": modules[item.module_id_fk].label, "number": item.number})
             continue
         days_left = quantity / rate["per_day"] if rate["per_day"] else None
         if days_left is None or days_left > within_days:
@@ -1253,7 +1254,25 @@ def lab_checks(session, weight_loss_pct: float = 15, breeder_weeks: int | None =
           "The person approves or discards each on Proposed changes.")
     checks.sort(key=lambda c: (SEVERITY.index(c["severity"]), c["id"]))
     return {"today": today.isoformat(), "scope": scope, "checks": checks,
-            "summary": {s: sum(c["count"] for c in checks if c["severity"] == s) for s in SEVERITY}}
+            "summary": {s: _distinct(c for c in checks if c["severity"] == s) for s in SEVERITY},
+            "summary_note": "Records needing attention at each severity, each once though it may be in two "
+                              "checks (expired and overdue, expiring and low); each check keeps its own count."}
+
+
+def _distinct(checks) -> int:
+    """How many items these checks hold, a record in two of them once: by
+    its reference, as often as the check that has it most (two overdue jobs
+    on one cage are two)."""
+    most: dict = {}
+    for c in checks:
+        seen: dict = {}
+        for n, item in enumerate(c["items"]):
+            ref = item.get("ref")
+            key = (ref.get("kind"), ref.get("id")) if isinstance(ref, dict) else (c["id"], n)
+            seen[key] = seen.get(key, 0) + 1
+        for key, times in seen.items():
+            most[key] = max(most.get(key, 0), times)
+    return sum(most.values())
 
 
 def _weight_loss(session, pct: float, owner: str | None) -> list[dict]:
