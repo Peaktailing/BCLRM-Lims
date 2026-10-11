@@ -9,7 +9,7 @@ alembic==1.14.0                       # schema migrations (see migrations/)
 
 segno==1.6.1                          # pure-python QR codes for cage cards
 openpyxl==3.1.5                       # reading Excel sheets people import (app/sheet_import.py)
-pyrage==1.2.3                         # the lab's key: backups and lab files only the lab can open (app/lab_key.py)
+pyrage==1.2.5                         # the lab's key: backups and lab files only the lab can open (app/lab_key.py)
 
 # Calendar integrations
 icalendar==6.1.1                     # parse ICS subscription feeds
