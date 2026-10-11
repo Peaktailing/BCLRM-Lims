@@ -4,8 +4,9 @@
   --brand: #0f7a6b; --brand-soft: #e2f2ef; --warn: #9a5b0c; --warn-soft: #fbf0df; --bad: #a3302d;
   color-scheme: light;
 }
+/* Dark with the device, as the app's own pages are (a page can say data-theme="light"). */
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #121817; --surface: #1a2221; --ink: #e4ecea; --muted: #9aa8a5; --rule: #2a3533;
+  :root:not([data-theme="light"]) { --bg: #121817; --surface: #1a2221; --ink: #e4ecea; --muted: #9aa8a5; --rule: #2a3533;
           --brand: #4cc5b0; --brand-soft: #15332e; --warn: #e3a95a; --warn-soft: #33270f; --bad: #ef8a85;
           color-scheme: dark; }
 }
@@ -32,7 +33,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .search { display: block; }
 .search input { width: 100%; margin-top: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--rule);
                 background: var(--surface); }
-.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; }
+.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
 .tabs button { border: 0; background: none; padding: 8px 12px; border-bottom: 2px solid transparent; color: var(--muted);
                cursor: pointer; white-space: nowrap; }
 .tabs button[aria-current="true"] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }

@@ -3,6 +3,7 @@
 
     python scripts/assistant-packages.py           # writes them
     python scripts/assistant-packages.py --check   # lists files out of date, exits 1 if any
+    python scripts/assistant-packages.py --openai-zip   # dist/biomanager-chatgpt-<version>.zip, for ChatGPT's directory
 
 A person adds the plugin once, in their assistant app; from then on "I
 want to change something in BioManager" is enough. It carries a skill (how
@@ -50,6 +51,16 @@ REPO = "https://github.com/gaspolymerase/biomanager"
 
 DESCRIPTION = ("Tell your assistant what you did in the lab, in your words or with a photo of your notes; it "
                "proposes the records in your lab's BioManager, and you approve them there.")
+
+LONG_DESCRIPTION = (
+    "BioManager keeps a lab's animals, stocks and notebook in one place: mice, zebrafish, flies, worms, plasmids, "
+    "samples, reagents and experiments. It is free and open source, and each lab runs its own, on a desktop or a lab "
+    "server.\n\nThis plugin teaches the assistant to work with your lab's BioManager. Tell it what you did, in your "
+    "words or with a photo of your notes, and it looks up each record and sends one proposal, which you approve in "
+    "BioManager; it never changes anything itself. It can also answer questions about your records, and plan with "
+    "numbers BioManager works out from them: breeding, animals per group, random groups, a whole experiment.\n\n"
+    "Connect your own BioManager too: Help → Connect an AI assistant in BioManager shows its address, which you add "
+    "as a custom MCP server.")
 
 SKILL_DESCRIPTION = (
     "Record and look up a lab's work in BioManager, the lab's database of animals (mice, zebrafish, flies, worms "
@@ -163,13 +174,16 @@ def portable_json() -> dict:
         "keywords": plugin_json()["keywords"],
         "extensions": {"com.openai": {"interface": {
             "displayName": "BioManager",
-            "shortDescription": "Record your lab work in BioManager, for you to approve",
-            "longDescription": DESCRIPTION,
+            "shortDescription": "Lab records from your words",     # 30 at most, for the directory
+            "longDescription": LONG_DESCRIPTION,
             "developerName": "BioManager",
-            "category": "Productivity",
+            "category": "Education & Research",
             "websiteURL": SITE,
             "privacyPolicyURL": plugin_json()["privacyPolicyUrl"],
+            "supportURL": f"{REPO}/issues",
             "defaultPrompt": "I want to record what I did in the lab today in BioManager.",
+            "composerIcon": "./assets/icon.svg",
+            "logo": "./assets/icon.svg",
         }}},
     }
 
@@ -212,6 +226,7 @@ def files() -> dict[Path, str]:
         PLUGIN / ".cursor-plugin" / "plugin.json": _json(cursor_json()),
         PLUGIN / "skills" / "biomanager" / "SKILL.md": skill(),
         PLUGIN / "icon.svg": (ROOT / "app" / "static" / "icon.svg").read_text(encoding="utf-8"),
+        PLUGIN / "assets" / "icon.svg": (ROOT / "app" / "static" / "icon.svg").read_text(encoding="utf-8"),
     }
     for slug, (title, hint, text) in commands("$ARGUMENTS").items():
         out[PLUGIN / "commands" / f"{slug}.md"] = command_file(title, hint, text)
@@ -229,7 +244,25 @@ def stale() -> list[Path]:
             if not p.exists() or p.read_text(encoding="utf-8") != text]
 
 
+# What ChatGPT's plugin directory takes (platform.openai.com/plugins): a
+# skills-only package, its manifest at the root. No MCP server: each lab's
+# address is its own, added by each person as a custom MCP server.
+OPENAI_FILES = ("plugin.json", "README.md", "assets/icon.svg", "skills/biomanager/SKILL.md")
+
+
+def openai_zip(out: Path) -> Path:
+    import zipfile
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in OPENAI_FILES:
+            z.write(PLUGIN / name, name)
+    return out
+
+
 def main() -> None:
+    if "--openai-zip" in sys.argv:
+        print(f"wrote {openai_zip(ROOT / 'dist' / f'biomanager-chatgpt-{VERSION}.zip').relative_to(ROOT)}")
+        return
     if "--check" in sys.argv:
         old = stale()
         for p in old:
