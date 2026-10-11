@@ -1691,7 +1691,7 @@ The Connect page shows two addresses, both ending in `/api/v1/mcp`: the **connec
 
 Needs the lab's server on the internet. Do these on claude.ai or in the desktop app; the phone app then has it too.
 
-1. **Add the plugin.** Open **Customize → Plugins**, choose **Add → Add marketplace**, enter `gaspolymerase/biomanager`, then open **BioManager** and press **Add**. Once BioManager is listed in Claude's directory, you can find it under **Discover** instead.
+1. **Add the plugin.** Open **Customize → Plugins**, choose **Add → Add marketplace**, enter `gaspolymerase/biomanager`, then open **BioManager** and press **Add**. Or download **Plugin for Claude** from the [Download page](https://biomanager.org/download#ai-plugin) and choose **Add → Upload plugin** with the zip. Once BioManager is listed in Claude's directory, you can find it under **Discover** instead.
 
 2. **Add the connector.** Open the plugin's **Connectors** tab (or **Customize → Connectors**), choose **Add custom connector**, name it *BioManager*, and paste the **connector address** from the Connect page.
 
@@ -1731,7 +1731,9 @@ Needs the lab's server on the internet, and ChatGPT on the web: ChatGPT's phone 
 
 3. When it asks you to sign in, a BioManager page asks for a **connection code**: get one on the Connect page, type it in, and press **Allow**.
 
-4. In a chat, choose BioManager (type `@`) and say *I want to change something in BioManager*. Under its permissions, **Allow read actions** stops it asking before every look-up.
+4. To have ChatGPT know BioManager without explaining it, add the plugin too: download **Plugin for ChatGPT** from the [Download page](https://biomanager.org/download#ai-plugin), upload it at **platform.openai.com/plugins** and share it with your lab; each person then installs it. If someone in your lab already shared it with you, just install it.
+
+5. In a chat, choose BioManager (type `@`) and say *I want to change something in BioManager*. Under its permissions, **Allow read actions** stops it asking before every look-up.
 
 #### Codex
 

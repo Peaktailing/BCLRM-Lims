@@ -267,15 +267,24 @@ jobs:
     permissions:
       contents: write
     steps:
-      # What's new in this version, written for the labs (docs/release-notes/<version>.md).
+      # What's new in this version, written for the labs (docs/release-notes/<version>.md),
+      # and the plugin for AI assistants, zipped by its script (standard library only).
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: docs/release-notes
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            docs/release-notes
+            plugins/biomanager
+            scripts/assistant-packages.py
+            app/__init__.py
+            app/assistant_tools.py
       - uses: actions/download-artifact@v8
         with:
           path: assets
           pattern: "{desktop-*,BioManager-Android.apk,server-bundle}"
           merge-multiple: true
+      - name: The plugin for AI assistants
+        run: python3 scripts/assistant-packages.py --zips assets
       - run: ls -la assets
       - name: Publish
         env:
@@ -295,6 +304,8 @@ jobs:
           | `biomanager-server.tar.gz` | A lab server: the deploy files. [How to set one up](https://biomanager.org/server.html) |
           | `biomanager-image-amd64.tar.gz` | The lab server's app for Intel/AMD machines, loaded by the bundle's `host/load-image.sh` |
           | `biomanager-image-arm64.tar.gz` | The same for ARM machines, such as Oracle Cloud's free Ampere VMs |
+          | `BioManager-plugin-Claude.zip` | The plugin that teaches Claude to work with BioManager: Customize → Plugins → Add → Upload plugin. [Connecting an assistant](https://biomanager.org/guide/connect-an-ai-assistant) |
+          | `BioManager-plugin-ChatGPT.zip` | The same for ChatGPT, to upload at platform.openai.com/plugins and share with your lab |
 
           **First launch:** on a Mac, right-click BioManager and choose **Open**; on Windows, choose **More info → Run anyway**. The apps are not signed by Apple or Microsoft, so the system asks once. On Android, allow your browser to install apps when asked.
 

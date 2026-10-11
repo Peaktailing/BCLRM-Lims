@@ -725,8 +725,9 @@ database has a name of its own (one another database has is refused), so
       photo of your notebook, and it sends one proposal: you <b>Approve</b>
       it whole in BioManager, or <b>Discard</b> it. It never changes
       anything itself, and an approved proposal can be undone like any batch.
-      Add the <b>BioManager plugin</b> once (Claude, Codex, VS Code, Qwen Code)
-      and "I want to change something in BioManager" is all you need to say.
+      Add the <b>BioManager plugin</b> once (Claude, Codex, VS Code, Qwen Code,
+      or download it for Claude and ChatGPT from the Download page) and "I want
+      to change something in BioManager" is all you need to say.
       At the bench, a <b>Capture</b> (words, dictation or a photo) waits
       for it until later. It can also plan with you: breeding, animals per
       group, random groups, a whole experiment, worked out by BioManager

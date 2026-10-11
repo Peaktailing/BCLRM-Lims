@@ -47,6 +47,19 @@ class AssistantPackages(unittest.TestCase):
         for name in packages.OPENAI_FILES:
             self.assertTrue((packages.PLUGIN / name).is_file(), name)
 
+    def test_the_two_downloads_hold_what_each_app_takes(self):
+        import tempfile
+        import zipfile
+        with tempfile.TemporaryDirectory() as folder:
+            claude, chatgpt = packages.write_zips(Path(folder))
+            with zipfile.ZipFile(claude) as z:
+                names = set(z.namelist())
+            self.assertTrue({".claude-plugin/plugin.json", "skills/biomanager/SKILL.md", "README.md"} <= names)
+            self.assertIn("commands/log-today.md", names)
+            with zipfile.ZipFile(chatgpt) as z:
+                self.assertEqual(sorted(z.namelist()), sorted(packages.OPENAI_FILES))
+            self.assertNotIn(".claude-plugin/plugin.json", packages.OPENAI_FILES)  # one manifest, skills only
+
     def test_the_skill_carries_the_instructions_and_says_how_to_connect(self):
         text = (packages.PLUGIN / "skills" / "biomanager" / "SKILL.md").read_text(encoding="utf-8")
         front = re.match(r"---\nname: biomanager\ndescription: (.+)\n---\n", text)

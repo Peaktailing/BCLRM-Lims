@@ -175,7 +175,8 @@
       <ol class="steps">
         <li><b>添加插件。</b> 打开 <b>Customize → Plugins</b>，选 <b>Add → Add marketplace</b>，输入
           <code>gaspolymerase/biomanager</code>，再打开 <b>BioManager</b>，按 <b>Add</b>。<span class="sub">等 BioManager
-          上架 Claude 的插件目录后，也可以直接在 <b>Discover</b> 里找到它。</span></li>
+          上架 Claude 的插件目录后，也可以直接在 <b>Discover</b> 里找到它。也可以从 <a href="../download.html#ai-plugin">下载页</a>
+          下载 <b>Claude 插件</b>，选 <b>Add → Upload plugin</b> 上传这个 zip。</span></li>
         <li><b>添加连接器。</b> 打开插件的 <b>Connectors</b> 标签（或 <b>Customize → Connectors</b>），选 <b>Add custom
           connector</b>，名字填 <i>BioManager</i>，粘贴连接页面上的 <b>连接器地址</b>。</li>
         <li><b>连接。</b> 按 <b>Connect</b>。会打开一个 BioManager 页面，要你输入 <b>连接码</b>。在连接页面（在实验室网络里）
@@ -213,6 +214,8 @@
         <li>名字填 <i>BioManager</i>，粘贴 <b>连接器地址</b>，选 <b>OAuth</b>，按 <b>I understand and want to continue</b>
           确认，然后 <b>Create as a plugin</b> 并安装。</li>
         <li>要求登录时，会有一个 BioManager 页面要你输入 <b>连接码</b>：在连接页面获取一个，输进去，按 <b>允许</b>。</li>
+        <li>想让 ChatGPT 不用解释就会用 BioManager，再加上插件：从 <a href="../download.html#ai-plugin">下载页</a> 下载 <b>ChatGPT 插件</b>，
+          在 <b>platform.openai.com/plugins</b> 上传，再分享给实验室成员，每个人安装即可。如果实验室里已经有人分享给你，直接安装就行。</li>
         <li>在对话里选择 BioManager（输入 <code>@</code>），说 <i>我想在 BioManager 里改点东西</i>。在它的权限里选 <b>Allow read actions</b>，它就不会每次查找前都问你。</li>
       </ol>
 
@@ -306,7 +309,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="本页内容">
-      <p>本页内容 · 阅读约 5 分钟</p>
+      <p>本页内容 · 阅读约 6 分钟</p>
       <ol>
         <li class="lvl2"><a href="#reach">你的应用能连上 BioManager 吗？</a></li>
         <li class="lvl2"><a href="#claude">Claude</a></li>

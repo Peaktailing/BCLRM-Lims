@@ -3,7 +3,7 @@
 
     python scripts/assistant-packages.py           # writes them
     python scripts/assistant-packages.py --check   # lists files out of date, exits 1 if any
-    python scripts/assistant-packages.py --openai-zip   # dist/biomanager-chatgpt-<version>.zip, for ChatGPT's directory
+    python scripts/assistant-packages.py --zips dist    # the two downloads: BioManager-plugin-Claude.zip and -ChatGPT.zip
 
 A person adds the plugin once, in their assistant app; from then on "I
 want to change something in BioManager" is enough. It carries a skill (how
@@ -250,18 +250,34 @@ def stale() -> list[Path]:
 OPENAI_FILES = ("plugin.json", "README.md", "assets/icon.svg", "skills/biomanager/SKILL.md")
 
 
-def openai_zip(out: Path) -> Path:
+def plugin_files() -> list[str]:
+    """Everything in the plugin folder, as Claude's Add → Upload plugin takes it."""
+    names = [str(p.relative_to(PLUGIN)) for p in files() if PLUGIN in p.parents]
+    return sorted(names + ["README.md"])
+
+
+# The downloads each release carries (.github/workflows/release.yml), and the
+# website links to: the plugin for Claude, and the skills-only one for ChatGPT.
+ZIPS = {"BioManager-plugin-Claude.zip": plugin_files, "BioManager-plugin-ChatGPT.zip": lambda: list(OPENAI_FILES)}
+
+
+def write_zips(folder: Path) -> list[Path]:
     import zipfile
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for name in OPENAI_FILES:
-            z.write(PLUGIN / name, name)
+    folder.mkdir(parents=True, exist_ok=True)
+    out = []
+    for name, members in ZIPS.items():
+        with zipfile.ZipFile(folder / name, "w", zipfile.ZIP_DEFLATED) as z:
+            for member in members():
+                z.write(PLUGIN / member, member)
+        out.append(folder / name)
     return out
 
 
 def main() -> None:
-    if "--openai-zip" in sys.argv:
-        print(f"wrote {openai_zip(ROOT / 'dist' / f'biomanager-chatgpt-{VERSION}.zip').relative_to(ROOT)}")
+    if "--zips" in sys.argv:
+        folder = Path(sys.argv[sys.argv.index("--zips") + 1]).resolve()
+        for path in write_zips(folder):
+            print(f"wrote {path}")
         return
     if "--check" in sys.argv:
         old = stale()
