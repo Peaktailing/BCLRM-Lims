@@ -104,5 +104,11 @@
   "The BioManager plugin for Claude and for ChatGPT is a download on every release and on the Download page.": "Claude 和 ChatGPT 用的 BioManager 插件，现在每个版本和下载页面都可以直接下载。",
   "**Allow** on an assistant app's sign-in page now goes back to the app and connects it.": "在 AI 助手应用的登录页上点 **允许**，现在会回到那个应用并完成连接。",
   "**Help → What's new** shows the newest notes on a lab server built from its source code.": "从源代码搭建的实验室服务器上，**帮助 → 新功能** 会显示最新的新功能说明。",
-  "**Settings → Version** is a pane of its own: which BioManager this is, What's new, and on a lab server **Update now**, which moved here from Devices & copies.": "**设置 → 版本** 成了单独的一页：这是哪个版本、新功能，以及实验室服务器上的 **立即更新**（从“设备与副本”搬到了这里）。"
+  "**Settings → Version** is a pane of its own: which BioManager this is, What's new, and on a lab server **Update now**, which moved here from Devices & copies.": "**设置 → 版本** 成了单独的一页：这是哪个版本、新功能，以及实验室服务器上的 **立即更新**（从“设备与副本”搬到了这里）。",
+  "**Verify sequencing** on a plasmid's **Sequence** tab checks Sanger reads against its map: every difference, what it does to a protein, and a verdict for the clone.": "质粒 **序列** 标签页的 **核对测序结果** 把 Sanger 测序结果与图谱比对：列出每处差异、对蛋白的影响，并给出克隆的结论。",
+  "An experiment's readout can be worked out by BioManager from what you measure: tumour volume from calipers, ΔCt, ΔΔCt and fold change, % of a baseline.": "实验的观测指标可以由 BioManager 根据测量值算出：卡尺测的肿瘤体积、ΔCt、ΔΔCt 和倍数变化、相对基线的百分比。",
+  "A reagent kept in ampoules or vials can say what one holds, so using 2 mL takes the right part of one off.": "按安瓿或瓶计数的试剂可以写明每个装多少，用掉 2 mL 就会扣掉相应的一部分。",
+  "For AI assistants: an animal-use report for the annual review, a handover for someone leaving, and sequencing checks from reads uploaded as **Captures**.": "AI 助手新增：年度审查用的动物使用报告、成员离开时的交接清单，以及用上传为 **速记** 的测序结果做核对。",
+  "The plugin for Claude and ChatGPT is on the website's Download page.": "Claude 和 ChatGPT 的插件可以在网站下载页下载。",
+  "For scripts: a plasmid's API answer leaves out its sequence unless asked with sequence=1.": "使用脚本请注意：质粒的 API 返回默认不含序列，需要时加 sequence=1。"
 }

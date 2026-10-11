@@ -30,6 +30,18 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.8.0": {
+        "new": [
+            "**Verify sequencing** on a plasmid's **Sequence** tab checks Sanger reads against its map: every difference, what it does to a protein, and a verdict for the clone.",
+            "An experiment's readout can be worked out by BioManager from what you measure: tumour volume from calipers, ΔCt, ΔΔCt and fold change, % of a baseline.",
+            "A reagent kept in ampoules or vials can say what one holds, so using 2 mL takes the right part of one off.",
+            "For AI assistants: an animal-use report for the annual review, a handover for someone leaving, and sequencing checks from reads uploaded as **Captures**.",
+            "The plugin for Claude and ChatGPT is on the website's Download page.",
+        ],
+        "changed": [
+            "For scripts: a plasmid's API answer leaves out its sequence unless asked with sequence=1.",
+        ],
+    },
     "1.7.5": {
         "changed": [
             "**Settings → Version** is a pane of its own: which BioManager this is, What's new, and on a lab server **Update now**, which moved here from Devices & copies.",
