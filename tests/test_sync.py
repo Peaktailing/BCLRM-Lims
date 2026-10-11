@@ -65,9 +65,9 @@ class Snapshot(SyncCase):
     def test_the_snapshot_holds_the_colony_and_this_person_s_to_dos(self):
         colony = self.make_colony(self.t, self.tech, purpose="Breeding")
         execute("insert into tasks (title, owner, is_shared, status, priority, color, notes, created_at, sync_version) "
-                "values (?, ?, 0, 'todo', 'medium', '', '', '2026-10-01', 0)", "mine to do", self.tech)
+                "values (?, ?, false, 'todo', 'medium', '', '', '2026-10-01', 0)", "mine to do", self.tech)
         execute("insert into tasks (title, owner, is_shared, status, priority, color, notes, created_at, sync_version) "
-                "values (?, ?, 0, 'todo', 'medium', '', '', '2026-10-01', 0)", "someone else's", self.other)
+                "values (?, ?, false, 'todo', 'medium', '', '', '2026-10-01', 0)", "someone else's", self.other)
         snap = self.snapshot()
         self.assertGreater(snap["cursor"], 0)
         self.assertEqual(snap["user"]["username"], self.tech)
@@ -188,7 +188,7 @@ class Push(SyncCase):
 
     def test_a_to_do_ticked_offline_stays_done(self):
         execute("insert into tasks (title, owner, is_shared, status, priority, color, notes, created_at, sync_version) "
-                "values (?, ?, 0, 'todo', 'medium', '', '', '2026-10-01', 0)", "change the water", self.tech)
+                "values (?, ?, false, 'todo', 'medium', '', '', '2026-10-01', 0)", "change the water", self.tech)
         task = one("select id from tasks where title='change the water' and owner=?", self.tech)
         [done] = self.push(op("task_done", {"kind": "task", "id": task}))
         self.assertEqual(done["result"], "applied", done)
