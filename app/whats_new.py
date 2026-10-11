@@ -30,6 +30,20 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.6.0": {
+        "new": [
+            "The BioManager plugin for AI assistants: add it once, and \"I want to change something in BioManager\" is all you need to say. **Help → Connect an AI assistant** has the steps for each app.",
+            "**Captures**: at the rack, write it down, dictate or take a photo now; your assistant turns it into records later.",
+            "Each proposed change shows where it came from, and **Send back** returns a proposal with a line saying what to correct.",
+            "Assistants can propose inventory items, orders received, plasmids, primers, notebook pages and calendar events too.",
+            "Assistants plan with BioManager's own numbers: animals available, breeding plans, animals per group, random groups, the week's checks and an experiment's methods.",
+            "**Planned** experiments: nothing is due until **Start**; after that, changes to the plan ask why and are listed under **Changes from the plan**.",
+        ],
+        "changed": [
+            "**Add to Cursor**, **Add to VS Code** and **Add to Cherry Studio** on the Connect page; ChatGPT stays connected.",
+            "A member's lab copy leaves out other people's personal to-dos and events.",
+        ],
+    },
     "1.5.8": {
         "new": [
             "In the Mac app, beside the window's buttons: hide the sidebar, search everything, and go back and forward.",

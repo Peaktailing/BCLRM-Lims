@@ -84,5 +84,13 @@
   "On macOS 26, the window's close, minimise and zoom buttons are the size other apps' are, and the app has the system's current look.": "在 macOS 26 上，窗口的关闭、最小化和缩放按钮与其他应用一样大，整个应用也换上了系统当前的外观。",
   "With the sidebar collapsed, the window's buttons sit at the left of the top row, before your tabs, instead of hanging over the sidebar.": "侧边栏收起时，窗口按钮位于顶部一行的左侧、标签页之前，不再压在侧边栏上。",
   "In the Mac app, beside the window's buttons: hide the sidebar, search everything, and go back and forward.": "Mac 应用里，窗口按钮旁边多了几个按钮：隐藏侧边栏、全局搜索、后退和前进。",
-  "A collapsed sidebar shows each place's name under its icon, and keeps **Settings** and **Help** at its foot.": "收起的侧边栏在每个图标下面写着名字，**设置** 和 **帮助** 固定在底部。"
+  "A collapsed sidebar shows each place's name under its icon, and keeps **Settings** and **Help** at its foot.": "收起的侧边栏在每个图标下面写着名字，**设置** 和 **帮助** 固定在底部。",
+  "The BioManager plugin for AI assistants: add it once, and \"I want to change something in BioManager\" is all you need to say. **Help → Connect an AI assistant** has the steps for each app.": "AI 助手的 BioManager 插件：添加一次，以后只说“我想在 BioManager 里改点东西”就行。**帮助 → 连接 AI 助手** 有每个应用的步骤。",
+  "**Captures**: at the rack, write it down, dictate or take a photo now; your assistant turns it into records later.": "**速记**：在鼠架前先写下、口述或拍照，之后由助手变成记录。",
+  "Each proposed change shows where it came from, and **Send back** returns a proposal with a line saying what to correct.": "每处提议的修改都写明依据；**退回** 可以把提议退给助手，并写一句要改什么。",
+  "Assistants can propose inventory items, orders received, plasmids, primers, notebook pages and calendar events too.": "助手还能提议库存物品、订单到货、质粒、引物、实验记录页和日历事件。",
+  "Assistants plan with BioManager's own numbers: animals available, breeding plans, animals per group, random groups, the week's checks and an experiment's methods.": "助手用 BioManager 自己算出的数字做计划：可用的动物、繁殖计划、每组需要多少只、随机分组、每周检查和实验方法。",
+  "**Planned** experiments: nothing is due until **Start**; after that, changes to the plan ask why and are listed under **Changes from the plan**.": "**计划中** 的实验：按 **开始** 之前没有待办；开始之后修改计划会问原因，并列在 **与计划的不同** 里。",
+  "**Add to Cursor**, **Add to VS Code** and **Add to Cherry Studio** on the Connect page; ChatGPT stays connected.": "连接页面新增 **添加到 Cursor**、**添加到 VS Code** 和 **添加到 Cherry Studio**；ChatGPT 能保持连接。",
+  "A member's lab copy leaves out other people's personal to-dos and events.": "成员导出的实验室副本不再包含别人的个人待办和日程。"
 }
