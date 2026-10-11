@@ -40,6 +40,8 @@ class Tools(Base):
         overview = bm.lab_overview(api)
         self.assertEqual(overview["you"]["username"], self.member)
         self.assertEqual(overview["lab"]["today"], days_ago(0))
+        self.assertEqual(overview["how_to_work"], bm.INSTRUCTIONS)
+        self.assertIsInstance(overview["due_today"], list)
         [hit] = bm.resolve(api, f"cage {code}")
         self.assertEqual(hit["ref"], {"kind": "cage", "id": cage})
         self.assertIn("litter_born", bm.describe_actions(bm.list_actions(api)))

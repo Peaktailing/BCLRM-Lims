@@ -13,10 +13,20 @@
   {% if not allowed %}
     <section class="card p-5"><p class="text-[13px] text-muted">{{ _('In this lab, only admins can connect tools. Ask one to switch on tokens for members in Settings → People & access.') }}</p></section>
   {% else %}
+  <section class="card p-5" id="plugin">
+    <h2 class="text-[15px] font-semibold text-ink">{{ _('Teach your assistant BioManager, once') }}</h2>
+    <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Add the BioManager plugin to your assistant and you never need to explain BioManager again: say what you did, or just “I want to change something in BioManager”. The plugin teaches it how to work; connect it to this lab below.') }}</p>
+    <ul class="mt-2 flex list-disc flex-col gap-1 pl-5 text-[12.5px] leading-snug text-muted">
+      <li>{{ _('Claude (the apps and Claude Code): Customize → Plugins → Add marketplace, enter %(repo)s, then add BioManager.', repo=marketplace) }}</li>
+      <li>{{ _('Codex: run %(command)s, then install BioManager from its plugins.', command='codex plugin marketplace add ' ~ marketplace) }}</li>
+      <li>{{ _('VS Code (GitHub Copilot), Cursor, Qwen Code and Kimi take plugins from GitHub too: add it from %(repo)s.', repo=marketplace) }}</li>
+    </ul>
+  </section>
+
   <section class="card p-5" id="connector">
     <h2 class="text-[15px] font-semibold text-ink">{{ _('claude.ai, the Claude apps or ChatGPT') }}</h2>
     {% if public %}
-      <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Add BioManager as a custom connector (Claude: Settings → Connectors → Add custom connector; ChatGPT: Settings → Connectors, in developer mode) with this address. When it asks you to sign in, enter a connection code.') }}</p>
+      <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Add BioManager as a custom connector (Claude: Settings → Connectors → Add custom connector; ChatGPT, on the web: Plugins → + → Add custom MCP server) with this address. When it asks you to sign in, enter a connection code.') }}</p>
       <pre class="mt-2 overflow-x-auto rounded-lg bg-sand-100 p-3 font-mono text-[12px] text-ink" id="connector-url">{{ connector_url }}</pre>
       <button type="button" class="btn btn-sm mt-2" data-on-click="copy-text" data-arg="connector-url">{{ icon('copy') }} {{ _('Copy') }}</button>
       {% if code %}
@@ -41,15 +51,30 @@
     <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Copy this message into a chat with your coding assistant and send it. It adds BioManager by itself, then asks you to sign in.') }}</p>
     <pre class="mt-2 whitespace-pre-wrap rounded-lg bg-sand-100 p-3 font-mono text-[12px] leading-relaxed text-ink" id="agent-message">{{ _("Please connect yourself to our lab's BioManager. It is an MCP server at %(url)s (streamable HTTP) that signs in with OAuth.", url=local_url) }}
 {{ _('In Claude Code, run: %(command)s', command='claude mcp add --transport http --scope user biomanager ' ~ local_url) }}
+{{ _('In Codex, run: %(command)s, then %(login)s.', command='codex mcp add biomanager --url ' ~ local_url, login='codex mcp login biomanager') }}
 {{ _('In Cursor, add it to ~/.cursor/mcp.json under "mcpServers" as "biomanager": {"url": "%(url)s"}. Other apps: add that address in their MCP settings.', url=local_url) }}
 {{ _('Then tell me how to sign in (in Claude Code I type /mcp and choose biomanager); BioManager opens in my browser and I press Allow.') }}
 {{ _('Once connected, call its lab_overview tool and tell me what this lab keeps. From then on you read the lab and propose changes for me to approve; never guess a record, ask me.') }}</pre>
     <button type="button" class="btn btn-sm mt-2" data-on-click="copy-text" data-arg="agent-message">{{ icon('copy') }} {{ _('Copy the message') }}</button>
 
+    <h3 class="mt-5 text-[13px] font-semibold text-ink">{{ _('One click, in Cursor, VS Code or Cherry Studio') }}</h3>
+    <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Each button opens the app, which asks before adding BioManager. Then sign in: BioManager opens in your browser, and you press Allow.') }}</p>
+    <div class="mt-2 flex flex-wrap gap-2">
+      {% for app_name, href in links %}
+        <a class="btn btn-sm" href="{{ href }}">{{ icon('plus') }} {{ _('Add to %(app)s', app=app_name) }}</a>
+      {% endfor %}
+    </div>
+
     <h3 class="mt-5 text-[13px] font-semibold text-ink">{{ _('Or yourself, in Claude Code: sign in, no token') }}</h3>
     <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Run this in a terminal, then type /mcp in Claude Code and choose biomanager. BioManager opens in your browser: press Allow.') }}</p>
     <pre class="mt-2 overflow-x-auto rounded-lg bg-sand-100 p-3 font-mono text-[12px] text-ink" id="signin-cli">claude mcp add --transport http --scope user biomanager {{ local_url }}</pre>
     <button type="button" class="btn btn-sm mt-2" data-on-click="copy-text" data-arg="signin-cli">{{ icon('copy') }} {{ _('Copy') }}</button>
+
+    <h3 class="mt-5 text-[13px] font-semibold text-ink">{{ _('Or in Codex') }}</h3>
+    <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _('Run these in a terminal. BioManager opens in your browser: press Allow.') }}</p>
+    <pre class="mt-2 overflow-x-auto rounded-lg bg-sand-100 p-3 font-mono text-[12px] text-ink" id="signin-codex">codex mcp add biomanager --url {{ local_url }}
+codex mcp login biomanager</pre>
+    <button type="button" class="btn btn-sm mt-2" data-on-click="copy-text" data-arg="signin-codex">{{ icon('copy') }} {{ _('Copy') }}</button>
 
     <h3 class="mt-5 text-[13px] font-semibold text-ink">{{ _('Or with a token') }}</h3>
     <p class="mt-1 text-[12.5px] leading-snug text-muted">{{ _("For an app that can't sign in, and for Claude Desktop: make a token that may read and propose; the next page shows the setup to copy for each app.") }}</p>

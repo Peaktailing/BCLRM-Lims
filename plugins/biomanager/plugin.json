@@ -1,0 +1,37 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "biomanager",
+  "version": "1.0.0",
+  "description": "Tell your assistant what you did in the lab, in your words or with a photo of your notes; it proposes the records in your lab's BioManager, and you approve them there.",
+  "author": {
+    "name": "BioManager",
+    "url": "https://biomanager.org"
+  },
+  "homepage": "https://biomanager.org/guide/ai-assistants",
+  "repository": "https://github.com/gaspolymerase/biomanager",
+  "license": "MIT",
+  "keywords": [
+    "lab",
+    "laboratory",
+    "mouse colony",
+    "zebrafish",
+    "drosophila",
+    "lab notebook",
+    "animal facility",
+    "LIMS"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "BioManager",
+        "shortDescription": "Record your lab work in BioManager, for you to approve",
+        "longDescription": "Tell your assistant what you did in the lab, in your words or with a photo of your notes; it proposes the records in your lab's BioManager, and you approve them there.",
+        "developerName": "BioManager",
+        "category": "Productivity",
+        "websiteURL": "https://biomanager.org",
+        "privacyPolicyURL": "https://github.com/gaspolymerase/biomanager/blob/master/plugins/biomanager/README.md#privacy",
+        "defaultPrompt": "I want to record what I did in the lab today in BioManager."
+      }
+    }
+  }
+}

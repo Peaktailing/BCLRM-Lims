@@ -25,10 +25,22 @@ token.
   An app that can't sign in takes the address and `Authorization: Bearer
   <token>`, from **Make a token** on the same page, which shows the setup.
 
+- **Codex**: `codex mcp add biomanager --url <address>`, then
+  `codex mcp login biomanager`. **Cursor**, **VS Code** and **Cherry Studio**:
+  the **Add to …** buttons on the same page, with the address filled in.
+
 - **claude.ai, the Claude apps and ChatGPT**, as a custom connector, when
   your lab's server is on the internet (`deploy/host/internet-access.sh`):
   the address `https://<server>:8443/api/v1/mcp`, signed in with OAuth and a
-  one-time connection code from the same page.
+  one-time connection code from the same page. (ChatGPT, on the web:
+  Plugins → + → Add custom MCP server.)
+
+**The BioManager plugin** (`plugins/biomanager/`) is what an assistant
+learns BioManager from: a skill and three commands, made from the same words
+as these tools by `scripts/assistant-packages.py`. Add it once from the
+`gaspolymerase/biomanager` marketplace (Claude: Customize → Plugins → Add
+marketplace; Codex: `codex plugin marketplace add gaspolymerase/biomanager`),
+and "I want to change something in BioManager" is enough to start.
 
 Use this program for **Claude Desktop** on the lab network (Desktop's own
 connectors go through the internet), or for an app that only starts

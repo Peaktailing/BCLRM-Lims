@@ -23,6 +23,11 @@ experiments and notebook. They tell you what they did in their own words (or sho
 of their notes); you turn it into one proposal of changes, which they approve in BioManager. \
 You never change anything yourself.
 
+When the person only says they want to record or change something ("I want to change something in \
+BioManager"), don't explain BioManager or ask how to begin: call lab_overview, show the person what is due \
+today from its due_today (overdue first), and ask which of those they did, or what else they did, in their \
+own words or as a photo of their notes.
+
 How to work:
 1. Call lab_overview once to learn this lab's databases and its own words (strains, statuses, \
 racks, people, each database's fields).
@@ -88,9 +93,21 @@ def _readable(path: str) -> str:
     return path
 
 
+# How many of today's jobs lab_overview shows; whats_due has the rest.
+DUE_TODAY = 15
+
+
 def lab_overview(api: Api) -> dict:
+    """Who the assistant acts for, the lab's own words, what is due today,
+    and how to work: in a tool result, which every app hands to its model,
+    as not every app passes on the server's instructions."""
     me = api.request("GET", "me")
-    return {"you": me, "lab": api.request("GET", "vocabulary")}
+    try:
+        due = [i for i in whats_due(api, 0) if i.get("status") in ("overdue", "today")]
+    except ApiError:
+        due = []
+    return {"you": me, "lab": api.request("GET", "vocabulary"), "due_today": due[:DUE_TODAY],
+            "due_today_more": max(0, len(due) - DUE_TODAY), "how_to_work": INSTRUCTIONS}
 
 
 def resolve(api: Api, q: str, kinds: str = "") -> list:
@@ -162,8 +179,11 @@ def _obj(properties: dict, required: tuple = ()) -> dict:
 
 TOOLS = {
     "lab_overview": (
-        "This lab's databases and its own words (strains, statuses, purposes, racks, people, each database's "
-        "fields), today's date, and who you are acting for. Call it first.",
+        "Start here whenever the person mentions BioManager, their lab, colony, mice, cages, litters, fish, tanks, "
+        "vials, plates, experiments or notebook, or wants to record, log, update, change or look up anything there, "
+        "even if they only say \"I want to change something in BioManager\". Returns how to work with BioManager, "
+        "this lab's databases and its own words (strains, statuses, purposes, racks, people, each database's "
+        "fields), today's date, what is due today, and who you are acting for.",
         _obj({}), lambda api, a: lab_overview(api)),
     "resolve": (
         "Find the records a phrase means (\"cage 88\", \"#1043\", \"FV12\", a line or experiment's name), each with "

@@ -1716,13 +1716,34 @@ What an assistant gets, standard library only so both servers below share
 it: `INSTRUCTIONS` (resolve every record, ask rather than guess, send one
 proposal, give the review link), `PROMPTS`, and `TOOLS`, each a
 description, an input JSON Schema and a function over `Api` (a small
-urllib client of `/api/v1`): `lab_overview` → `/me` and `/vocabulary`,
-`resolve`, `get`/`list` limited to the API's read paths (`READABLE`),
+urllib client of `/api/v1`): `lab_overview` → `/me`, `/vocabulary` and
+today's part of `/due` (`DUE_TODAY` at most), with `INSTRUCTIONS` as
+`how_to_work`: a tool result reaches the model in every app, while not
+every app passes on a server's `instructions`, and its description is
+written to be picked for a vague start ("I want to change something in
+BioManager"), `resolve`, `get`/`list` limited to the API's read paths (`READABLE`),
 `whats_due`, `list_actions`, `propose_changes` → `POST /proposals`,
 `proposal_status`, `discard_proposal`. `propose_changes`' description is
 built from the lab's own `/actions` (`description(api, name)`).
 `call_tool()` turns an `ApiError` or bad arguments into `{"error": …}` for
 the assistant to read.
+
+### The plugin (`plugins/biomanager/`)
+
+What an assistant app installs once to know BioManager: the skill
+`skills/biomanager/SKILL.md` (`INSTRUCTIONS`, then how to connect) and
+`commands/` (`PROMPTS`), with a manifest per family of apps:
+`.claude-plugin/plugin.json` (Claude; it also asks Claude Code for the
+lab's MCP address, `userConfig.mcp_address`, which chat and Cowork ignore),
+`plugin.json` (Agent Plugins 1.0: ChatGPT, Codex, VS Code) and
+`.cursor-plugin/plugin.json`. `.claude-plugin/marketplace.json` and
+`.agents/plugins/marketplace.json` at the repository root list it, so
+`gaspolymerase/biomanager` is a marketplace. Everything but its README is
+written by `scripts/assistant-packages.py`; `tests/test_assistant_packages.py`
+fails while a file is out of date, and when the skill or a command changed
+without a new `VERSION` (apps keep people on the version they have).
+`claude plugin validate ./plugins/biomanager` checks it as Anthropic's
+directory will.
 
 ### The local MCP server (`mcp/`)
 
@@ -1788,12 +1809,15 @@ redirect.
   `/oauth/register` skip the cross-site check (no cookie is involved).
 - **Connect an AI assistant** (`oauth.connect_page`, `oauth/connect.html`;
   linked from Help for everyone but guests, from Settings → AI assistant & tokens and
-  from an empty Proposed changes): the connector address and **Get a
+  from an empty Proposed changes): how to add the plugin (`#plugin`,
+  `PLUGIN_MARKETPLACE`); the connector address and **Get a
   connection code** when the lab is on the internet; for coding assistants
   a message to paste into their chat (`#agent-message`: the address, the
-  Claude Code command and Cursor's `mcp.json` entry, how to sign in, and to
-  start with `lab_overview`), the Claude Code command that signs in with
-  OAuth and a loopback redirect (no token), and **Make a token** (scope
+  Claude Code and Codex commands and Cursor's `mcp.json` entry, how to sign
+  in, and to start with `lab_overview`), **Add to Cursor / VS Code / Cherry
+  Studio** (`one_click_links`: each app's install link with the address in
+  it), the Claude Code command that signs in with OAuth and a loopback
+  redirect (no token), Codex's two, and **Make a token** (scope
   `propose`), after which `api/token.html` shows the address-and-header
   setup and the local server's.
 - The four tables are admin-only in a lab copy (`lab_copy.ADMIN_ONLY`).

@@ -145,19 +145,30 @@
       <p>打开 <b>帮助 → 连接 AI 助手</b> （Connect an AI assistant；也在 <b>设置 → AI 助手与令牌</b> 里，以及空的 <b>修改提议</b> 页上）。
         它会列出连接你的 BioManager 的几种方式，地址已经填好。都不用安装任何东西，只有在实验室网络里用 Claude Desktop 时例外（见下文）。</p>
 
+      <h3 id="plugin">让助手学会 BioManager，只需一次：插件</h3>
+      <p>给助手添加一次 <b>BioManager 插件</b>，以后就不必再向它解释 BioManager：直接说你做了什么，或者只说
+        <i>我想在 BioManager 里改点东西</i>，它会列出今天的待办，问你做了哪些。插件只是教助手怎么做；还要在下面把它连接到你的实验室。</p>
+      <ul>
+        <li><b>Claude</b>（网页版、各应用和 Claude Code）：<b>Customize → Plugins → Add marketplace</b>，输入
+          <code>gaspolymerase/biomanager</code>，然后添加 <b>BioManager</b>。在 Claude Code 里它还会问你的 BioManager 地址，顺便连接好。</li>
+        <li><b>Codex</b>：运行 <code>codex plugin marketplace add gaspolymerase/biomanager</code>，然后在它的插件里安装 BioManager。</li>
+        <li><b>VS Code</b>（GitHub Copilot）、<b>Cursor</b>、<b>Qwen Code</b> 和 <b>Kimi</b> 也能从 GitHub 添加插件：从
+          <code>gaspolymerase/biomanager</code> 添加。</li>
+      </ul>
+
       <h3 id="connector">从 claude.ai、Claude 应用或 ChatGPT 连接</h3>
       <p>这些应用是从互联网访问 BioManager 的，所以实验室服务器要在互联网上：由管理员打开互联网访问（见服务器手册）。
         之后连接页面会显示 <b>连接器地址</b>，以 <code>/api/v1/mcp</code> 结尾。桌面版无法这样访问，请用下面的方式。</p>
       <ol class="steps-list">
         <li>用这个地址把 BioManager 添加为自定义连接器。Claude：<b>Settings → Connectors → Add custom connector</b>
-          （Team 或 Enterprise 套餐需要先由所有者添加）。ChatGPT：<b>Settings → Connectors</b>，开启开发者模式后，
-          新建一个使用 OAuth 的连接器。</li>
+          （Team 或 Enterprise 套餐需要先由所有者添加）。ChatGPT 网页版：<b>Plugins → + → Add custom MCP server</b>，
+          使用 OAuth。ChatGPT 只允许 Business、Enterprise 或 Edu 工作区这样修改记录，且要由管理员打开开发者模式；其他套餐只能读取。</li>
         <li>要求连接时，会打开一个 BioManager 页面，要你输入 <b>连接码</b>。在连接页面（在实验室网络里）按
  <b>获取连接码</b>，把它输进去，再按 <b>允许</b>。连接码只能用一次，10 分钟内有效。</li>
         <li>这样就好了，网页版和手机应用都一样。这个连接会以应用的名字列在 <b>设置 → AI 助手与令牌</b> 里；在那里撤销就能断开。</li>
       </ol>
 
-      <h3 id="token">从 Claude Code、Cursor、Cherry Studio 或 Claude Desktop 连接</h3>
+      <h3 id="token">从 Claude Code、Codex、Cursor、VS Code、Cherry Studio 或 Claude Desktop 连接</h3>
       <p>这些应用运行在能连上 BioManager 的电脑上：桌面版就是同一台电脑，实验室服务器则是实验室网络里的任何电脑。
         不需要互联网访问，也不需要懂连接是怎么回事：</p>
       <ol class="steps-list">
@@ -167,14 +178,31 @@
           问是否允许这个应用连接：按 <b>允许</b>。不需要复制或保存令牌。</li>
       </ol>
       <ul>
-        <li>想自己在 Claude Code 里设置，连接页面上也有要在终端里运行的那一条命令。</li>
+        <li><b>Cursor</b>、<b>VS Code</b> 和 <b>Cherry Studio</b> 在连接页面上各有一个按钮（<b>添加到 Cursor</b>……）：它会打开应用，
+          添加 BioManager 前先问你。然后用同样的方法登录。</li>
+        <li>想自己在 Claude Code 里设置，连接页面上也有要在终端里运行的那一条命令；<b>Codex</b> 是两条
+          （<code>codex mcp add</code>，然后 <code>codex mcp login biomanager</code>）。</li>
         <li>对于不能登录的应用和 <b>Claude Desktop</b>，按 <b>生成令牌</b>：它会生成一个 <b>读取和提议</b> 的令牌，下一页会给出每个应用
           要复制的设置。Claude Desktop 运行 BioManager 源代码里的一个小程序 <code>mcp/biomanager_mcp.py</code>；步骤在
           <code>mcp/README.md</code> 里。</li>
       </ul>
 
+      <h3 id="china">国内常用的助手</h3>
+      <p>DeepSeek、千问和 Kimi 的聊天应用目前还不能连接其他应用。下面这些可以，在能连上 BioManager 的电脑上使用：</p>
+      <ul>
+        <li><b>Cherry Studio</b>，配 DeepSeek、千问、Kimi 或智谱 GLM 的密钥：在连接页面按 <b>添加到 Cherry Studio</b>，然后登录。</li>
+        <li><b>千问办公（QwenWork）</b> 和 <b>Trae</b>：按 <b>生成令牌</b>，把下一页的 JSON 粘贴进去（千问办公：<b>扩展 → 连接器 → 添加</b>；
+          Trae：<b>设置 → MCP → 添加</b>）。电脑版 <b>豆包</b>：<b>新建自定义连接器</b>，选 HTTP，填同样的地址和那一行
+          <code>Authorization</code>。</li>
+        <li><b>Qwen Code</b>：<code>qwen mcp add --transport http biomanager &lt;地址&gt;</code>；<b>Kimi Code</b>：
+          <code>kimi mcp add -t http biomanager &lt;地址&gt; --auth oauth</code>，然后 <code>kimi mcp auth biomanager</code>。
+          两者都会自己登录。</li>
+        <li><b>用 DeepSeek 或 GLM 运行 Claude Code</b>：两家都提供兼容 Claude API 的地址，所以 Claude Code（以及这个插件）可以用
+          DeepSeek 或智谱的密钥运行。按它们自己的说明设置好，再按上面的方法连接 BioManager。</li>
+      </ul>
+
       <h3 id="use-it">使用</h3>
-      <p>对它说：<i>根据我的记录记下今天的工作：……</i> 它会查找你提到的每只动物、每个笼和每个实验，遇到可能对应
+      <p>对它说：<i>根据我的记录记下今天的工作：……</i>（装了插件，直接说你做了什么就行）。它会查找你提到的每只动物、每个笼和每个实验，遇到可能对应
         多条记录时问你，然后发一个提议并附上链接。</p>
       <ul>
         <li>助手能读取你能读取的内容，以你的身份。到 <b>设置 → AI 助手与令牌</b> 撤销它的令牌，就能切断它。</li>
@@ -221,11 +249,13 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="本页内容">
-      <p>本页内容 · 阅读约 4 分钟</p>
+      <p>本页内容 · 阅读约 5 分钟</p>
       <ol>
         <li class="lvl2"><a href="#connect">连接助手</a></li>
+        <li class="lvl3"><a href="#plugin">让助手学会 BioManager，只需一次：插件</a></li>
         <li class="lvl3"><a href="#connector">从 claude.ai、Claude 应用或 ChatGPT 连接</a></li>
-        <li class="lvl3"><a href="#token">从 Claude Code、Cursor、Cherry Studio 或 Claude Desktop 连接</a></li>
+        <li class="lvl3"><a href="#token">从 Claude Code、Codex、Cursor、VS Code、Cherry Studio 或 Claude Desktop 连接</a></li>
+        <li class="lvl3"><a href="#china">国内常用的助手</a></li>
         <li class="lvl3"><a href="#use-it">使用</a></li>
         <li class="lvl2"><a href="#what-it-can-do">它能提议什么</a></li>
         <li class="lvl2"><a href="#approving">批准</a></li>

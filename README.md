@@ -711,6 +711,8 @@ database has a name of its own (one another database has is refused), so
       photo of your notebook, and it sends one proposal: you <b>Approve</b>
       it whole in BioManager, or <b>Discard</b> it. It never changes
       anything itself, and an approved proposal can be undone like any batch.
+      Add the <b>BioManager plugin</b> once (Claude, Codex, Cursor, VS Code)
+      and "I want to change something in BioManager" is all you need to say.
     </td>
     <td valign="top">
       <h4>↕️ Your sidebar, your order</h4>
@@ -1297,14 +1299,18 @@ track.
   **Settings → AI assistant & tokens**, with a notification) as one plain summary. **Approve** makes every change at
   once, as one batch you can undo; **Discard** makes none; only you, signed
   in, can approve. **Connect an AI assistant**, at the top of the same
-  pane, connects one (it is also under **Help**). Claude Code, Cursor and Cherry Studio use
-  BioManager's own MCP address (`/api/v1/mcp`), nothing to install: paste
-  the page's message into the assistant and it sets itself up, then you
-  sign in in the browser (or use such a token); Claude
+  pane, connects one (it is also under **Help**). Claude Code, Codex, Cursor,
+  VS Code and Cherry Studio use BioManager's own MCP address (`/api/v1/mcp`),
+  nothing to install: paste the page's message into the assistant and it sets
+  itself up, or press **Add to Cursor**, **Add to VS Code** or **Add to Cherry
+  Studio**, then you sign in in the browser (or use such a token); Claude
   Desktop runs `mcp/biomanager_mcp.py` from this repository
   (`mcp/README.md`). On a lab server that is on the internet, claude.ai,
   the Claude phone apps and ChatGPT add the same address as a custom
-  connector and sign in with a one-time connection code.
+  connector and sign in with a one-time connection code. The **BioManager
+  plugin** (`plugins/biomanager/`, added from the `gaspolymerase/biomanager`
+  marketplace in Claude, Codex, Cursor, VS Code, Qwen Code or Kimi) teaches an
+  assistant how to work with BioManager, so nobody has to explain it first.
   Changes are in the change history
   under your name, marked with the token's name. The reference, with
   examples in curl, Python and R, is at `/api` on your BioManager
