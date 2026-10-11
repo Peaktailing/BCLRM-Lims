@@ -260,7 +260,9 @@ class BreedingPlanAfterTheSecondRun(Compute):
                         transgene_1=f"{other}/{other}")
         out = self.ok(self.post_json("/breeding-plan", {"want": {cre: "het"}, "sex": "M", "count": 12}))
         mine = [c for c in out["crosses"] if c["male"].startswith(cre)]
-        self.assertEqual([c["also_carries"] for c in mine], [[], [f"{other}/{other}"]])
+        carries = [c["also_carries"] for c in mine]                    # other tests' breeders may be here too
+        self.assertEqual(carries[0], [])
+        self.assertIn([f"{other}/{other}"], carries)                   # named, and after the plain cross
         self.assertGreater(mine[0]["males_short"], 0)                  # one male, more matings than two females
 
     def test_a_planned_experiments_mice_are_taken(self):
