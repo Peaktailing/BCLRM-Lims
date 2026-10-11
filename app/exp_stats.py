@@ -160,7 +160,8 @@ def by_day(table: dict, percent: bool = False) -> list[dict]:
     for i, day_iso in enumerate(table["dates"]):
         summaries, samples, counts = [], [], []
         for g in groups:
-            rows = [r for r in table["rows"] if r["group"] == g and r["values"][i] is not None]
+            # An animal left out of the analysis (its reason in "left_out") is not counted.
+            rows = [r for r in table["rows"] if r["group"] == g and r["values"][i] is not None and not r.get("left_out")]
             vals = [(r["pct"][i] if percent else r["values"][i]) for r in rows]
             vals = [v for v in vals if v is not None]
             if not vals:

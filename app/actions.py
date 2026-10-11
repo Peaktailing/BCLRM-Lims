@@ -1286,23 +1286,29 @@ def _experiment_reading(_s, exp, v):
                 Field("cage", "cage", "Every living mouse in this cage"),
                 Field("tank", "tank", "Every fish row in this tank (a zebrafish experiment)"),
                 Field("housing", "org_housing", "Every animal in this housing (an organism experiment)"),
-                Field("group", "text", "Their treatment group")),
+                Field("group", "text", "Their treatment group"),
+                Field("reason", "text", "Why: needed when the experiment was started with a plan (GET "
+                      "/api/v1/experiments/{id} has plan), since adding animals changes its groups")),
         describe=lambda s, e, v: gettext("Experiment “%(name)s”: add %(what)s%(group)s", name=e.name,
                                          what=_added_what(s, v), group=f" ({v['group']})" if v.get("group") else ""))
 def _experiment_add(s, exp, v):
+    from . import experiment_plan
+    if experiment_plan.fixed(exp) and not v.get("reason"):
+        raise ActionError(gettext("“%(name)s” was started with a plan: adding animals changes its groups. Say why in reason.", name=exp.name))  # noqa: E501
     calls = []
     group = v.get("group", "")
+    reason = {"reason": v["reason"]} if v.get("reason") else {}
     for m in _mice(s, v.get("mice") or []):
         calls.append(Call("POST", f"/experiments/{exp.id}/subjects/add",
-                          json={"how": "one", "value": str(m.id), "group": group}))
+                          json={"how": "one", "value": str(m.id), "group": group, **reason}))
     if v.get("cage") not in (None, ""):
         calls.append(Call("POST", f"/experiments/{exp.id}/subjects/add",
-                          json={"how": "group", "value": find(s, "cage", v["cage"]).cage_id, "group": group}))
+                          json={"how": "group", "value": find(s, "cage", v["cage"]).cage_id, "group": group, **reason}))
     for key in ("tank", "housing"):
         if v.get(key) not in (None, ""):
             rec = find(s, "tank" if key == "tank" else "org_housing", v[key])
             calls.append(Call("POST", f"/experiments/{exp.id}/subjects/add",
-                              json={"how": "group", "value": str(rec.id), "group": group}))
+                              json={"how": "group", "value": str(rec.id), "group": group, **reason}))
     if not calls:
         raise ActionError(gettext("Say which animals to add: mice, a cage, a tank or a housing unit."))
     return calls
@@ -1323,19 +1329,135 @@ def _added_what(s, v) -> str:
 
 
 @action(name="experiment_change", area="experiments", title="Change an experiment",
-        help="Its status, dates or name; what is left out stays. To add to its description, use note_add.",
+        help="Its status, dates or name, its main readout's day or the test planned; what is left out stays. A "
+             "planned experiment's status can't be changed here: only a person starts it, with Start on its page. "
+             "To add to its description, use note_add.",
         target="experiment",
         fields=(Field("status", "text", "active, paused, done or cancelled",
                       choices=("active", "paused", "done", "cancelled")),
                 Field("start_date", "date", "Day 1"),
                 Field("end_date", "date", "When it ends"),
-                Field("name", "text", "A new name")),
+                Field("name", "text", "A new name"),
+                Field("readout_day", "int", "The day of the main readout (day 1 = the start date)"),
+                Field("planned_test", "text", "The statistical test planned: welch (Welch's t-test, two groups), "
+                      "anova (one-way ANOVA, more groups), chi2 (χ² test, survival or another count)",
+                      choices=("welch", "anova", "chi2")),
+                Field("reason", "text", "Why: needed to change the readout day or the test once it was started "
+                      "with a plan")),
         describe=lambda s, e, v: gettext("Experiment “%(name)s”: %(fields)s", name=e.name,
-                                         fields=", ".join(f"{k} → {_named(s, k, v[k])}" for k in v)))
+                                         fields=", ".join(f"{k} → {_named(s, k, v[k])}" for k in v if k != "reason")
+                                         + (f" ({v['reason']})" if v.get("reason") else "")))
 def _experiment_change(_s, exp, v):
-    if not v:
+    from . import experiment_plan
+    if not [k for k in v if k != "reason"]:
         raise ActionError(gettext("Say what to change on the experiment “%(name)s”.", name=exp.name))
+    if exp.status == "planned" and "status" in v:
+        raise ActionError(gettext("“%(name)s” is planned: only a person starts it, with Start on its page. Leave status out.", name=exp.name))  # noqa: E501
+    if experiment_plan.fixed(exp) and not v.get("reason") and (
+            ("readout_day" in v and v["readout_day"] != exp.readout_day)
+            or ("planned_test" in v and v["planned_test"] != (exp.planned_test or ""))):
+        raise ActionError(gettext("“%(name)s” was started with a plan: a new readout day or test is a change from it. Say why in reason.", name=exp.name))  # noqa: E501
     return [Call("POST", f"/experiments/{exp.id}/update", form=[(k, str(x)) for k, x in v.items()])]
+
+
+# The kinds of animal reference a design may name in each database, and the
+# value the page's Add takes for one ("one") or for all in a housing ("group").
+_DESIGN_ANIMALS = {"colony": {"mouse": lambda r: str(r.id)},
+                   "zebrafish": {"fish": lambda r: f"fish:{r.id}", "clutch": lambda r: f"clutch:{r.id}"},
+                   "stocks": {"stock_unit": lambda r: str(r.id)},
+                   "organisms": {"org_animal": lambda r: f"organism:{r.id}", "org_cohort": lambda r: f"cohort:{r.id}"}}
+_DESIGN_HOUSING = {"colony": ("cage", lambda r: r.cage_id), "zebrafish": ("tank", lambda r: str(r.id)),
+                   "stocks": ("stock_rack", lambda r: str(r.id)), "organisms": ("org_housing", lambda r: str(r.id))}
+_STEP_KEYS = ("days", "kind", "agent", "dose", "route", "concentration", "group", "notes")
+
+
+def _design_database(s, v) -> str:
+    from . import experiments as xp
+    key = v.get("database") or "colony"
+    if xp.place_for(s, key) is None:
+        raise ActionError(gettext("There is no database “%(key)s” to plan an experiment in.", key=key))
+    return key
+
+
+def _design_groups(s, db: str, groups) -> list[dict]:
+    kind = db.partition(":")[0]
+    animals, (housing_kind, housing_value) = _DESIGN_ANIMALS[kind], _DESIGN_HOUSING[kind]
+    out = []
+    for group in groups or []:
+        if not isinstance(group, dict):
+            raise ActionError(gettext("Each group is an object with its name, animals and housing."))
+        adds = []
+        for ref in group.get("animals") or []:
+            ref_kind = ref.get("kind") if isinstance(ref, dict) else next(iter(animals))
+            if ref_kind not in animals:
+                raise ActionError(gettext("%(ref)s isn't an animal this database's experiments take (%(kinds)s).",
+                                          ref=_show(ref), kinds=", ".join(animals)))
+            adds.append({"how": "one", "value": animals[ref_kind](find(s, ref_kind, ref))})
+        housing = group.get("housing") or []
+        for ref in housing if isinstance(housing, list) else [housing]:
+            adds.append({"how": "group", "value": housing_value(find(s, housing_kind, ref))})
+        out.append({"name": str(group.get("name") or "").strip()[:80], "add": adds})
+    return out
+
+
+def _design_steps(steps) -> list[dict]:
+    from .experiment_steps import parse_days
+    out = []
+    for st in steps or []:
+        if not isinstance(st, dict):
+            raise ActionError(gettext("Each step is an object with its days, kind, agent, dose, route and group."))
+        try:
+            parse_days(str(st.get("days") or ""))
+        except ValueError as error:
+            raise ActionError(str(error)) from None
+        out.append({k: str(st.get(k) or "") for k in _STEP_KEYS})
+    return out
+
+
+@action(name="experiment_new", area="experiments", title="Design a new experiment",
+        help="A planned experiment, designed from a goal: its treatment groups and their animals, the regimen, the "
+             "main readout and its day, and the statistical test planned. Nothing of it is due, and it doesn't "
+             "start, until a person presses Start on its page (no change can start it); Start keeps a copy of the "
+             "design, and later changes to it ask for a reason.", target=None,
+        fields=(Field("name", "text", "Its name", required=True),
+                Field("database", "text", "Whose animals: colony (mice; if left out), zebrafish, stocks:<key> or "
+                      "organisms:<key> (see vocabulary)"),
+                Field("description", "text", "The goal and the design, in words"),
+                Field("groups", "groups", "The treatment groups: [{\"name\": \"HDM\", \"animals\": [references, or "
+                      "mouse numbers in the colony], \"housing\": [a cage, tank, stock rack or housing unit: every "
+                      "living animal in it]}]"),
+                Field("steps", "steps", "The regimen: [{\"days\": \"1-5\", \"kind\": \"injection\", \"agent\": "
+                      "\"Tamoxifen\", \"dose\": \"75 mg/kg\", \"route\": \"i.p.\", \"concentration\": \"20 mg/mL\", "
+                      "\"group\": \"HDM\" (every animal if left out), \"notes\"}]; a readout day is kind \"reading\""),
+                Field("readout", "text", "The main readout: body_weight, tumour_volume, score, survival, length, "
+                      "phenotype, eclosion, climbing, brood or paralysis; or your own one's name"),
+                Field("readout_unit", "text", "Your own readout's unit"),
+                Field("readout_kind", "text", "Your own readout: a number for each, or how many of those at the start",
+                      choices=("value", "fraction")),
+                Field("readout_day", "int", "The day of the main readout (day 1 = the start date)"),
+                Field("planned_test", "text", "The statistical test planned: welch (Welch's t-test, two groups), "
+                      "anova (one-way ANOVA, more groups), chi2 (χ² test, survival or another count)",
+                      choices=("welch", "anova", "chi2")),
+                Field("start_date", "date", "The day planned as day 1 (Start makes it today if left out)"),
+                Field("notes", "text", "Notes: endpoints, vehicle, what to watch for")),
+        describe=lambda s, _t, v: gettext("New planned experiment “%(name)s”: %(groups)s; %(lines)s regimen lines. It starts when you press Start.", name=v["name"],  # noqa: E501
+                                          groups=", ".join(str(g.get("name") or "-") for g in v.get("groups") or []
+                                                           if isinstance(g, dict)) or "-",
+                                          lines=len(v.get("steps") or [])))
+def _experiment_new(s, _target, v):
+    from flask import g
+    from . import experiments as xp
+    db = _design_database(s, v)
+    if not isinstance(v.get("groups") or [], list) or not isinstance(v.get("steps") or [], list):
+        raise ActionError(gettext("groups and steps are lists."))
+    readout = v.get("readout") or ""
+    if readout and readout not in xp.READOUTS:
+        readout = {"label": readout, "unit": v.get("readout_unit", ""), "kind": v.get("readout_kind") or "value"}
+    body = {"name": v["name"], "description": v.get("description", ""), "notes": v.get("notes", ""),
+            "via": g.get("proposal_source") or "", "readout": readout, "readout_day": v.get("readout_day"),
+            "planned_test": v.get("planned_test", ""), "start_date": v.get("start_date", ""),
+            "groups": _design_groups(s, db, v.get("groups")), "steps": _design_steps(v.get("steps"))}
+    return [Call("POST", f"/experiments/in/{db}/design", json=body)]
 
 
 # ---------------------------------------------------------------- notebook

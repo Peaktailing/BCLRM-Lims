@@ -1390,6 +1390,36 @@ morning notification of what is due is `notify.daily_experiment_reminder`
 notebook page is a person's for an experiment is the app setting
 `experiment_notebook_page:<experiment>:<username>`.
 
+**Planned experiments and changes from the plan** (`app/experiment_plan.py`,
+revision 0033). Status `planned` comes before `active`: an assistant's
+`experiment_new` makes one through `POST /experiments/in/<db>/design` (the
+groups go in as Add does, `experiments.add_animals`, the steps as the
+Regimen saves them, `_fill_step`), and nothing of it is due: `schedule()`
+marks its days `planned`, and the calendar, Home's agenda (`lookup`) and the
+morning reminder only read `active` experiments. **Start**
+(`POST /experiments/<id>/start`, a person's button; `status_refusal` stops
+the status field and `experiment_change` from doing it) sets day 1 (today
+unless set), makes it active and keeps `snapshot()` in
+`experiments.plan_json`: the groups and their animals, the main readout,
+`readout_day`, the regimen and `planned_test` (a key of `TESTS`, the tests
+`exp_stats` runs). From then on (`fixed()`), the routes that change the main
+readout, its day, the test, the animals and their groups (the experiment's
+own and the colony's older ones, and the mouse sheet's **Add to
+experiment**), and leaving an animal out of the analysis
+(`…/subjects/<key>/leave-out`; `left_out`, the reason, on `experiment_mice`
+and `experiment_subjects`, which `exp_stats.by_day` and the chart skip)
+compare before and after; a change with no `reason` is rolled back and
+answered 409 `needs_reason`, which the page turns into a question
+(`sendReason` in `experiment-page.js`, BioDialog) and sends again. Each is
+an `experiment_deviations` row (what, before, after, each change in
+`detail`, reason, who, when); more of the same kind by the same person
+within ten minutes join the last one instead of asking again
+(`CONTINUE_WITHIN`), except an animal left out. `page_data()` adds `plan`,
+`deviations` and the Planned → done `comparison` to the page's data, the
+export adds a "Plan and deviations" sheet, and `GET /api/v1/experiments/<id>`
+has `plan`, `planned_test`, `readout_day` and `deviations`. An experiment
+with no `plan_json` (all from before) never asks.
+
 **Signed pages** (`app/signatures.py`, table `record_signatures`): sign,
 witness and amend events, each with the SHA-256 of the title and text at
 that moment and (for a sign) the version it made. A page is locked while

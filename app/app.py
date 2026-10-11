@@ -416,6 +416,7 @@ app.register_blueprint(server_setup.bp)
 # done to them, planned and recorded (app/experiment_steps.py).
 from . import experiments as experiment_pages  # noqa: E402
 from . import experiment_steps  # noqa: E402
+from . import experiment_plan  # noqa: E402  (the plan kept at Start, and the changes from it)
 app.register_blueprint(experiment_pages.bp)
 app.register_blueprint(experiment_steps.bp)
 # Signing a notebook page, which locks it (app/signatures.py).
@@ -1697,10 +1698,11 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
         open_experiments = []
         if active_view in ("mice", "cages", "breeders"):
             open_experiments = [
-                {"id": e.id, "name": e.name}
+                # one started with a plan asks why its groups change (experiment_plan)
+                {"id": e.id, "name": e.name, "fixed": experiment_plan.fixed(e)}
                 for e in db_session.scalars(
                     select(Experiment)
-                    .where(Experiment.status.in_(["active", "paused"]), Experiment.db == "colony")
+                    .where(Experiment.status.in_(["planned", "active", "paused"]), Experiment.db == "colony")
                     .order_by(Experiment.name)
                 ).all()
             ]
@@ -2820,7 +2822,28 @@ def colony():
 # ---------------------------------------------------------------------------
 
 
-EXPERIMENT_STATUSES = ("active", "paused", "done", "cancelled")
+EXPERIMENT_STATUSES = ("planned", "active", "paused", "done", "cancelled")
+
+
+def _experiment_groups_refusal(db_session, exp, before, reason):
+    """After a change to a colony experiment's mice: None, or the page's
+    answer asking why when it was started with a plan (app/experiment_plan.py)."""
+    place = experiment_pages.place_for(db_session, exp.db or "colony")
+    problem = experiment_plan.groups_changed(db_session, exp, place, before, reason) if place else None
+    if problem is None:
+        return None
+    db_session.rollback()
+    if request.headers.get("X-Autosave") == "1" or request.is_json:
+        return experiment_plan.ask_response(problem)
+    flash(problem, "error")
+    return redirect(url_for("experiment_detail", experiment_id=exp.id))
+
+
+def _experiment_members_before(db_session, exp):
+    if not experiment_plan.fixed(exp):
+        return {}
+    place = experiment_pages.place_for(db_session, exp.db or "colony")
+    return experiment_plan.members(db_session, exp, place) if place else {}
 
 
 def _experiment_refusal(exp):
@@ -2911,6 +2934,8 @@ def update_experiment(experiment_id: int):
                             end=end.isoformat(), start=start.isoformat())
         elif status and status not in EXPERIMENT_STATUSES:
             error = gettext("“%(status)s” is not an experiment status.", status=status)
+        else:
+            error = experiment_pages.status_refusal(exp, status)
         if error:
             if autosave:
                 return jsonify({"ok": False, "error": error}), 409
@@ -2971,6 +2996,7 @@ def experiment_add_cage(experiment_id: int):
             flash(gettext("Cage '%(cage)s' not found.", cage=cage_id_raw), "error")
             return redirect(url_for("experiment_detail", experiment_id=experiment_id))
         existing = {em.mouse_id_fk for em in exp.memberships}
+        before = _experiment_members_before(db_session, exp)
         added = skipped = 0
         for mouse in cage.mice:
             if mouse.id in existing or not mouse_is_active(mouse):
@@ -2984,6 +3010,9 @@ def experiment_add_cage(experiment_id: int):
                 treatment_group="",
             ))
             added += 1
+        refused = _experiment_groups_refusal(db_session, exp, before, request.form.get("reason", "")) if added else None
+        if refused:
+            return refused
         db_session.commit()
     if added or skipped:
         if skipped:
@@ -3020,11 +3049,15 @@ def experiment_add_mouse(experiment_id: int):
             flash(access.reason_denied(mouse), "error")
             return redirect(url_for("experiment_detail", experiment_id=experiment_id))
         if not any(em.mouse_id_fk == mouse.id for em in exp.memberships):
+            before = _experiment_members_before(db_session, exp)
             db_session.add(ExperimentMouse(
                 experiment_id_fk=exp.id,
                 mouse_id_fk=mouse.id,
                 treatment_group=treatment_group,
             ))
+            refused = _experiment_groups_refusal(db_session, exp, before, request.form.get("reason", ""))
+            if refused:
+                return refused
             db_session.commit()
     return redirect(url_for("experiment_detail", experiment_id=experiment_id))
 
@@ -3039,11 +3072,18 @@ def experiment_member_update(experiment_id: int, membership_id: int):
         if not access.can_edit_experiment(em.experiment):
             return jsonify({"ok": False, "error": access.denied_message(
                 "experiment", em.experiment.owner_username)}), 403
+        exp = em.experiment
+        before = _experiment_members_before(db_session, exp)
         # Present but blank clears the group; absent leaves it alone.
         if "treatment_group" in request.form:
             em.treatment_group = (request.form.get("treatment_group") or "").strip()
         if "note" in request.form:
             em.note = (request.form.get("note") or "").strip()
+        place = experiment_pages.place_for(db_session, exp.db or "colony")
+        problem = experiment_plan.groups_changed(db_session, exp, place, before, request.form.get("reason", "")) if place else None
+        if problem:
+            db_session.rollback()
+            return experiment_plan.ask_response(problem)
         db_session.commit()
         return jsonify({"ok": True})
 
@@ -3057,7 +3097,12 @@ def experiment_member_remove(experiment_id: int, membership_id: int):
             refused = _experiment_refusal(em.experiment)
             if refused:
                 return refused
+            exp = em.experiment
+            before = _experiment_members_before(db_session, exp)
             db_session.delete(em)
+            refused = _experiment_groups_refusal(db_session, exp, before, request.form.get("reason", ""))
+            if refused:
+                return refused
             db_session.commit()
     return redirect(url_for("experiment_detail", experiment_id=experiment_id))
 
@@ -3479,6 +3524,7 @@ def bulk_add_to_experiment():
                                 "experiment_mice")
         batch_row = batch_ctx.__enter__()
         existing = {em.mouse_id_fk for em in exp.memberships}
+        before = _experiment_members_before(db_session, exp)
         for mouse in _selected_mice(db_session, request.form):
             if not can_edit_mouse(mouse):
                 skipped += 1
@@ -3493,6 +3539,15 @@ def bulk_add_to_experiment():
             ))
             added += 1
         batch_row.record_count = added
+        if added:
+            place = experiment_pages.place_for(db_session, exp.db or "colony")
+            problem = experiment_plan.groups_changed(db_session, exp, place, before,
+                                                     request.form.get("reason", "")) if place else None
+            if problem:
+                batch_ctx.__exit__(None, None, None)
+                db_session.rollback()
+                flash(problem, "error")
+                return redirect(request.referrer or url_for("colony", view="mice"))
         batch_ctx.__exit__(None, None, None)
         db_session.commit()
         name = exp.name

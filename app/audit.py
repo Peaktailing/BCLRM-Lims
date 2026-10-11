@@ -41,6 +41,7 @@ TRACKED_TABLES = {
 }
 TRACKED_TABLES |= {"plasmid_boxes"}
 TRACKED_TABLES |= {"experiment_steps", "experiment_step_records", "experiment_subjects", "experiment_readings", "experiment_regimens", "record_signatures"}   # an experiment's manipulations, planned and done
+TRACKED_TABLES |= {"experiment_deviations"}   # changes from an experiment's plan, with their reasons
 TRACKED_TABLES |= {"user_identities"}   # who connected which Google/Microsoft account, and when   # so deleting a box (which unplaces its plasmids) can be undone
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
@@ -59,6 +60,7 @@ TABLE_LABELS = {
     "experiment_steps": "Experiment steps", "experiment_step_records": "Steps done",
     "experiment_subjects": "Experiment subjects", "experiment_readings": "Readings",
     "experiment_regimens": "Regimens", "record_signatures": "Signatures", "user_identities": "Sign-in accounts",
+    "experiment_deviations": "Changes from the plan",
 }
 
 
