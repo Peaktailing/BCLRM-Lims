@@ -838,7 +838,7 @@ pages are in `app/lab_routes.py`.
   (`stored_at_field()`: key `storage_temp` or label "Stored at"), whichever
   path moved it. Saving a box with a new Stored at updates its items.
   `save_rack` with `count` > 1 makes numbered boxes (`_create_boxes`).
-- **Kept in:** `inventory_racks.place` (revision 0032, String(120), empty
+- **Kept in:** `inventory_racks.place` (revision 0035, String(120), empty
   by default) is the fridge, freezer or cabinet a box is in. Nothing on
   the items changes when it does: `box_label()` ("Fridge 2 › Box A") and
   `where_label()` ("Fridge 2 › Box A · B3") in `inventory_service` put it

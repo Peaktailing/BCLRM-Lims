@@ -155,7 +155,7 @@ class MigrationTests(InventoryCase):
     def test_the_column_is_added_where_it_is_missing_and_left_where_it_is(self):
         from alembic.migration import MigrationContext
         from alembic.operations import Operations
-        migration = importlib.import_module("migrations.versions.0032_box_places")
+        migration = importlib.import_module("migrations.versions.0035_box_places")
         engine = sa.create_engine("sqlite://")
         with engine.begin() as conn:
             conn.exec_driver_sql("create table inventory_racks (id integer primary key, name varchar(120))")

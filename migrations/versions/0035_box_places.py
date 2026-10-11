@@ -9,8 +9,8 @@ import sqlalchemy as sa
 
 from migrations.helpers import add_column
 
-revision = "0032_box_places"
-down_revision = "0031_low_stock"
+revision = "0035_box_places"
+down_revision = "0034_devices_and_sync"
 branch_labels = None
 depends_on = None
 
