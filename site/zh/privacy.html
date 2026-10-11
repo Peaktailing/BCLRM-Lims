@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Language" content="zh-CN">
+  <title>隐私 — BioManager</title>
+  <meta name="description" content="BioManager、它的网站和 AI 助手插件会向外发送什么，以及从不做什么：实验室的记录只留在你的电脑或实验室自己的服务器上。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#fbfdfc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1413" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://biomanager.org/zh/privacy">
+  <link rel="alternate" hreflang="en" href="https://biomanager.org/privacy">
+  <link rel="alternate" hreflang="zh-CN" href="https://biomanager.org/zh/privacy">
+  <link rel="alternate" hreflang="x-default" href="https://biomanager.org/privacy">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BioManager">
+  <meta property="og:url" content="https://biomanager.org/zh/privacy">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:title" content="隐私 — BioManager">
+  <meta property="og:description" content="BioManager、它的网站和 AI 助手插件会向外发送什么，以及从不做什么：实验室的记录只留在你的电脑或实验室自己的服务器上。">
+  <meta property="og:image" content="https://biomanager.org/assets/social-card.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="BioManager 图标：青绿色背景上的白色双螺旋，旁边是名称">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preload" href="../assets/fonts/Geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../style.css?v=e8999d1d34">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">BioManager</a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="features.html">功能</a>
+      <a href="server.html">为实验室部署</a>
+      <a class="nav-guide" href="guide.html">用户指南</a>
+    </nav>
+    <a class="lang-link" href="../privacy.html" hreflang="en" lang="en" data-lang="en">English</a>
+    <a class="btn btn-small btn-primary" href="download.html">下载</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="page-head">
+    <div class="wrap">
+      <p class="eyebrow">隐私</p>
+      <h1>隐私。<span class="mute">实验室的记录留在实验室。</span></h1>
+      <p class="lede">BioManager 是实验室自己运行的软件。没有人运行一个保存你们记录的服务，所以要说的很少：全部都在这里。</p>
+    </div>
+  </section>
+
+  <section class="section section-first legal">
+    <div class="wrap narrow">
+      <h2>实验室的记录</h2>
+      <p>你们在 BioManager 里保存的一切（动物、库存、实验、实验记录本、成员账户）都保存在运行桌面版的电脑上，或实验室自己的服务器上。BioManager 的作者从不会收到这些内容，也没有 BioManager 账户或云端。</p>
+
+      <h2>应用会发送什么</h2>
+      <ul>
+        <li><b>每天一次的匿名计数。</b> 为了让作者知道有多少实验室在用，每个安装每天发送几项计数和粗略信息：版本、桌面版还是服务器、操作系统类别和数据库类型；成员人数和一周内有修改的人数（都是区间）；打开了哪些功能；以及为这个安装随机生成的一个编号，让它只算一次。从不包含姓名、用户名、邮箱、任何人写的内容、数据库名称、服务器地址或电脑名称。数据发往 PostHog，并要求它不定位来源、不建立档案。管理员可以在 <b>使用报告</b> 里看到发送的确切内容并在那里关闭；服务器也可以用 <code>BIOMANAGER_TELEMETRY=0</code> 启动。</li>
+        <li><b>检查更新。</b> 应用向 GitHub 查询最新版本，只告诉它自己是哪个版本。</li>
+        <li><b>实验室自己打开的功能。</b> 用 Google、Microsoft 或学校账户登录；显示 Google 日历；通过实验室自己的邮件服务器发邮件；下载质粒特征库。每一项只向你选择的服务发送它需要的内容，而且只在实验室设置之后。</li>
+      </ul>
+
+      <h2>AI 助手和插件</h2>
+      <p>BioManager 里面没有 AI。如果你连接了一个助手（Claude、ChatGPT 或其他），它以你的身份、按你的权限从你的 BioManager 读取实验室记录；它读到的内容由该助手的公司按你和他们的协议处理。你可以随时在 <b>设置 → AI 助手与令牌</b> 里断开连接。</p>
+      <p>给助手用的 BioManager 插件不收集、也不发送任何内容。它只是给助手的说明，在 Claude Code 里再加上你自己的 BioManager 地址。</p>
+
+      <h2>本网站</h2>
+      <p>biomanager.org 是静态网页，由 GitHub Pages 发布并经过 Cloudflare，它们的服务器会像任何网站主机一样看到每次访问。网站没有统计分析、没有广告，也没有 cookie。如果你选了语言，你的浏览器会在你自己的设备上记住它。在 GitHub 上提的问题和错误报告是公开的。</p>
+
+      <h2>儿童</h2>
+      <p>BioManager 是为在研究实验室工作的人做的，不面向儿童。</p>
+
+      <h2>修改与联系</h2>
+      <p>如果本页有修改，新版本会连同日期发布在这里。有问题请在 <a href="https://github.com/gaspolymerase/biomanager/issues">GitHub</a> 上提 issue。</p>
+      <p class="fine">最后更新：2026 年 10 月 11 日。另见 <a href="terms.html">使用条款</a>。</p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-gh">
+      <p>BioManager 免费开源。如果它帮到了你的实验室，欢迎在 GitHub 上点个星标，让更多实验室找到它；遇到问题或有想法，也欢迎在 GitHub 上提给我们。</p>
+      <a class="btn btn-quiet" href="https://github.com/gaspolymerase/biomanager"><svg class="star" width="16" height="16" aria-hidden="true"><use href="../assets/icons.svg?v=d44b577819#star"/></svg>在 GitHub 上标星</a>
+      <a class="btn btn-quiet" href="https://github.com/gaspolymerase/biomanager/issues/new/choose"><svg width="16" height="16" aria-hidden="true"><use href="../assets/icons.svg?v=d44b577819#github"/></svg>提交反馈</a>
+    </div>
+    <div class="brand"><img src="../assets/icon.svg" alt="" width="22" height="22">BioManager</div>
+    <p>以 <a href="https://github.com/gaspolymerase/biomanager/blob/master/LICENSE">MIT 许可证</a>发布。图标来自
+      <a href="https://fontawesome.com">Font Awesome Free</a>（CC BY 4.0）和
+      Delapouite 的 <a href="https://game-icons.net">game-icons.net</a>（CC BY 3.0）。标题字体为
+      <a href="https://vercel.com/font">Geist</a>（SIL 开源字体许可证）。
+      截图和视频中的人员和记录均为虚构。<br><a href="privacy.html">隐私</a> · <a href="terms.html">使用条款</a></p>
+  </div>
+</footer>
+
+<script src="../site.js?v=bd7f0aefcb"></script>
+</body>
+</html>

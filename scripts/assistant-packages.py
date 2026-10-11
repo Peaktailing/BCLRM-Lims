@@ -54,7 +54,7 @@ DESCRIPTION = ("Tell your assistant what you did in the lab, in your words or wi
 
 LONG_DESCRIPTION = (
     "BioManager keeps a lab's animals, stocks and notebook in one place: mice, zebrafish, flies, worms, plasmids, "
-    "samples, reagents and experiments. It is free and open source, and each lab runs its own, on a desktop or a lab "
+    "samples, reagents and experiments. It is open source, and each lab runs its own, on a desktop or a lab "
     "server.\n\nThis plugin teaches the assistant to work with your lab's BioManager. Tell it what you did, in your "
     "words or with a photo of your notes, and it looks up each record and sends one proposal, which you approve in "
     "BioManager; it never changes anything itself. It can also answer questions about your records, and plan with "
@@ -145,7 +145,8 @@ def plugin_json() -> dict:
         "icon": "./icon.svg",
         "documentationUrl": f"{SITE}/guide/ai-assistants",
         "supportUrl": f"{REPO}/issues",
-        "privacyPolicyUrl": f"{REPO}/blob/master/plugins/biomanager/README.md#privacy",
+        "privacyPolicyUrl": f"{SITE}/privacy",
+        "termsOfServiceUrl": f"{SITE}/terms",
         "userConfig": {
             "mcp_address": {
                 "type": "string",
@@ -180,6 +181,7 @@ def portable_json() -> dict:
             "category": "Education & Research",
             "websiteURL": SITE,
             "privacyPolicyURL": plugin_json()["privacyPolicyUrl"],
+            "termsOfServiceURL": plugin_json()["termsOfServiceUrl"],
             "supportURL": f"{REPO}/issues",
             "defaultPrompt": "I want to record what I did in the lab today in BioManager.",
             "composerIcon": "./assets/icon.svg",

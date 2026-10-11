@@ -23,7 +23,8 @@
   "icon": "./icon.svg",
   "documentationUrl": "https://biomanager.org/guide/ai-assistants",
   "supportUrl": "https://github.com/gaspolymerase/biomanager/issues",
-  "privacyPolicyUrl": "https://github.com/gaspolymerase/biomanager/blob/master/plugins/biomanager/README.md#privacy",
+  "privacyPolicyUrl": "https://biomanager.org/privacy",
+  "termsOfServiceUrl": "https://biomanager.org/terms",
   "userConfig": {
     "mcp_address": {
       "type": "string",

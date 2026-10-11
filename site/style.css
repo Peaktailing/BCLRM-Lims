@@ -1346,3 +1346,10 @@ kbd {
     58%, 92% { color: #fff; border-color: #4f7ef5; background: #4f7ef5; box-shadow: 0 0 14px rgba(79, 126, 245, 0.6); }
     100% { color: var(--mute); border-color: var(--ln); background: #fff; } }
 }
+
+/* Privacy and terms: plain text pages. */
+.legal h2 { font-size: 1.35rem; margin: 34px 0 8px; letter-spacing: -0.01em; }
+.legal h2:first-child { margin-top: 0; }
+.legal p, .legal li { font-size: 16px; line-height: 1.65; color: var(--read); }
+.legal ul { padding-left: 20px; display: grid; gap: 10px; }
+.legal .fine { margin-top: 36px; }

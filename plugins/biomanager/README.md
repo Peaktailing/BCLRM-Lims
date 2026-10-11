@@ -2,7 +2,7 @@
 
 [BioManager](https://biomanager.org) keeps a lab's animals, stocks and
 supplies in one place: mice, zebrafish, flies, worms, plasmids, samples,
-reagents, experiments and a lab notebook. It is free and open source, and
+reagents, experiments and a lab notebook. It is open source, and
 each lab runs its own, on a desktop or on a lab server.
 
 This plugin lets your assistant (Claude, ChatGPT and Codex, Cursor, VS Code
@@ -68,7 +68,9 @@ your BioManager, as you and with your permissions, and sends proposals back
 to it. What the assistant sees is handled under your agreement with the
 company that makes it (Anthropic for Claude, OpenAI for ChatGPT and Codex).
 BioManager's makers never see your records. Revoke the connection at any
-time under **Settings → AI assistant & tokens** in BioManager.
+time under **Settings → AI assistant & tokens** in BioManager. The full
+policy is at [biomanager.org/privacy](https://biomanager.org/privacy), and the
+terms at [biomanager.org/terms](https://biomanager.org/terms).
 
 ## Licence
 

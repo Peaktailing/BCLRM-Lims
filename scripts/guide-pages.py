@@ -289,12 +289,14 @@ def footer(lang, slug):
         invite = ("BioManager is free and open source. If it helps your lab, a star on GitHub helps other labs "
                   "find it; an issue there tells us what to fix or build next.")
         star, feedback = "Star on GitHub", "Send feedback"
-        body = f'<p><a href="{u}download.html">Download</a> · <a href="{repo}/releases">All releases and what changed</a></p>'
+        body = (f'<p><a href="{u}download.html">Download</a> · <a href="{repo}/releases">All releases and what changed</a>'
+                f' · <a href="{u}privacy.html">Privacy</a> · <a href="{u}terms.html">Terms</a></p>')
     else:
         invite = ("BioManager 免费开源。如果它帮到了你的实验室，欢迎在 GitHub 上点个星标，让更多实验室找到它；"
                   "遇到问题或有想法，也欢迎在 GitHub 上提给我们。")
         star, feedback = "在 GitHub 上标星", "提交反馈"
-        body = f'<p><a href="{u}download.html">下载</a> · <a href="{repo}/releases">所有版本和更新内容</a></p>'
+        body = (f'<p><a href="{u}download.html">下载</a> · <a href="{repo}/releases">所有版本和更新内容</a>'
+                f' · <a href="{u}privacy.html">隐私</a> · <a href="{u}terms.html">使用条款</a></p>')
     return f"""<footer class="footer">
   <div class="wrap footer-inner">
     <div class="footer-gh">
