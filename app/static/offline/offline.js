@@ -195,8 +195,11 @@
     var taken = snap && snap.taken ? new Date(snap.taken) : null;
     if (taken && !isNaN(taken)) {
       var old = Date.now() - taken.getTime() > 24 * 3600 * 1000;
-      fresh.textContent = t("Updated %(when)s", { when: taken.toLocaleString(LANG === "zh" ? "zh-CN" : undefined,
-        { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) });
+      var locale = LANG === "zh" ? "zh-CN" : undefined;
+      var sameDay = taken.toDateString() === new Date().toDateString();
+      fresh.textContent = t("Updated %(when)s", { when: sameDay
+        ? taken.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+        : taken.toLocaleString(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) });
       fresh.className = old ? "stale" : "muted";
       fresh.title = old ? t("This copy is more than a day old.") : "";
     } else {
@@ -204,7 +207,8 @@
     }
     var w = document.getElementById("waiting");
     w.hidden = !queue.length;
-    w.textContent = queue.length === 1 ? t("1 change waiting") : t("%(n)s changes waiting", { n: queue.length });
+    w.textContent = t("%(n)s waiting", { n: queue.length });
+    w.title = queue.length === 1 ? t("1 change waiting to reach the lab") : t("%(n)s changes waiting to reach the lab", { n: queue.length });
     document.querySelectorAll("#tabs [data-tab]").forEach(function (b) {
       b.setAttribute("aria-current", b.dataset.tab === tab ? "true" : "false");
       if (b.dataset.tab === "vials") b.hidden = !view.stock_units.length;

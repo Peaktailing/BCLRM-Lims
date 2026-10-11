@@ -5,8 +5,6 @@
   "Updated %(when)s": "更新于 %(when)s",
   "This copy is more than a day old.": "这份副本已超过一天。",
   "No copy yet": "还没有副本",
-  "1 change waiting": "1 项更改待发送",
-  "%(n)s changes waiting": "%(n)s 项更改待发送",
   "No purpose": "无用途",
   "1 mouse": "1 只小鼠",
   "%(n)s mice": "%(n)s 只小鼠",
@@ -87,5 +85,8 @@
   "Record a weight": "记录体重",
   "Flies and worms": "果蝇和线虫",
   "Weighed on": "称重日期",
-  "Died on": "死亡日期"
+  "Died on": "死亡日期",
+  "%(n)s waiting": "%(n)s 项待发送",
+  "1 change waiting to reach the lab": "1 项更改等待送达实验室",
+  "%(n)s changes waiting to reach the lab": "%(n)s 项更改等待送达实验室"
 }

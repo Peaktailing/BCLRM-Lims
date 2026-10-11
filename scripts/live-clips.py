@@ -50,7 +50,7 @@ REPLAYER = ROOT / "frontend/node_modules/@rrweb/replay/dist/replay.umd.min.cjs"
 VENDOR = ROOT / "site/assets/vendor/rrweb-replay.js"
 # The front page's dock, in its order, then the Features page's cards.
 CLIPS = ["home", "census", "litter", "assembly", "experiment", "calendar", "protocol", "datasheet", "links", "plasmid", "orders",
-         "flies", "new-database", "cards", "import", "search", "looks", "phone"]
+         "flies", "new-database", "cards", "offline", "import", "search", "looks", "phone"]
 # A long walk plays faster, up to this, so it lasts about TARGET seconds.
 MAX_SPEED, TARGET = 1.6, 12.0
 # Where a recording names the app's files; site.js puts the site's
