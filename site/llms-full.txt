@@ -1566,6 +1566,8 @@ Talk to it as you would to a colleague who keeps the records. The plugin also gi
 | Review the lab this week | The week's checks ([below](https://biomanager.org/guide/ai-assistants#review)), and one proposal for the clean-up. |
 | Design an experiment | From a question to a planned experiment ([below](https://biomanager.org/guide/ai-assistants#plan)). |
 | Write the methods | A methods paragraph and the ARRIVE checklist for an experiment, from its records ([below](https://biomanager.org/guide/ai-assistants#write)). |
+| Animal-use report | The animals used under each protocol over the year, for the annual review ([below](https://biomanager.org/guide/ai-assistants#write)). |
+| Write a handover | Everything someone leaving looks after, and what is due on it ([below](https://biomanager.org/guide/ai-assistants#write)). |
 
 You can also just ask: *Which lot of tamoxifen did cohort 3 get?*, *Where's the last tube of pAAV-hSyn-GCaMP8m?*, *Who changed cage 88's purpose?* It searches your records and notebook, reads a record's history and a plasmid's or a mouse's family tree, and answers with links. It reads only what you can read.
 
@@ -1618,6 +1620,10 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 ### Write-ups
 
 *Write the methods for the TMX cohort* gives a methods paragraph built only from the records: strains, sex, age and numbers per group, each manipulation with its dose, route, days and lot, the readout and the tests. With it comes the ARRIVE 2.0 Essential 10, each item with what the records say and what's missing, and the experiment's changes from its plan. It can put the draft in a new notebook page, marked as drafted by the assistant.
+
+**The animal-use report.** *Draft our animal-use report for protocol 2024-0012* gives, for the last twelve months (or the dates you say), a table per protocol of the mice and zebrafish by strain: how many were born, added to the records, used in experiments, died or were euthanized (with the reasons their notes give) and kept for breeding. BioManager does the counting, and the report says what each number is based on and what the records can't say, such as animals with no protocol. A mouse's protocol is the colony's own protocol column (add one under **Configure → Your own columns**, called *IACUC #* or *Protocol*); a fish's is its line's **IACUC #**. It is a draft to check against your institution's form.
+
+**A handover.** *Write a handover for me* before you leave (an admin can ask for anyone's) lists everything in your name: cages and mice by rack and position, breeding cages and what's due on them, tanks, vials, inventory items and glycerol stocks with where each is, plasmids, experiments and their next steps, racks and boxes you made, notebook pages not signed and proposals waiting, each with its link, then everything due in the next 30 days. Ask it to, and it proposes giving the records to whoever takes them over (as **Set field → Owner** would); someone else's notebook pages stay theirs, counted but not named.
 
 ### Approving
 

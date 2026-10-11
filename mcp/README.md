@@ -102,10 +102,12 @@ be more than one, and replies with a link to the proposal. Open it in
 BioManager (or from the bell), read the summary, and press **Approve** or
 **Discard**.
 
-It also comes with seven prompts: *Log today's work from my notes*, *Log
+It also comes with nine prompts: *Log today's work from my notes*, *Log
 from a photo of my notebook, whiteboard or cage card*, *Turn my captures from
 the bench into records*, *Plan tomorrow from what's due*, *Review the lab
-this week*, *Design an experiment* and *Write the methods for an experiment*.
+this week*, *Design an experiment*, *Write the methods for an experiment*,
+*Draft the animal-use report for an annual review* and *Write a handover for
+someone leaving the lab*.
 
 ## Tools
 
@@ -122,6 +124,7 @@ this week*, *Design an experiment* and *Write the methods for an experiment*.
 | `search`, `history`, `lineage` | Search records and notebook text; a record's change history; a plasmid's or mouse's family tree |
 | `availability`, `breeding_plan`, `randomize`, `power_analysis` | Animals free by genotype, sex and age; matings to set up and by when; balanced random groups; animals per group. Worked out by BioManager, with their assumptions |
 | `reorder_forecast`, `lab_checks`, `experiment_summary` | When stock runs out; the week's checks; an experiment's facts for its methods and its ARRIVE checklist |
+| `animal_use`, `handover` | Animals per protocol, species and strain over a year (born, added, used, died or euthanized with reasons, breeding), with what each count is based on; everything one person looks after, by rack and box, and what is due on it |
 
 What may be proposed comes from your BioManager (`/api/v1/actions`), so an
 update to BioManager reaches the assistant without changing this program.
