@@ -30,6 +30,14 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.7.3": {
+        "new": [
+            "A box, shelf or drawer can say which fridge or cabinet it is **Kept in**; an item's place reads Fridge 2 › Box A · B3, and searching a cabinet finds what is in it.",
+        ],
+        "fixed": [
+            "Searching a sheet no longer matches rows whose dropdowns merely offer the word.",
+        ],
+    },
     "1.7.2": {
         "new": [
             "Work in the animal facility without a signal: the Android and desktop apps keep a copy, record what you do, and send it to the lab once you're back.",

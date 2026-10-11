@@ -98,5 +98,7 @@
   "**Your devices** under **Settings → Devices & copies**: every computer, phone and browser you're signed in on, each with **Sign out**.": "**设置 → 设备与副本** 里的 **你的设备**：你登录过的每台电脑、手机和浏览器，每台都可以 **退出登录**。",
   "Backups, lab files and the copies on your computers are locked with the lab's own key. Admins: keep its recovery key from **Settings → Your data → Lab key**.": "备份、实验室文件和你电脑上的副本都用实验室自己的密钥加密。管理员：请在 **设置 → 你的数据 → 实验室密钥** 保管好恢复密钥。",
   "**Open your lab** joins the lab as one of your devices: sign in once, and the desktop app works on the lab without opening the server's page.": "**打开你的实验室** 会把电脑作为你的一台设备加入实验室：登录一次，桌面版就不用打开服务器页面也能使用实验室。",
-  "Litter born, Genotyping and Wean are refused on a cage that isn't a Breeding cage, by the server too. Weights are in History, with undo.": "不是繁殖笼的笼子，服务器也会拒绝产仔、基因型鉴定和断奶。体重记录进入历史，可以撤销。"
+  "Litter born, Genotyping and Wean are refused on a cage that isn't a Breeding cage, by the server too. Weights are in History, with undo.": "不是繁殖笼的笼子，服务器也会拒绝产仔、基因型鉴定和断奶。体重记录进入历史，可以撤销。",
+  "A box, shelf or drawer can say which fridge or cabinet it is **Kept in**; an item's place reads Fridge 2 › Box A · B3, and searching a cabinet finds what is in it.": "冻存盒、架子或抽屉可以填 **存放于**（哪台冰箱、哪个柜子）；物品的位置显示为“2 号冰箱 › 盒 A · B3”，搜索柜子的名字就能找到里面的东西。",
+  "Searching a sheet no longer matches rows whose dropdowns merely offer the word.": "在表格里搜索时，不会再因为下拉选项里有这个词就匹配到每一行。"
 }
