@@ -1853,6 +1853,10 @@ litters with pup counts, else the lab's, else 6; power is exact, from the
 noncentral F distribution over `exp_stats.inc_beta` (two groups are the t² =
 F case, planned with one SD; the experiment's Welch's test has practically
 the same power then, as its assumptions say), and matches G*Power.
+`availability` leaves out animals booked in a planned, active or paused
+experiment (`BUSY`). A breeding plan's crosses say what a mate carries beyond
+the loci asked (`also_carries`; those crosses come after the ones that don't)
+and `males_short`, counting a male with up to two females.
 `randomize` also returns `groups` in `experiment_new`'s shape, which takes
 them and the `seed` (kept in the description) as they are. The pure parts (genotype model, binomial
 matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
