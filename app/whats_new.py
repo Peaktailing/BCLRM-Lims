@@ -347,10 +347,14 @@ def due(seen: str | None, now: tuple[int, ...] | None = None) -> list[dict]:
 
 def current_note(now: tuple[int, ...] | None = None) -> list[dict]:
     """The running version's note (for Help → What's new), or the newest one
-    before it."""
+    before it. A server built from a checkout doesn't know its version
+    ("server"): its code is the newest note it carries."""
     now = now if now is not None else running()
     if now is None:
-        return []
+        known = [parse(v) for v in NOTES if parse(v) is not None]
+        if not known:
+            return []
+        now = max(known)
     earlier = [v for v in NOTES if parse(v) is not None and parse(v) <= now]
     if not earlier:
         return []

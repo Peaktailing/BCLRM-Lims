@@ -93,7 +93,12 @@ class ThePopup(AppTestCase):
     def test_a_build_that_names_no_release_never_opens_it(self):
         welcomed(self.who, "")
         with mock.patch(RUNNING, return_value="server"):
-            self.assertNotIn("data-open-now", self.dialog(self.get_ok(self.c, "/home")).group(0))
+            html = self.get_ok(self.c, "/home")
+        self.assertNotIn("data-open-now", self.dialog(html).group(0))
+        # Help → What's new still has something to say: the newest note its code carries.
+        newest = max(whats_new.NOTES, key=whats_new.parse)
+        self.assertIn(f"What's new in BioManager {newest}", html)
+        self.assertNotIn("Nothing to tell about this version", html)
 
     def test_signed_out_there_is_none(self):
         from app.app import app
