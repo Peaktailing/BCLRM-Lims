@@ -28,7 +28,8 @@ MAX_SUMMARY = 2000
 STATUSES = ("pending", "approved", "discarded", "superseded", "expired", "invalid")
 # What each database's changes are listed under on Proposed changes.
 AREAS = {"mice": "Mouse colony", "zebrafish": "Zebrafish", "stocks": "Flies and worms",
-         "organisms": "Other organisms", "experiments": "Experiments", "notebook": "Notebook"}
+         "organisms": "Other organisms", "experiments": "Experiments", "notebook": "Notebook",
+         "inventory": "Inventories", "plasmids": "Plasmids", "calendar": "Calendar"}
 
 
 class ProposalError(ValueError):
