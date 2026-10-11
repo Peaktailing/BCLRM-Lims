@@ -30,7 +30,7 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
-    "1.7.1": {
+    "1.7.2": {
         "new": [
             "Work in the animal facility without a signal: the Android and desktop apps keep a copy, record what you do, and send it to the lab once you're back.",
             "**Needs your decision** in the account menu: a change made offline that clashes with one made meanwhile waits there for **Keep mine** or **Keep theirs**.",
