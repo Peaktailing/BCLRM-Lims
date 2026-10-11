@@ -278,6 +278,7 @@ jobs:
             scripts/assistant-packages.py
             app/__init__.py
             app/assistant_tools.py
+            app/static/icon.svg
       - uses: actions/download-artifact@v8
         with:
           path: assets
