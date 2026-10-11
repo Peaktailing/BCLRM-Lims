@@ -30,6 +30,15 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.7.4": {
+        "new": [
+            "The BioManager plugin for Claude and for ChatGPT is a download on every release and on the Download page.",
+        ],
+        "fixed": [
+            "**Allow** on an assistant app's sign-in page now goes back to the app and connects it.",
+            "**Help → What's new** shows the newest notes on a lab server built from its source code.",
+        ],
+    },
     "1.7.3": {
         "new": [
             "A box, shelf or drawer can say which fridge or cabinet it is **Kept in**; an item's place reads Fridge 2 › Box A · B3, and searching a cabinet finds what is in it.",

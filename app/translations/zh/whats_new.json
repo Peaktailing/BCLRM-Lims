@@ -100,5 +100,8 @@
   "**Open your lab** joins the lab as one of your devices: sign in once, and the desktop app works on the lab without opening the server's page.": "**打开你的实验室** 会把电脑作为你的一台设备加入实验室：登录一次，桌面版就不用打开服务器页面也能使用实验室。",
   "Litter born, Genotyping and Wean are refused on a cage that isn't a Breeding cage, by the server too. Weights are in History, with undo.": "不是繁殖笼的笼子，服务器也会拒绝产仔、基因型鉴定和断奶。体重记录进入历史，可以撤销。",
   "A box, shelf or drawer can say which fridge or cabinet it is **Kept in**; an item's place reads Fridge 2 › Box A · B3, and searching a cabinet finds what is in it.": "冻存盒、架子或抽屉可以填 **存放于**（哪台冰箱、哪个柜子）；物品的位置显示为“2 号冰箱 › 盒 A · B3”，搜索柜子的名字就能找到里面的东西。",
-  "Searching a sheet no longer matches rows whose dropdowns merely offer the word.": "在表格里搜索时，不会再因为下拉选项里有这个词就匹配到每一行。"
+  "Searching a sheet no longer matches rows whose dropdowns merely offer the word.": "在表格里搜索时，不会再因为下拉选项里有这个词就匹配到每一行。",
+  "The BioManager plugin for Claude and for ChatGPT is a download on every release and on the Download page.": "Claude 和 ChatGPT 用的 BioManager 插件，现在每个版本和下载页面都可以直接下载。",
+  "**Allow** on an assistant app's sign-in page now goes back to the app and connects it.": "在 AI 助手应用的登录页上点 **允许**，现在会回到那个应用并完成连接。",
+  "**Help → What's new** shows the newest notes on a lab server built from its source code.": "从源代码搭建的实验室服务器上，**帮助 → 新功能** 会显示最新的新功能说明。"
 }
