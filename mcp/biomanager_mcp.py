@@ -37,6 +37,7 @@ from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool
 from app.assistant_tools import (availability, breeding_plan, derive, experiment_summary, history,  # noqa: E402,F401
                                  lab_checks, lineage, power_analysis, randomize, reorder_forecast, search)
 from app.assistant_tools import animal_use, handover  # noqa: E402,F401
+from app.assistant_tools import verify_sequencing  # noqa: E402,F401
 
 
 def with_content(out: dict):
@@ -175,6 +176,11 @@ def build_server(api: Api):
     @server.tool(name="derive", description=description(api, "derive"))
     def derive_tool(formula: str | None = None, rows: list[dict] | None = None, control: str | None = None) -> dict:
         return call_tool(api, "derive", given(formula=formula, rows=rows, control=control))
+
+    @server.tool(name="verify_sequencing", description=description(api, "verify_sequencing"))
+    def verify_sequencing_tool(plasmid: str | None = None, ref: dict | None = None, captures: list[int] | None = None,
+                               reads: list | None = None) -> dict:
+        return call_tool(api, "verify_sequencing", given(plasmid=plasmid, ref=ref, captures=captures, reads=reads))
 
     @server.tool(name="list_captures", description=description(api, "list_captures"))
     def list_captures_tool(status: str = "waiting") -> dict:

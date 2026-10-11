@@ -35,7 +35,8 @@ COMPUTE_TITLES = {"search": "Search", "history": "A record's history", "lineage"
                   "reorder_forecast": "Reorder forecast", "lab_checks": "The week's checks",
                   "experiment_summary": "An experiment for its methods",
                   "animal_use": "Animal use for a review", "handover": "A handover",
-                  "derive": "Derived readout"}
+                  "derive": "Derived readout",
+                  "verify_sequencing": "Verify sequencing"}
 READ_ONLY |= set(COMPUTE_TITLES)
 TITLES.update(COMPUTE_TITLES)
 

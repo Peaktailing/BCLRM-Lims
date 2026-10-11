@@ -327,7 +327,20 @@ your own files (**Add to library** above a map, or **Read elements from
 files**), and an admin can **Add the common-features pack**, about 1,900
 elements from widely used plasmids, downloaded when asked for. **Files** on its Storage tab keeps
 the sequencing reads, gel photos and datasheets that belong with it, and
-they come along in Export my data. A primer drawn on the
+they come along in Export my data. **Verify sequencing**, below the map,
+checks Sanger reads of a miniprep or clone against it: choose the `.ab1`
+chromatograms (or FASTA, or paste the bases) and each read is trimmed of
+its poor ends, placed on the map on either strand (across the origin
+too), and compared base by base. You get a line for the clone ("Matches
+the map across 425–1,359, covering EGFP", or "1 difference from the map:
+C→A at 740 in EGFP (A14D)"), where the reads lie over the map, and every
+mismatch, insertion and deletion with the read's quality there, the
+features it falls in and what it does to a coding sequence's amino acid;
+one at low quality is marked as a likely sequencing error. **Keep the
+reads and the result with this plasmid's files** files them under
+**Files**, each noted with what it showed, to check again later. An
+assistant can do the same with `verify_sequencing`, from reads uploaded
+as captures. A primer drawn on the
 map is kept in the Primers database, linked to the plasmid; the page lists
 where each binds, and **Copy for ordering** or **Export for ordering**
 gives the ticked ones to your oligo supplier. Before ordering another,

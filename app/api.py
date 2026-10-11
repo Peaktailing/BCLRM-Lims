@@ -64,7 +64,7 @@ SCOPES = {"read": "Read", "write": "Read and change", "propose": "Read and propo
 PROPOSING = {"api.proposal_create", "api.proposal_discard", "api.mcp"}
 # POSTs that only work something out from what they are sent and change
 # nothing (app/assistant_compute.py): any token may send them.
-COMPUTING = {"api.breeding_plan", "api.randomize", "api.power", "api.derive"}
+COMPUTING = {"api.breeding_plan", "api.randomize", "api.power", "api.derive", "api.plasmid_verify"}
 EXPIRY_DAYS = {"30": "In 30 days", "90": "In 90 days", "365": "In a year", "": "Never"}
 PER_MINUTE = 600
 MAX_LIMIT = 1000
@@ -692,6 +692,73 @@ def _glycerol_stocks(session, p: PlasmidRecord) -> list[dict]:
                     "frozen_on": i.attrs_dict.get("frozen_on") or None,
                     "url": url_for("inventory.module", key=key, open=i.id, _external=True)})
     return out
+
+
+@bp.post("/plasmids/<int:plasmid_id>/verify")
+def plasmid_verify(plasmid_id: int):
+    """Sanger reads checked against a plasmid's map (app/seqverify.py):
+    multipart files (.ab1, FASTA or text), or JSON {"reads": [text or
+    {name, sequence}], "captures": [ids]}. Changes nothing."""
+    from . import captures, seqverify
+    _feature("plasmids")
+    files: list[tuple[str, bytes]] = []
+    texts: list[str] = []
+    problems: list[str] = []
+    for key in request.files:
+        for upload in request.files.getlist(key):
+            if upload and upload.filename:
+                files.append((upload.filename, upload.stream.read(seqverify.MAX_FILE + 1)))
+    if request.form.get("text") or request.form.get("reads"):
+        texts.append(request.form.get("text") or request.form.get("reads") or "")
+    data = request.get_json(silent=True) if request.is_json else None
+    if request.is_json and not isinstance(data, dict):
+        abort(400, "Send a JSON object: {\"reads\": [...], \"captures\": [...]}, or the read files as multipart.")
+    data = data or {}
+    raw_reads = data.get("reads") or []
+    if not isinstance(raw_reads, list):
+        abort(400, "reads is a list: each a read's bases (FASTA or plain), or {name, sequence}.")
+    for n, item in enumerate(raw_reads, 1):
+        if isinstance(item, dict):
+            bases = str(item.get("sequence") or item.get("bases") or "")
+            title = str(item.get("name") or f"read {n}").strip().split()[0] if str(item.get("name") or "").strip() \
+                else f"read-{n}"
+            texts.append(bases if bases.lstrip().startswith(">") else f">{title}\n{bases}")
+        elif isinstance(item, str):
+            texts.append(item if item.lstrip().startswith(">") else f">read-{n}\n{item}")
+        else:
+            abort(400, "reads is a list: each a read's bases (FASTA or plain), or {name, sequence}.")
+    with SessionLocal() as s:
+        p = s.scalar(select(PlasmidRecord).where(PlasmidRecord.plasmid_id == plasmid_id))
+        if p is None:
+            abort(404, f"There is no plasmid {plasmid_id}.")
+        if not p.full_sequence:
+            abort(400, f"Plasmid {plasmid_id} has no sequence to check reads against.")
+        ids = data.get("captures") or []
+        try:
+            ids = captures.check_ids(s, g.user.username, ids)
+        except captures.CaptureError as error:
+            abort(400 if "list" in str(error) else 404, str(error))
+        for capture_id in ids:
+            c = captures.mine(s, capture_id, g.user.username)
+            path = captures.file_on_disk(c)
+            if path is not None:
+                files.append((c.file_name or path.name, path.read_bytes()[:seqverify.MAX_FILE + 1]))
+            elif (c.text or "").strip():
+                texts.append(c.text if c.text.lstrip().startswith(">") else f">capture-{capture_id}\n{c.text}")
+            else:
+                problems.append(f"Capture {capture_id} has no read in it.")
+        reads, unread = seqverify.reads_from_uploads(files, "\n".join(texts))
+        problems += unread
+        if not reads:
+            abort(400, " ".join(problems) or "Send reads: .ab1 or FASTA files, reads as text, or capture ids.")
+        try:
+            annotations = json.loads(p.features_json) if p.features_json else []
+        except (TypeError, ValueError):
+            annotations = []
+        report = seqverify.verify(p.full_sequence, bool(p.is_circular), annotations, reads, name=p.name or "")
+        report["plasmid"]["plasmid_id"] = p.plasmid_id
+        report["problems"] = problems
+        return jsonify(report)
 
 
 # ---------------------------------------------------------------- fly and worm stocks
@@ -1462,6 +1529,8 @@ ENDPOINTS = [
     ("GET", "/api/v1/plasmids", "read", "Plasmids", ("q",)),
     ("GET", "/api/v1/plasmids/{plasmid_id}", "read",
      "One plasmid, with its glycerol stocks (its sequence and annotations with sequence=1)", ("sequence",)),
+    ("POST", "/api/v1/plasmids/{plasmid_id}/verify", "read",
+     "Check Sanger reads against its map: .ab1 or FASTA files (multipart), or {reads, captures}", ()),
     ("GET", "/api/v1/stocks", "read", "Fly and worm stock databases", ()),
     ("GET", "/api/v1/stocks/{key}/units", "read", "Vials or plates", ("active", "purpose", "owner", "genotype")),
     ("PATCH", "/api/v1/stocks/{key}/units/{number}", "write", "Change a vial: " + ", ".join(UNIT_FIELDS), ()),

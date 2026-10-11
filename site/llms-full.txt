@@ -754,7 +754,7 @@ A construct is only as good as what you can still prove about it a year later: w
 | Designing it | **Assemble a plasmid** builds the next construct out of the ones you already have — digest and ligate, Gibson or Golden Gate — and the product records what it was made from, so a year later the family tree answers the question instead of your memory. |
 |---|---|
 | The primers it needs | Primers the wizard designs, and any you draw on a map yourself, land in the lab's **Primers** database marked *to order*, with the plasmid beside them. Tick them and **Copy for ordering** hands the list to your supplier — after **Find saved primers** has shown any the lab already has that bind. |
-| Checking what you got | **Detect features** marks the lab's known elements on a new map, and the sequencing reads that confirmed the clone live on the plasmid itself under **Files**, with the gel photo. |
+| Checking what you got | **Verify sequencing** checks the Sanger reads of each clone against the map and names every base that differs, and what it does to the protein; **Detect features** marks the lab's known elements on a new map, and the reads that confirmed the clone live on the plasmid itself under **Files**, with the gel photo. |
 | Finding the tube | Every plasmid has a box position, and the bacteria carrying it sit in **Glycerol stocks** with their own box — so "which tube" has an answer that is not a colleague's memory. |
 | Handing it on | A virus made from it names the plasmid; the plasmid's page lists what was made from it. Download it as GenBank whenever someone outside the lab asks. |
 
@@ -789,6 +789,18 @@ What you stop doing: keeping maps in one folder and primers in another spreadshe
 - A primer you draw on the map (select bases, then **Edit → Create → Primer**) is also kept in the lab's [Primers](https://biomanager.org/guide/samples-and-orders) database, marked *to order*, with the plasmid in its **Plasmid** column. The **Primers** card under the map lists every primer for this plasmid, where it binds and any 5′ tail; tick some, then **Copy for ordering** (name and sequence, one per line, to paste into a supplier's form) or **Export for ordering** (a CSV).
 
 - Before you order a new primer, turn on **Find saved primers** on that card. It looks through every primer saved in the Primers databases you can see — whichever plasmid they were made for — and lists each one that binds this sequence: where, on which strand, and whether it is an *exact match* or matches only at its 3′ end with a 5′ tail (a restriction site, a homology arm, or a few bases that differ). Its name opens the primer, so you can see whether there is still a tube. **Show on map** draws them on the map in amber, to look at; they are not saved with the plasmid, and editing the map while they are shown leaves them out. A primer only counts if at least its last 15 bases match exactly. The same switch is on the read-only map that a glycerol stock or virus opens.
+
+### Checking a clone's sequencing
+
+- **Verify sequencing**, below the map, checks Sanger reads of a miniprep or clone against this plasmid. Choose the reads — the `.ab1` chromatograms the sequencing service sends, or FASTA or text files — or paste the bases under **Paste reads instead**; reads already kept under **Files** can be ticked to check again. Press **Verify**.
+
+- Each read's poor ends are trimmed by its own quality values, then the read is placed on the map, whichever strand it was read from and across the origin of a circular plasmid, and compared base by base. You get one line for the clone — *Matches the map across 425–1,359, covering EGFP*, or *1 difference from the map: C→A at 740 in EGFP (A14D)* — a strip showing where each read lies over the map's features with every difference marked in red, a line for each read (strand, the bases it covers, how much of it agrees), and a table of the differences: the position, the change, the features it falls in, what it does to a coding sequence (*silent*, an amino-acid change such as *A14D*, a stop codon, or a frameshift), the read's quality there, and how many of the reads covering that base show it.
+
+- A difference where the read's quality is below 20 is greyed and called a likely sequencing error: look at the trace there, or read that stretch again from the other strand. A read that doesn't match the plasmid at all is said too, as is one that follows the map only partway (an insert, a deletion, or the wrong plasmid).
+
+- Turn on **Keep the reads and the result with this plasmid's files** to file the reads under **Files**, each noted with the date and what it showed. Checking changes nothing else; anyone who can open the plasmid can check reads, and keeping them needs the right to edit it.
+
+- An AI assistant can do the same: upload the `.ab1` as a capture (or give it the read as text) and ask it to check the clone against the plasmid (see [AI assistants](https://biomanager.org/guide/ai-assistants)).
 
 ### Tubes, boxes and files
 
@@ -1591,13 +1603,13 @@ Talk to it as you would to a colleague who keeps the records. The plugin also gi
 | Animal-use report | The animals used under each protocol over the year, for the annual review ([below](https://biomanager.org/guide/ai-assistants#write)). |
 | Write a handover | Everything someone leaving looks after, and what is due on it ([below](https://biomanager.org/guide/ai-assistants#write)). |
 
-You can also just ask: *Which lot of tamoxifen did cohort 3 get?*, *Where's the last tube of pAAV-hSyn-GCaMP8m?*, *Who changed cage 88's purpose?* It searches your records and notebook, reads a record's history and a plasmid's or a mouse's family tree, and answers with links. It reads only what you can read.
+You can also just ask: *Which lot of tamoxifen did cohort 3 get?*, *Where's the last tube of pAAV-hSyn-GCaMP8m?*, *Who changed cage 88's purpose?* It searches your records and notebook, reads a record's history and a plasmid's or a mouse's family tree, and answers with links. It reads only what you can read. Upload a clone's sequencing read (`.ab1`) as a capture and ask *does clone 3 match plasmid 14?*: BioManager checks it against the map, as [Verify sequencing](https://biomanager.org/guide/plasmids#verify) does, and the assistant tells you each difference and what it does to the protein.
 
 ### Captures: write it down now, record it later
 
 At the rack you rarely have time for a conversation. **Capture** keeps what you'd tell the assistant until you have:
 
-- On a phone, open **Captures** in your account menu and press **New capture**, or press **Capture** in an experiment's **Bench mode**. Type, or use the keyboard's microphone to dictate; add a photo with **Take photo**, or a file (a balance's or plate reader's CSV) with **Choose file**; **Scan a card** attaches the cage, tank or vial it's about. **Save**.
+- On a phone, open **Captures** in your account menu and press **New capture**, or press **Capture** in an experiment's **Bench mode**. Type, or use the keyboard's microphone to dictate; add a photo with **Take photo**, or a file (a balance's or plate reader's CSV, or a sequencing read) with **Choose file**; **Scan a card** attaches the cage, tank or vial it's about. **Save**.
 
 - Later, at your desk, tell the assistant *process my captures*. It reads each, photos and files included, and sends one proposal; each change says which capture it came from.
 

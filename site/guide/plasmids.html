@@ -150,8 +150,10 @@
           <b>Primers</b> database marked <i>to order</i>, with the plasmid beside them. Tick them and
           <b>Copy for ordering</b> hands the list to your supplier — after <b>Find saved primers</b> has shown any the lab
           already has that bind.</td></tr>
-        <tr><th>Checking what you got</th><td><b>Detect features</b> marks the lab's known elements on a new map, and the
-          sequencing reads that confirmed the clone live on the plasmid itself under <b>Files</b>, with the gel photo.</td></tr>
+        <tr><th>Checking what you got</th><td><b>Verify sequencing</b> checks the Sanger reads of each clone against the map
+          and names every base that differs, and what it does to the protein; <b>Detect features</b> marks the lab's known
+          elements on a new map, and the reads that confirmed the clone live on the plasmid itself under <b>Files</b>, with the
+          gel photo.</td></tr>
         <tr><th>Finding the tube</th><td>Every plasmid has a box position, and the bacteria carrying it sit in
           <b>Glycerol stocks</b> with their own box — so "which tube" has an answer that is not a colleague's memory.</td></tr>
         <tr><th>Handing it on</th><td>A virus made from it names the plasmid; the plasmid's page lists what was made from it.
@@ -237,6 +239,27 @@
           while they are shown leaves them out. A primer only counts if at least its last 15 bases match exactly. The same switch is
           on the read-only map that a glycerol stock or virus opens.</li>
       </ul>
+      <h2 id="verify">Checking a clone's sequencing</h2>
+      <ul>
+        <li><b>Verify sequencing</b>, below the map, checks Sanger reads of a miniprep or clone against this plasmid. Choose the
+          reads — the <code>.ab1</code> chromatograms the sequencing service sends, or FASTA or text files — or paste the bases
+          under <b>Paste reads instead</b>; reads already kept under <b>Files</b> can be ticked to check again. Press <b>Verify</b>.</li>
+        <li>Each read's poor ends are trimmed by its own quality values, then the read is placed on the map, whichever strand it
+          was read from and across the origin of a circular plasmid, and compared base by base. You get one line for the clone —
+          <i>Matches the map across 425–1,359, covering EGFP</i>, or <i>1 difference from the map: C→A at 740 in EGFP (A14D)</i> —
+          a strip showing where each read lies over the map's features with every difference marked in red, a line for each read
+          (strand, the bases it covers, how much of it agrees), and a table of the differences: the position, the change, the
+          features it falls in, what it does to a coding sequence (<i>silent</i>, an amino-acid change such as <i>A14D</i>, a
+          stop codon, or a frameshift), the read's quality there, and how many of the reads covering that base show it.</li>
+        <li>A difference where the read's quality is below 20 is greyed and called a likely sequencing error: look at the trace
+          there, or read that stretch again from the other strand. A read that doesn't match the plasmid at all is said too,
+          as is one that follows the map only partway (an insert, a deletion, or the wrong plasmid).</li>
+        <li>Turn on <b>Keep the reads and the result with this plasmid's files</b> to file the reads under <b>Files</b>, each
+          noted with the date and what it showed. Checking changes nothing else; anyone who can open the plasmid can check reads,
+          and keeping them needs the right to edit it.</li>
+        <li>An AI assistant can do the same: upload the <code>.ab1</code> as a capture (or give it the read as text) and ask it to
+          check the clone against the plasmid (see <a href="ai-assistants.html">AI assistants</a>).</li>
+      </ul>
       <h2 id="tubes">Tubes, boxes and files</h2>
       <ul>
         <li><b>Files</b>, on <b>Storage</b>, keeps what belongs with the plasmid: the sequencing reads (.ab1) that confirmed it,
@@ -261,13 +284,14 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 9 min read</p>
+      <p>On this page · 11 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your cloning</a></li>
         <li class="lvl2"><a href="#the-sheet">The plasmid sheet</a></li>
         <li class="lvl2"><a href="#the-map">The sequence and its map</a></li>
         <li class="lvl2"><a href="#features">Knowing what a sequence holds</a></li>
         <li class="lvl2"><a href="#building">Building a new plasmid</a></li>
+        <li class="lvl2"><a href="#verify">Checking a clone&#x27;s sequencing</a></li>
         <li class="lvl2"><a href="#tubes">Tubes, boxes and files</a></li>
         <li class="lvl2"><a href="#sharing">Sharing and bulk changes</a></li>
       </ol>

@@ -8352,12 +8352,14 @@ def plasmid_page(number: int):
             "new_url": url_for("inventory.new_module", preset="glycerol_stocks"),
         }
         files = _plasmid_files(db_session, p)
+        kept_reads = _kept_reads(db_session, p)
         primers = _plasmid_primers(db_session, p)
         lineage_options = [f"{n} · {name}" if name else str(n) for n, name in db_session.execute(
             select(PlasmidRecord.plasmid_id, PlasmidRecord.name).where(PlasmidRecord.id != p.id)
             .order_by(PlasmidRecord.plasmid_id)).all()]
     return render_template("plasmid_detail.html", plasmid=data, boxes=boxes, usernames=usernames,
                            made_from=made_from, lineage_options=lineage_options, primers=primers, files=files,
+                           kept_reads=kept_reads,
                            plannotate_here=plannotate.available(),
                            glycerol=glycerol)
 
@@ -8641,6 +8643,81 @@ def plasmid_remove_file(row_id: int, file_id: int):
         db_session.commit()
     flash(gettext("Took %(name)s off this plasmid.", name=name), "success")
     return redirect(plasmid_page_url(row_id) + "#plasmid-files")
+
+
+def _kept_reads(db_session, p) -> list[dict]:
+    """The files kept with a plasmid that Verify sequencing can read again."""
+    from . import seqverify
+    rows = db_session.scalars(select(PlasmidFile).where(PlasmidFile.plasmid_row_id == p.id)
+                              .order_by(PlasmidFile.uploaded_at.desc(), PlasmidFile.id.desc()))
+    return [{"id": f.id, "name": f.name} for f in rows if (f.name or "").lower().endswith(seqverify.READ_SUFFIXES)]
+
+
+@app.route("/plasmids/<int:row_id>/verify", methods=["POST"])
+@login_required
+def plasmid_verify(row_id: int):
+    """Verify sequencing: Sanger reads (chosen files, pasted text, or reads
+    kept with the plasmid) checked against its map (app/seqverify.py), as
+    JSON for the page to draw. With keep, the chosen files are kept with
+    the plasmid, each noted with its read's verdict."""
+    from io import BytesIO
+    from pathlib import Path as _Path
+
+    from werkzeug.datastructures import FileStorage
+
+    from . import seqverify
+    from . import services as _services
+
+    with SessionLocal() as db_session:
+        p = db_session.get(PlasmidRecord, row_id)
+        if p is None:
+            return jsonify({"ok": False, "error": gettext("That plasmid no longer exists.")}), 404
+        if not p.full_sequence:
+            return jsonify({"ok": False, "error": gettext("This plasmid has no sequence to check reads against.")}), 400
+        uploads = [u for u in request.files.getlist("reads") if u and u.filename]
+        files = [(u.filename, u.stream.read(seqverify.MAX_FILE + 1)) for u in uploads]
+        wanted = {int(x) for x in request.form.getlist("kept") if x.isdigit()}
+        for kept in db_session.scalars(select(PlasmidFile).where(PlasmidFile.plasmid_row_id == p.id,
+                                                                 PlasmidFile.id.in_(wanted or {0}))):
+            source = _services.UPLOAD_DIR / _Path(kept.path).name
+            if source.is_file():
+                files.append((kept.name, source.read_bytes()[:seqverify.MAX_FILE + 1]))
+        text = request.form.get("reads_text") or ""
+        reads, problems = seqverify.reads_from_uploads(files, text)
+        if not reads:
+            return jsonify({"ok": False, "error": " ".join(problems) or
+                            gettext("Choose read files (.ab1, FASTA or text), or paste a read.")}), 400
+        try:
+            annotations = json.loads(p.features_json) if p.features_json else []
+        except json.JSONDecodeError:
+            annotations = []
+        report = seqverify.verify(p.full_sequence, bool(p.is_circular), annotations, reads, name=p.name or "")
+        kept_names = []
+        if request.form.get("keep") and access.can_edit(p):
+            # Keep what was chosen (and pasted) with the plasmid, each with what its reads showed.
+            verdicts: dict = {}
+            for r, checked in zip(reads, report["reads"]):
+                verdicts.setdefault(r.extra.get("file"), []).append(checked["verdict"])
+            day = fmt_day(local_time(datetime.utcnow()))
+            sources = [(i, name, data) for i, (name, data) in enumerate(files[:len(uploads)])]
+            if text.strip():
+                sources.append((None, "pasted-reads.fa", text.encode("utf-8")))
+            for index, name, data in sources:
+                if index not in verdicts:
+                    continue
+                saved = save_uploaded_file(FileStorage(BytesIO(data), filename=name))
+                if saved is None:
+                    continue
+                note = gettext("Verified against the map %(day)s: %(verdict)s", day=day,
+                               verdict=" ".join(verdicts[index]))
+                db_session.add(PlasmidFile(plasmid_row_id=p.id, kind=_file_kind(name), name=name[:200],
+                                           path=saved["path"], size_bytes=saved["size_bytes"],
+                                           notes=note[:300], uploaded_by=g.user.username))
+                kept_names.append(name)
+            if kept_names:
+                stamp_updated(p)
+                db_session.commit()
+    return jsonify({"ok": True, "report": report, "problems": problems, "kept": kept_names})
 
 
 @app.route("/plasmids/<int:row_id>/detect-features", methods=["POST"])
