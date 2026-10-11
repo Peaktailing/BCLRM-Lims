@@ -29,6 +29,24 @@ class AssistantPackages(unittest.TestCase):
             data = json.loads((packages.PLUGIN / manifest).read_text(encoding="utf-8"))
             self.assertEqual((data["name"], data["version"]), ("biomanager", packages.VERSION), manifest)
 
+    def test_the_chatgpt_listing_keeps_within_its_limits(self):
+        listing = json.loads((packages.PLUGIN / "plugin.json").read_text(encoding="utf-8"))
+        ui = listing["extensions"]["com.openai"]["interface"]
+        self.assertLessEqual(len(ui["displayName"]), 30)
+        self.assertLessEqual(len(ui["shortDescription"]), 30)
+        self.assertLessEqual(len(ui["longDescription"]), 4000)
+        self.assertLessEqual(len(ui["defaultPrompt"]), 128)
+        self.assertIn(ui["category"], ("Productivity", "Creativity", "Developer Tools", "Business & Operations",
+                                       "Data & Analytics", "Communication", "Education & Research", "Security",
+                                       "Finance", "Healthcare", "Travel", "Entertainment", "Other"))
+        self.assertNotIn("mcpServers", listing)                         # skills only: each lab adds its own server
+        for key in ("logo", "composerIcon"):
+            svg = (packages.PLUGIN / ui[key]).read_text(encoding="utf-8")
+            box = re.search(r'viewBox="0 0 (\d+) (\d+)"', svg)
+            self.assertTrue(box and box.group(1) == box.group(2) and int(box.group(1)) >= 48, key)
+        for name in packages.OPENAI_FILES:
+            self.assertTrue((packages.PLUGIN / name).is_file(), name)
+
     def test_the_skill_carries_the_instructions_and_says_how_to_connect(self):
         text = (packages.PLUGIN / "skills" / "biomanager" / "SKILL.md").read_text(encoding="utf-8")
         front = re.match(r"---\nname: biomanager\ndescription: (.+)\n---\n", text)
