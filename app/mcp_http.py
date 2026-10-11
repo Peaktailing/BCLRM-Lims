@@ -26,6 +26,14 @@ TITLES = {"lab_overview": "Lab overview", "resolve": "Find records", "get": "Rea
           "list": "List records", "whats_due": "What's due", "list_actions": "What can be proposed",
           "propose_changes": "Propose changes", "proposal_status": "A proposal's status",
           "discard_proposal": "Withdraw a proposal"}
+# The tools that look things up and work things out (app/assistant_compute.py): all read-only.
+COMPUTE_TITLES = {"search": "Search", "history": "A record's history", "lineage": "Family tree",
+                  "availability": "Animals available", "breeding_plan": "Breeding plan",
+                  "randomize": "Randomise into groups", "power_analysis": "Animals per group",
+                  "reorder_forecast": "Reorder forecast", "lab_checks": "The week's checks",
+                  "experiment_summary": "An experiment for its methods"}
+READ_ONLY |= set(COMPUTE_TITLES)
+TITLES.update(COMPUTE_TITLES)
 
 
 class InProcessApi(tools.Api):

@@ -7,7 +7,7 @@
 A person adds the plugin once, in their assistant app; from then on "I
 want to change something in BioManager" is enough. It carries a skill (how
 to work with BioManager, in SKILL.md, which most assistant apps read), the
-three prompts as commands, and, in Claude Code, the connection to the lab's
+prompts as commands, and, in Claude Code, the connection to the lab's
 own MCP address, asked for when the plugin is enabled. Elsewhere each lab
 adds its own address (each lab's differs), from Help → Connect an AI
 assistant.
@@ -42,8 +42,8 @@ from app.assistant_tools import INSTRUCTIONS, PROMPTS  # noqa: E402
 
 PLUGIN = ROOT / "plugins" / "biomanager"
 # The plugin's version, and a digest of the skill and commands it was set for.
-VERSION = "1.0.0"
-CONTENT = "5a78a29f491578d0"
+VERSION = "1.1.0"
+CONTENT = "1bc2a57e64d0791a"
 SITE = "https://biomanager.org"
 REPO = "https://github.com/gaspolymerase/biomanager"
 
