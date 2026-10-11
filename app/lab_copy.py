@@ -259,7 +259,13 @@ OWN_ROWS = {"notifications": "recipient_username", "calendar_subscriptions": "ow
 PAGE_ROWS = ("notebook_comments", "notebook_page_info", "notebook_presence", "notebook_shares",
              "notebook_sync_updates", "notebook_versions", "record_signatures", "notebook_pending_inserts")
 PERSONAL_DATABASES = ("inventory_modules", "stock_modules", "organism_modules")
+# To-dos and calendar events: a member sees their own, the lab's and their
+# project groups' (app.task_visible_clause, lab_calendar's event filter);
+# someone else's personal one (not shared) is theirs alone.
+OWN_OR_SHARED = ("tasks", "calendar_events")
 ALIAS_KIND = {"inventory_modules": "inventory", "stock_modules": "stocks", "organism_modules": "organisms"}
+# Tables whose is_shared only says who may change a record: everyone sees them.
+EDIT_SHARED_ONLY = ("mouse_cages", "plasmids", "inventory_items")
 MEMBER_SEES_WHOLE = ("users", "experiments", "notebook_tabs", "notebook_pages", "lab_groups", "lab_group_members")
 
 
@@ -272,6 +278,13 @@ def member_view(out, username: str) -> None:
         run(f"DELETE FROM {table}")
     for table, column in OWN_ROWS.items():
         run(f"DELETE FROM {table} WHERE {column} != :me")
+    for table in OWN_OR_SHARED:
+        run(f"DELETE FROM {table} WHERE owner != :me AND NOT (is_shared AND (share_group_id IS NULL "
+            "OR share_group_id IN (SELECT group_id_fk FROM lab_group_members WHERE username = :me)))")
+    # What pointed at an event that went: a notebook entry keeps its words.
+    run("UPDATE notebook_entries SET event_id_fk = NULL "
+        "WHERE event_id_fk IS NOT NULL AND event_id_fk NOT IN (SELECT id FROM calendar_events)")
+    run("DELETE FROM calendar_repeats WHERE event_id_fk NOT IN (SELECT id FROM calendar_events)")
     # Notebook pages: their own and those shared with them or the lab
     # (app/lab_notebook.accessible_filter), and the rows that hang off them.
     run("CREATE TEMP TABLE seen_pages AS SELECT p.id FROM notebook_pages p "

@@ -234,7 +234,9 @@ class MemberCopyTests(CopyCase):
             (uploads_dir() / name).write_text("image")
             self.addCleanup((uploads_dir() / name).unlink)
         self.member_name = make_user(uniq("member"))
-        self.words = {w: uniq(w) for w in ("private", "shared", "own", "personal", "feedback", "note", "batch", "oldkey")}
+        self.words = {w: uniq(w) for w in ("private", "shared", "own", "personal", "feedback", "note", "batch", "oldkey",
+                                           "todo-own", "todo-lab", "todo-theirs", "todo-group", "todo-other-group",
+                                           "event-theirs", "event-lab")}
         with SessionLocal() as s:
             tab = NotebookTab(owner_username=self.admin, title=uniq("Admin topic "))
             mine = NotebookTab(owner_username=self.member_name, title=uniq("Member topic "))
@@ -259,6 +261,24 @@ class MemberCopyTests(CopyCase):
             s.add(Feedback(username=self.admin, text=self.words["feedback"]))
             s.add(NotificationRecord(recipient_username=self.admin, title=self.words["note"]))
             s.add(ApiToken(user_id_fk=user_id(self.admin), label="script", token_hash=uniq("hash")))
+            # To-dos and events: someone else's personal ones are theirs alone.
+            from datetime import date
+            from app.models import CalendarEvent, LabGroup, LabGroupMember, NotebookEntry, TaskItem
+            in_it, not_in = LabGroup(name=uniq("Group ")), LabGroup(name=uniq("Group "))
+            s.add_all([in_it, not_in])
+            s.flush()
+            s.add(LabGroupMember(group_id_fk=in_it.id, username=self.member_name))
+            s.add_all([TaskItem(title=self.words["todo-own"], owner=self.member_name),
+                       TaskItem(title=self.words["todo-lab"], owner=self.admin, is_shared=True),
+                       TaskItem(title=self.words["todo-theirs"], owner=self.admin, is_shared=False),
+                       TaskItem(title=self.words["todo-group"], owner=self.admin, is_shared=True, share_group_id=in_it.id),
+                       TaskItem(title=self.words["todo-other-group"], owner=self.admin, is_shared=True,
+                                share_group_id=not_in.id)])
+            theirs = CalendarEvent(title=self.words["event-theirs"], event_date=date.today(), owner=self.admin,
+                                   is_shared=False)
+            s.add_all([theirs, CalendarEvent(title=self.words["event-lab"], event_date=date.today(), owner=self.admin)])
+            s.flush()
+            s.add(NotebookEntry(title=uniq("entry "), event_id_fk=theirs.id))
             s.commit()
         self.key = self.make_key(client_for(self.member_name))
 
@@ -289,6 +309,13 @@ class MemberCopyTests(CopyCase):
             self.assertFalse(any(self.words["batch"] in d for (d,) in con.execute("select description from batches")))
             self.assertNotIn(self.words["oldkey"], {k for (k,) in con.execute("select old_key from database_aliases")})
             self.assertEqual(con.execute("select count(*) from mice").fetchone()[0], one("select count(*) from mice"))
+            todos = {t for (t,) in con.execute("select title from tasks")}
+            self.assertTrue({self.words["todo-own"], self.words["todo-lab"], self.words["todo-group"]} <= todos)
+            self.assertNotIn(self.words["todo-theirs"], todos)
+            self.assertNotIn(self.words["todo-other-group"], todos)
+            events = {t for (t,) in con.execute("select title from calendar_events")}
+            self.assertIn(self.words["event-lab"], events)
+            self.assertNotIn(self.words["event-theirs"], events)
 
     def test_an_admin_s_copy_is_the_whole_lab(self):
         with self.copy(self.make_key()) as con:
@@ -310,14 +337,16 @@ class MemberCopyTests(CopyCase):
         from app import lab_copy
         from app.db import Base
         decided = (set(lab_copy.ADMIN_ONLY) | set(lab_copy.OWN_ROWS) | set(lab_copy.PAGE_ROWS)
-                   | set(lab_copy.PERSONAL_DATABASES) | set(lab_copy.MEMBER_SEES_WHOLE))
+                   | set(lab_copy.PERSONAL_DATABASES) | set(lab_copy.MEMBER_SEES_WHOLE) | set(lab_copy.OWN_OR_SHARED))
         personal = {"user_id_fk", "recipient_username", "owner_username", "private_to", "password_hash", "page_id_fk"}
         for table in Base.metadata.sorted_tables:
             names = {c.name for c in table.columns}
             in_personal_db = any(fk.parent.name == "module_id_fk" and fk.column.table.name in lab_copy.PERSONAL_DATABASES
                                  for fk in table.foreign_keys)
             secret = any(isinstance(c.type, __import__("app.models").models.EncryptedText) for c in table.columns)
-            if (names & personal or secret) and not in_personal_db:
+            # An owner whose row can be personal (not shared) is someone's own too.
+            own_unless_shared = {"owner", "is_shared"} <= names and table.name not in lab_copy.EDIT_SHARED_ONLY
+            if (names & personal or secret or own_unless_shared) and not in_personal_db:
                 self.assertIn(table.name, decided, f"{table.name}: decide what a member's copy keeps (app/lab_copy.py)")
 
 

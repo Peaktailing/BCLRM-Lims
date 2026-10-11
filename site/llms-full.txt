@@ -1386,7 +1386,7 @@ The desktop app can keep a copy of your lab server's whole database, so the lab'
 
 3. From then on, while the app is open, it takes a fresh copy every day, checks it, keeps the last 14 and mirrors uploaded files. The card shows when the last copy was made; on the server, the list shows every computer and how fresh its copy is. **Revoke** stops a computer (a lost laptop, say) from taking more.
 
-The copies sit beside the app's own data, which they never touch. An admin's copy is the whole lab, and can rebuild the server if it's ever lost ([how](https://biomanager.org/server#move)): treat a computer holding one like the server itself. A member's copy holds what they can see in the app: no one's password, not other people's private notebook pages or personal databases, not the Audit log. Guests can't keep a copy.
+The copies sit beside the app's own data, which they never touch. An admin's copy is the whole lab, and can rebuild the server if it's ever lost ([how](https://biomanager.org/server#move)): treat a computer holding one like the server itself. A member's copy holds what they can see in the app: no one's password, not other people's private notebook pages, personal databases or personal to-dos and events, not the Audit log. Guests can't keep a copy.
 
 ### One lab on many devices
 
