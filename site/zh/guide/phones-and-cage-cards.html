@@ -142,11 +142,20 @@
 
       <dl class="gdl">
         <dt>Android</dt><dd>从<a href="../download.html">下载页面</a>安装 <code>BioManager-Android.apk</code>（如有提示，允许浏览器
-          安装应用），输入一次实验室服务器的地址就能用了。<b>扫描</b> （Scan）按钮可以读取笼卡。</dd>
+          安装应用），输入一次实验室服务器的地址就能用了。<b>扫描</b> （Scan）按钮可以读取笼卡。
+          登录后，应用就是你的一台设备，会把动物房需要的内容存在手机上，没有信号时也能用（<a href="#offline">离线工作</a>）。</dd>
         <dt>iPhone 和 iPad</dt><dd>在 <b>Safari</b> 里打开服务器，点 <b>分享 → 添加到主屏幕</b> （Share → Add to Home Screen）。BioManager 会有自己的图标，
           像应用一样全屏打开；可以用摄像头扫描笼卡。（没装应用的 Android：Chrome → <b>⋮ → 安装应用</b> （Install app）。）</dd>
         <dt id="getting-around">手机上的导航</dt><dd>屏幕底部的栏里有 <b>首页</b> （Home）、<b>日历</b> （Calendar）、<b>数据库</b> （Databases，列出实验室的各个数据库）、<b>实验记录本</b> （Notebook）和 <b>扫描</b> （Scan），旁边的圆形按钮是 <b>搜索</b> （Search）；往下读页面时它会缩小。<b>扫描</b> 用 App 自带的扫描器或手机摄像头；在 iPhone 的 Safari 里，它会提示你用 <b>相机</b> App 对准卡片，卡片就会在这里打开。
           左上角的 <b>☰</b> 打开完整的侧边栏。</dd>
+        <dt id="offline">离线工作</dt><dd>动物房里常常没有信号。Android 应用和桌面版会保留一份你在那里需要的内容：鼠群的笼架、笼、小鼠、
+          窝和近期体重，你未来两周的待办，果蝇和线虫的管以及鱼缸，都按你能看到的范围。它们在打开时、网络恢复时以及每 15 分钟刷新一次。
+          下去之前，长按 <b>扫描</b> 按钮，选 <b>Get ready for the facility</b> 拿一份最新的副本。
+          <p>连不上实验室服务器时，应用会显示离线界面而不是报错，标着 <b>离线</b> （Offline）和副本的时间（超过一天会变成琥珀色）。按笼号、笼卡或
+          小鼠编号查找笼子，或者扫它的笼卡，然后记录你做的事：<b>记录体重</b> （Record a weight）、<b>死亡</b> （Died）、<b>移动</b> （Move）、<b>备注</b> （Note）；繁殖笼上还有 <b>产仔</b> （Litter born）、<b>基因型鉴定</b> （Genotyping，幼崽马上出现，可以直接称重）和 <b>断奶</b> （Wean）；勾掉待办；给管子标 <b>已转管</b> （Flipped）或 <b>丢弃</b> （Discard）；给鱼缸加备注。每一项都会立刻显示，标着 <b>待发送</b> （waiting），顶栏统计待发送的数量。应用关掉也不会丢。</p>
+          <p>回到有信号的地方，这些更改会按你做的顺序送到实验室，每一项都走和页面一样的规则，以你的身份，带着你做的时间。如果期间有人改了同一处
+          （你标它死亡时，别人把它设成了种鼠；记录了另一个出生日期），你的更改会在账户菜单的 <b>需要你决定</b> （Needs your decision）里等着，
+          三天后首页也会提醒：它显示你看到的、现在的内容，以及是谁改的，供你选择 <b>保留我的</b> （Keep mine）、<b>保留他们的</b> （Keep theirs）或 <b>编辑</b> （Edit）。期间别人改的是另一个字段，就和你的一起保留。实验室拒绝的更改（比如那个笼已经不是繁殖笼）会在同一页列出原因。</p></dd>
         <dt id="cards">笼卡</dt><dd><b>笼 → 笼卡</b> （Cages → Cage cards）按标准卡纸尺寸打印笼卡——负责人、用途、放在哪里（笼架和
           位置）、动物及雌雄各几只、基因型和二维码。在笼架前扫一下，就能打开那个笼直接编辑。<b>鱼缸标签</b> （Tank labels，斑马鱼）、果蝇或线虫数据库里的 <b>标签</b> （Labels），以及勾选的样本、试剂或任何
           库存行上的 <b>标签</b>，对鱼缸、果蝇管和管子也有同样的作用。</dd>
@@ -167,6 +176,8 @@
       <h3>手机连不上服务器</h3>
       <p>和管理员核对地址；确认你连的是实验室网络、VPN 或 Tailscale；
           如果实验室用的是自己的证书，确认手机上已经安装。</p>
+      <h3>离线界面显示“这台设备还没有实验室的副本”</h3>
+      <p>你在有信号时通过应用登录后，它才会保留副本。在连得上服务器的地方登录并打开一次 BioManager，再选 <b>Get ready for the facility</b>。</p>
     </section>
     <!-- /page -->
       <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="print-cage-cards.html"><small>上一页</small>打印笼卡</a><a class="next" href="zebrafish.html"><small>下一页</small>斑马鱼</a></nav>

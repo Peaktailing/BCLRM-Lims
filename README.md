@@ -918,9 +918,12 @@ places is lost. **Settings → Devices & copies → Devices** says which device 
 every computer linked to the lab:
 
 - **A lab server** is the master copy unless an admin hands it on.
-- **A desktop can open the lab in its window** (**Open the lab in this
-  window**): you work on the lab itself, in the app, and the computer keeps
-  its daily copy. **Go → This Computer's BioManager** comes back.
+- **A desktop joins the lab as one of your devices** (**Open your lab**, or
+  **Open the lab in this window**): you sign in as you do at the lab (or
+  approve a code on a device already signed in), and its window works on the
+  lab through the app, never the server's page itself. It keeps a daily
+  copy, locked with the lab's key and its own. **Go → This Computer's
+  BioManager** and **Go → Your Lab's BioManager** switch between the two.
 - **A desktop can share its own lab on the network** (**Share this lab on
   the network**, admins): it becomes the master for every device on the same
   network (Wi-Fi or cable), which opens its address. The computer must
@@ -933,6 +936,28 @@ every computer linked to the lab:
   sends everyone there. **Give the master copy back** returns it, with
   everything changed meanwhile. Sign-ins to other services (Google
   Calendar) are not carried along and are connected again.
+
+Every computer, phone and browser you are signed in on is one of **Your
+devices** (**Settings → Devices & copies**): rename one, or **Sign out**
+one (a lost phone) without changing your password. Admins see everyone's.
+
+### 📴 Working offline in the facility
+
+Animal facilities often have no signal. The Android app and the desktop app
+keep a copy of what you need there (the colony's racks, cages, mice, litters
+and recent weights, your to-dos for two weeks, vials and tanks, as you may
+see them), refreshed when they open, when the network comes back and every
+15 minutes; **Get ready for the facility** (hold the Scan button) takes a
+fresh one. When the server can't be reached, the app shows offline screens
+instead of an error: find a cage by its ID or card, or scan it, and **Record
+a weight**, **Died**, **Move**, **Note**, **Litter born**, **Genotyping**,
+**Wean**, tick a to-do, flip or discard a vial. Each shows at once, marked
+*waiting*. Back in signal the changes reach the lab in the order you made
+them, through the pages' own rules, as you. One that clashes with a change
+made meanwhile (the same field, set to something else) waits under **Needs
+your decision** (**Keep mine**, **Keep theirs**, **Edit**); a different
+field is kept along with yours; one the lab refuses is listed with the
+reason.
 
 ---
 
@@ -950,8 +975,8 @@ every computer linked to the lab:
    `BioManager-Linux.AppImage` executable and open it. The apps aren't
    signed by Apple or Microsoft, so the system asks once per version.
 3. It asks whether your lab already uses BioManager. **Yes, open my lab**
-   takes the lab's address and opens it in this window; nothing is made on
-   the computer. **No, start a new lab** names the new lab, asks where it
+   takes the lab's address, then your sign-in, and joins the lab as one of
+   your devices; nothing is made on the computer. **No, start a new lab** names the new lab, asks where it
    lives, and makes your account its admin; then answer the short setup
    survey: tick what your lab keeps, and BioManager creates just those
    databases, with racks and incubators to match, and shows the address
@@ -1398,14 +1423,22 @@ version it came from. A lab server takes a backup before every update.
 
 A lab server backs itself up every night, checks every backup and
 test-restores one every week, with an optional off-site copy and a nightly
-copy on the admin's Mac. The desktop app can also keep **a copy of the lab
-server** on any computer (**Settings → Devices & copies**):
-the whole database, checked when it arrives, refreshed daily, the newest 14
-kept, and loadable into a new server if the old one is lost. Admins decide
-whether members may (guests never). An admin's copy is the whole lab; a
-member's holds what they can see in the app, without anyone's password,
-other people's private notebook pages or personal databases, or the Audit
-log. **Settings → Your data → Export my data** downloads your own mice, cages,
+copy on the admin's Mac. A desktop app that joins the lab keeps **a copy of
+the lab** on that computer (**Settings → Devices & copies**; a computer that
+shouldn't join can use a key from the server instead): checked when it
+arrives, refreshed daily, the newest 14 kept, and loadable into a new server
+if the old one is lost. Admins decide whether members may (guests never). An
+admin's copy is the whole lab; a member's holds what they can see in the
+app, without anyone's password, other people's private notebook pages,
+personal databases, personal to-dos and events, or the Audit log.
+
+**The lab's key** locks the server's backups, **Save the whole lab** files
+and the copies on computers, so a file that leaks can't be read. The server
+and its admins' desktop apps hold it and open these files for you. Its
+**recovery key** (**Settings → Your data → Lab key → Show the recovery key**,
+admins) is the one way to open a backup if the server and every admin's
+computer are lost: keep it on paper or in a password manager, away from the
+backups. **Settings → Your data → Export my data** downloads your own mice, cages,
 weights, experiments, plasmids (each sequence as a GenBank file, with its
 features), notebook pages and profile as a zip at any time.
 

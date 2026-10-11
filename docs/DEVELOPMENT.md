@@ -1144,7 +1144,14 @@ fetches a copy when the last good one is over 20 hours old: checksum and
 `<data>/lab-copies/<host>/db/`, uploads mirrored into `uploads/` (never
 deleted). A snapshot loads into a new server with
 `scripts/migrate-to-postgres.py` (`tests/test_lab_copy.py` proves it on
-PostgreSQL).
+PostgreSQL). The snapshot's `X-BioManager-Lab-Recipient` header is the lab
+key's public half: `pull()` locks the copy (`….db.age`, with a `.json`
+sidecar) and each mirrored file (`.age`, sizes in `uploads/.sizes.json`) to
+it and to this computer's own key (`_recipients`), so a member's computer
+reads its copy and nobody else's can; `open_copy`/`open_uploads` unlock.
+A device that joined (below) takes its copy with its device token instead
+of a copy key (`_authorised` returns its `LabDevice`; the rate limit is
+`last_copy_at`).
 
 ## One master copy, many devices
 
@@ -1168,9 +1175,13 @@ copy), version and address, kept on its `lab_copy_keys` row
 (`device_role`, `device_version`, `device_url`, `last_seen_at`, migration
 0014). `linked_devices()` lists them for the master's admins and says why
 one can't take over (not open in the last 10 minutes, another version, a
-non-admin's key). **Open the lab in this window** saves the server's
-address as the desktop prefs' `window_url`, which `desktop.py` opens
-instead of the local app; Go → This Computer's BioManager clears it.
+non-admin's key). **Open the lab in this window** joins the lab as a device
+(below) and sets the desktop prefs' `window_url` to `"relay"`; `desktop.py`
+then opens the relay instead of the local app. The window never opens a
+server's address itself: a move to a server (`lab_move._moved`, with the
+device `door.take_in` makes for its admin), a give-back and an old
+`window_url` all go through joining. Go → This Computer's BioManager clears
+it; Go → Your Lab's BioManager opens the relay again.
 
 The hand-over is a phase in `app_settings` `devices:state`: `asked` (an
 admin chose a desktop), `frozen` (that desktop took over and is taking its
@@ -1195,6 +1206,112 @@ in again on the new master. A lost desktop is written off with **Make this
 the master again** (clears `away`); a desktop that gave the lab back can
 reload its own lab from `own_backup` (`/settings/devices/own-again`).
 `tests/test_devices.py` covers both directions on SQLite and PostgreSQL.
+
+## The lab's key
+
+`app/lab_key.py`. Each lab has an age X25519 identity (pyrage), kept in
+`lab_keys` (`secret` is `EncryptedText`, so it opens only with this
+device's `SECRET_KEY`). The newest `active` row locks; every row is kept so
+older files still open. `lab_transfer.build` locks a `.biomanager` file to
+it (`age-encryption.org/v1` header), `open_file` tries the keys given (a
+typed recovery key, the `X-BioManager-Lab-Key` header a desktop sends when
+it moves a lab) and this device's own, and `door.take_in` adopts the key a
+file opened with. `lab_keys`, `lab_devices` and `device_pairings` are
+`MACHINE_TABLES`: kept across `load_lab` and `lab_transfer.apply`. The
+recovery key is the `AGE-SECRET-KEY-1…` string (checksummed), shown under
+Settings → Your data → Lab key after a password check (`lab_move.lab_key_page`,
+which also adopts one). On a server with `BIOMANAGER_LABKEY_DIR`,
+`export_if_asked()` writes `lab.pub` and `lab.key` (0600) into the `labkey`
+volume at start-up; `deploy/backup/labkey.sh` locks each dump and tarball
+with `age -R lab.pub` and opens them with `lab.key` or
+`BIOMANAGER_RECOVERY_KEY`. The key is never in a backup.
+`tests/test_lab_key.py`.
+
+## Devices that join the lab
+
+`app/lab_devices.py`. Every device is a `lab_devices` row: an app (desktop,
+phone) with a `bmd_…` token (only its SHA-256 kept) sent as
+`Authorization: Bearer`, or a browser sign-in (`kind="browser"`, keyed by
+the session `sid`'s hash: `note_browser` at sign-in, `browser_ok` on every
+request, so signing one out from another device ends that session). An app
+joins with `POST /api/devices/join` (username and password, throttled), with
+a code (`POST /api/devices/pair` gives an `XXXX-XXXX` code and a `bmp_`
+secret; someone signed in approves it at `/settings/devices/approve`; the
+app polls with `Authorization: Pair …` and gets its token once), or, for the
+phone apps, from their signed-in page (`POST /api/devices/this-app`, the
+app's User-Agent, same-origin). `authenticate()` (from
+`app.load_current_user`) signs a token's requests in as its person and sets
+`g.device`; `security.cross_site_reason` exempts `bmd_` bearer requests,
+which no form can send. An admin's join answer carries the lab's key (for
+their desktop's copies and hand-overs); a member's doesn't. Guests can't
+join. Settings → Devices & copies lists `listing()`: your devices, and for
+admins everyone's.
+
+The desktop side is `app/desktop_join.py` (the token, encrypted, in the
+desktop prefs `joined_lab`; the lab's key adopted inactive; the copy
+settings pointed at the device) and `app/relay.py`: a threaded werkzeug
+server on `127.0.0.1` (port kept as `relay_port`) that forwards each
+request to the server with the token, keeps the server's cookies in its own
+jar, rewrites `Location`, and refuses another Host (421) and cross-site
+writes (403), the same check the server makes. `/logout` becomes
+`/_relay/leave` (Sign this computer out of the lab?), which revokes the
+device and forgets the lab. `tests/test_relay.py` runs it against a real
+server thread.
+
+## Working offline
+
+The offline design: devices record what is done with no signal as a queue
+of actions (`app/actions.py`), and the server replays them through the
+pages' own routes. Nothing is merged; the lab keeps one master copy.
+
+- **Versions.** `app/sync_clock.py`: every record a device keeps
+  (`SYNCED_TABLES`: mice, cages, litters, weights, tasks, racks, vials,
+  tanks) has `sync_version`, set in a `before_flush` hook from one lab-wide
+  count (`sync_clock`, advanced by an UPDATE that PostgreSQL holds locked to
+  commit, so numbers follow commit order). Deletions go to
+  `sync_deletions`. The hook is off before Alembic has run
+  (`services.init_database`).
+- **The feed.** `app/sync.py`: `GET /api/sync/snapshot` (as the person may
+  see it: the colony, living mice and those dead in the last 90 days, the
+  last five weights, their to-dos for 14 days, vials of the stock databases
+  they may open, tanks, dropdowns, weaning due) and `GET /api/sync/changes?since=`
+  (rows above the cursor, rows they may no longer see as `gone`; `reset`
+  past 20 000).
+- **The queue.** `POST /api/sync/push`: ops in order, each `{op, made_at,
+  cursor, action, target, fields, base, creates}`. A `sync_ops` row claims
+  the op id first, so a resend answers the stored result. `_check` compares
+  `base` (`"mouse:12": {"v": …, field: …}`) with the record: same version
+  fits; moved on with other fields changed merges; the same field changed
+  to something else is held (`held_changes`), with per-action rules (both
+  dead agree, a move to where it is is done, a second litter at genotyping
+  is held, a weight that day by someone else is held, a wean whose pups
+  moved is refused). Later ops about a held record, or naming its temporary
+  ids, answer `waiting` and are sent again. Fitting ops run
+  `actions.run(..., apply=True)` as their person, one batch each ("Done
+  offline on …"); `creates` maps `tmp:` ids to the records made, by table
+  and order. `task_done` is the one new action.
+- **Deciding.** `/decisions` (Needs your decision, in the account menu once
+  something is held; Home reminds after three days) and
+  `POST /api/sync/held/<id>`: Keep mine replays the change as an ordinary
+  edit, Keep theirs and Edit drop it. Refused ops of the last 30 days are
+  listed there.
+- **The screens.** `app/static/offline/` is one bundle for every device.
+  It talks to a store through fetch (`/_relay/store`, `/_relay/store/queue`,
+  `/_relay/sync`, `/_relay/status`) on the desktop, or
+  `window.webkit.messageHandlers.bmStore` / `window.BMNative` answered with
+  `window.BMStoreReply` in the phone apps. Its words are
+  `app/translations/zh/js-offline.json`.
+- **Stores.** The desktop: `app/offline_store.py` (snapshot, queue and
+  state encrypted with this computer's secret, refreshed every 5 minutes by
+  a thread `desktop_join.start_relay` starts); the relay redirects a page
+  it can't fetch to `/_offline/` once there is a copy. iPhone:
+  `ios/BioManager/OfflineStore.swift` (Keychain token, files with Data
+  Protection, `NWPathMonitor`, `BGAppRefreshTask`). Android:
+  `OfflineStore.java` (private storage, a network callback, a 15-minute
+  timer); Gradle copies the bundle into the assets.
+
+`tests/test_sync.py` covers the rules; `tests/test_relay.py` the desktop
+going offline and back.
 
 ## Notifications
 
@@ -1649,7 +1766,9 @@ from `ENDPOINTS`, so a new endpoint goes there too.
   reagents, sample inventories and tests the page offers as choices).
 - **Writes reuse the pages' code**, so their rules hold: `PATCH /mice/<id>`
   fills a form from `mouse_display_row`, overlays the fields sent, and calls
-  `populate_mouse_from_form` (flashed refusals come back as `warnings`);
+  `populate_mouse_from_form` (flashed refusals come back as `warnings`;
+  a `version` that isn't the mouse's `sync_version` now is a 409, so a
+  client that sends back what it read never overwrites a change since);
   inventory items go through `inventory_routes._item_from_form`, vials
   through `stock_routes._unit_from_form` (both copy only the fields sent),
   readouts through `experiments.set_reading`. Permission checks are the

@@ -101,7 +101,7 @@ Install the desktop app, open it the first time, and set up your lab.
 
 #### Starting a lab
 
-The first time the desktop app opens, it asks **Does your lab already use BioManager?** **Yes, open my lab** takes the lab's address and opens it in this window from then on; nothing is made on the computer. **No, start a new lab** makes a new, empty lab, and says so: you name it, choose whether it lives on this computer or a lab server, and make its first account, which is the lab's **admin**. A server nobody has set up says it has no lab yet, and starts the same way, with the one-time setup code printed when the server started. The admin then answers a short survey, and BioManager builds exactly what you'll use — nothing more:
+The first time the desktop app opens, it asks **Does your lab already use BioManager?** **Yes, open my lab** takes the lab's address, then you sign in as you do at the lab (or **use a code** approved on a device already signed in), and the computer joins the lab as one of your devices: its window works on the lab from then on, and it keeps a copy for when the server can't be reached ([Your devices](https://biomanager.org/guide/your-data#your-devices)). Nothing is made on the computer. **No, start a new lab** makes a new, empty lab, and says so: you name it, choose whether it lives on this computer or a lab server, and make its first account, which is the lab's **admin**. A server nobody has set up says it has no lab yet, and starts the same way, with the one-time setup code printed when the server started. The admin then answers a short survey, and BioManager builds exactly what you'll use — nothing more:
 
 1. **Your lab** — its name, time zone, how dates are written and the genotyping day ([what these do](https://biomanager.org/guide/lab-setup)).
 
@@ -600,11 +600,13 @@ Use BioManager on a phone, and print cage cards and labels that open records whe
 
 Who and where: Lab server for phones
 
-- **Android**: Install `BioManager-Android.apk` from the [download page](https://biomanager.org/download) (allow your browser to install apps when asked), type your lab server's address once, and you're in. The **Scan** button reads cage cards.
+- **Android**: Install `BioManager-Android.apk` from the [download page](https://biomanager.org/download) (allow your browser to install apps when asked), type your lab server's address once, and you're in. The **Scan** button reads cage cards. Signed in, the app is one of your devices and keeps the facility on the phone for when there is no signal ([Working offline](https://biomanager.org/guide/phones-and-cage-cards#offline)).
 
 - **iPhone and iPad**: Open the server in **Safari** and tap **Share → Add to Home Screen**. BioManager gets its own icon and opens full screen like an app; your camera scans cage cards. (Android without the app: Chrome → **⋮ → Install app**.)
 
 - **Getting around**: A bar at the bottom holds **Home**, **Calendar**, **Databases** (a list of the lab's databases), **Notebook** and **Scan**, with **Search** in the round button beside it; it shrinks while you read down a page. **Scan** uses the app's scanner, or the phone's camera; in Safari on an iPhone it reminds you to point the **Camera** app at the card, which opens it here. **☰** at the top left brings in the whole sidebar.
+
+- **Working offline**: Animal facilities often have no signal. The Android app and the desktop app keep a copy of what you need there: the colony's racks, cages, mice, litters and recent weights, your to-dos for the next two weeks, fly and worm vials and fish tanks, as you may see them. They refresh it when they open, when the network comes back and every 15 minutes. Before going down, press and hold the **Scan** button and choose **Get ready for the facility** for a fresh copy. When the lab's server can't be reached, the app shows its offline screens instead of an error, marked **Offline** with when the copy was made (amber once it is more than a day old). Find a cage by its ID, card or a mouse's number, or scan its card, and record what you do: **Record a weight**, **Died**, **Move**, a **Note**; on a Breeding cage **Litter born**, **Genotyping** (the pups appear at once, ready to weigh) and **Wean**; tick a to-do; **Flipped** or **Discard** a vial; a note on a tank. Each shows at once, marked **waiting**, and the bar counts the changes waiting. Nothing is lost if the app closes. Back in signal, the changes go to the lab in the order you made them, each through the same rules as the pages, as you, with the time you did it. If someone changed the same thing meanwhile (marked the mouse Breeder while you marked it dead, recorded another birth date), yours waits under **Needs your decision** in your account menu, and on Home after three days: it shows what you saw, what is there now and who changed it, with **Keep mine**, **Keep theirs** or **Edit**. A different field changed meanwhile is simply kept along with yours. Something the lab refuses (a cage that isn't a Breeding cage any more) is listed on the same page with the reason.
 
 - **Cage cards**: **Cages → Cage cards** prints cards sized for standard card stock — owner, purpose, where it goes (rack and position), animals with how many of each sex, genotype and a QR code. Scanning it opens that cage, ready to edit, at the rack. **Tank labels** (Zebrafish), **Labels** on a fly or worm database, and **Labels** on ticked samples, reagents or any inventory's rows do the same for tanks, vials and tubes.
 
@@ -621,6 +623,10 @@ Who and where: Lab server for phones
 #### My phone can't reach the server
 
 Check the address with your admin; that you're on the lab's network, VPN or Tailscale; and, if your lab uses its own certificate, that it's installed on the phone.
+
+#### The offline screens say "This device has no copy of the lab yet"
+
+The app keeps a copy once you have signed in through it with a signal. Open BioManager once where it reaches the server, signed in, then **Get ready for the facility**.
 
 Source: https://biomanager.org/guide/phones-and-cage-cards
 
@@ -1394,25 +1400,41 @@ Where your data is kept, how it's backed up, and how to move it.
 
 A server backs up every night, restores the newest backup every week to prove it works, and can keep encrypted copies off-site — see [Keeping the data safe](https://biomanager.org/server#safe).
 
+### The lab's key
+
+Every lab has its own key. The server's nightly backups, **Save the whole lab** files and the copies on your computers are locked with it, so anyone who gets hold of one (a lost laptop, a backup disk, a file sent to the wrong person) sees only random bytes. The server, and the desktop apps of the lab's admins that join it, hold the key and open these files for you; you never type it in day to day.
+
+- **Settings → Your data → Lab key** (admins) shows the key and when its recovery key was last shown, and to whom. **Show the recovery key** asks for your password, then shows it. Write it down or keep it in a password manager, away from the backups.
+
+- If the server and every admin's computer were lost, the recovery key is the only way to open a backup. A new server restores with it ([Restore a backup](https://biomanager.org/guide/restore-a-backup#lab-server)), and a lab file or copy opens with it under **A lab back without its key** on the same page, or when you bring the lab file in.
+
+- Anyone with the recovery key can read the lab's backups: keep it like the server's own password.
+
 ### A copy of the lab on your computer
 
-The desktop app can keep a copy of your lab server's whole database, so the lab's records live on more than one machine:
+When the desktop app joins your lab (**Open your lab**, below), it keeps a copy of the lab on that computer by itself, so the lab's records live on more than one machine: a fresh one every day while the app is open, checked, the last 14 kept, with the uploaded files mirrored. **Settings → Devices & copies** on the computer shows when the last copy was made.
 
-1. On the server: **Settings → Devices & copies**, name the computer and **Make a key**. Copy the key; it's shown once. (Admins always may; members when **Settings → People & access → What members may do** allows it.)
+A computer that shouldn't join can still keep a copy with a key: on the server, **Settings → Devices & copies**, name the computer and **Make a key** (shown once); in that computer's desktop app, enter the server's address and the key, and **Save and copy now**. (Admins always may; members when **Settings → People & access → What members may do** allows it.) **Revoke** stops a computer from taking more.
 
-2. On that computer, in the desktop app: **Settings → Devices & copies**. Enter the server's address and the key, and **Save and copy now**.
-
-3. From then on, while the app is open, it takes a fresh copy every day, checks it, keeps the last 14 and mirrors uploaded files. The card shows when the last copy was made; on the server, the list shows every computer and how fresh its copy is. **Revoke** stops a computer (a lost laptop, say) from taking more.
-
-The copies sit beside the app's own data, which they never touch. An admin's copy is the whole lab, and can rebuild the server if it's ever lost ([how](https://biomanager.org/server#move)): treat a computer holding one like the server itself. A member's copy holds what they can see in the app: no one's password, not other people's private notebook pages, personal databases or personal to-dos and events, not the Audit log. Guests can't keep a copy.
+Each copy is locked with the lab's key and with that computer's own, so it opens on that computer and nowhere else without the recovery key. An admin's copy is the whole lab, and can rebuild the server if it's ever lost ([how](https://biomanager.org/server#move)): treat a computer holding one like the server itself. A member's copy holds what they can see in the app: no one's password, not other people's private notebook pages, personal databases or personal to-dos and events, not the Audit log. Guests can't keep a copy.
 
 ### One lab on many devices
 
-One device holds the lab's **master copy**; every other one works on it through its address, so nothing is ever merged and nothing written in two places is lost. **Settings → Devices & copies → Devices** shows which device it is, and every computer linked to the lab (by a key from **Copies of the lab**): how it uses the lab, its version, when it was last heard from.
+One device holds the lab's **master copy**; every other one works on it through its address, so nothing is ever merged and nothing written in two places is lost. **Settings → Devices & copies → Devices** shows which device it is, and every computer linked to the lab: how it uses the lab, its version, when it was last heard from.
+
+#### Your devices
+
+Every computer, phone and browser you are signed in on is one of your devices, listed under **Your devices** in **Settings → Devices & copies**: what it is, when it was last seen and from where. Rename one by typing its new name; **Sign out** ends it there at once, without changing your password (a lost phone, a shared computer). Admins also see **Everyone's devices**.
+
+- **The desktop app joins the lab as one of your devices.** **Open your lab** (on a new desktop app's first page, or **Go → Your Lab's BioManager**) finds the lab's address, then asks you to sign in as you do at the lab. Signed in with Google or Microsoft? **Use a code**: it shows a code to type under **A device shows a code?** on a computer or phone already signed in. The app's window then works on the lab through the app itself, never the server's page, and keeps its daily copy. **Go → This Computer's BioManager** comes back to its own lab, and **Go → Your Lab's BioManager** returns to the lab. **Sign out** in its window asks **Sign this computer out of the lab?**, which ends the device and forgets what it kept of the lab.
+
+- **The phone apps** become one of your devices once you sign in through them, which lets them keep the facility on the phone for working without a signal ([Working offline](https://biomanager.org/guide/phones-and-cage-cards#offline)).
+
+- **A browser** you sign in on is listed too; signing it out from another device signs it out there.
 
 - **A lab server** is the master copy unless an admin hands it on.
 
-- **Open the lab in this window** (a linked desktop): the app's window opens the lab itself, as a browser would, and the computer keeps its daily copy. **Go → This Computer's BioManager** comes back to its own.
+- **Open the lab in this window** (a linked desktop): the app joins the lab as one of your devices, as above.
 
 - **Share this lab on the network** (a desktop, admins): the computer becomes the master for every device on the same network, which opens the address it shows and signs in with an account there. It must stay on and awake. The connection isn't encrypted, so share only on a network you trust; for anywhere else, a lab server. Its own pages (setting up a server, its copies, its devices) are never offered to another device.
 
@@ -1469,6 +1491,8 @@ BioManager opens the lab as it was when that backup was made.
 ### On a lab server
 
 A server backs up every night and restores the newest backup every week to prove it works. Restoring is one command, run by whoever looks after the server, and never deletes what it replaces: see `deploy/RUNBOOK.md` in the server bundle and [Keeping the data safe](https://biomanager.org/server#safe). For a mistake in a bulk change, **Settings → History → Undo** is enough.
+
+The backups are locked with [the lab's key](https://biomanager.org/guide/your-data#lab-key), so a backup that leaks can't be read. On the same server they open by themselves. On a new machine, which doesn't have the key, the restore is given the lab's recovery key (the runbook says how); once the lab is back, an admin enters the recovery key under **Settings → Your data → Lab key → A lab back without its key**, so the lab files and copies it locked open there again.
 
 ### Troubleshooting
 

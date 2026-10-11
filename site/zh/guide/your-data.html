@@ -162,32 +162,46 @@
       <h2 id="a-lab-server">实验室服务器</h2>
       <p>服务器每晚备份一次，每周恢复一次最新备份以证明备份可用，还可以把加密副本存到
         异地——见<a href="../server.html#safe">保护数据安全</a>。</p>
+      <h2 id="lab-key">实验室密钥</h2>
+      <p>每个实验室都有自己的密钥。服务器每晚的备份、<b>保存整个实验室</b> （Save the whole lab）的文件，以及你电脑上的副本都用它加密，
+        所以拿到其中任何一份的人（丢失的笔记本、备份硬盘、发错人的文件）只能看到一堆随机字节。服务器以及加入它的实验室管理员的桌面版
+        都持有这把密钥，会替你打开这些文件；平时你不需要输入它。</p>
+      <ul>
+        <li><b>设置 → 你的数据 → 实验室密钥</b> （Settings → Your data → Lab key，管理员）显示这把密钥，以及恢复密钥上次在什么时候给谁看过。<b>显示恢复密钥</b> （Show the recovery key）会先要你的密码，然后显示出来。把它写在纸上或存进密码管理器，和备份分开保存。</li>
+        <li>万一服务器和所有管理员的电脑都丢了，恢复密钥是打开备份的唯一办法。新服务器用它恢复（<a href="restore-a-backup.html#lab-server">恢复备份</a>），
+          实验室文件或副本则可以在同一页的 <b>恢复的实验室没有密钥</b> （A lab back without its key）里，或者在搬入实验室文件时用它打开。</li>
+        <li>任何拿到恢复密钥的人都能读取实验室的备份：要像保管服务器自己的密码一样保管它。</li>
+      </ul>
       <h2 id="copies">在你电脑上保留一份实验室副本</h2>
-      <p>桌面版可以保留一份实验室服务器整个数据库的副本，这样实验室的记录就不止存在一台
-        机器上：</p>
-      <ol class="steps-list">
-        <li>在服务器上：<b>设置 → 设备与副本</b> （Settings → Devices &amp; copies），填写电脑名称，点 <b>生成密钥</b> （Make a key）。
-          复制密钥；它只显示一次。（管理员总是可以；成员需要 <b>设置 → 人员与权限 → 成员可以做什么</b> （Settings → People &amp; access → What members
-          may do）允许。）</li>
-        <li>在那台电脑的桌面版里：<b>设置 → 设备与副本</b> （Settings → Devices &amp; copies）。输入服务器
-          地址和密钥，点 <b>保存并立即复制</b> （Save and copy now）。</li>
-        <li>从此，只要应用开着，它每天都会做一份新副本、校验、保留最近 14 份，并同步
-          上传的文件。卡片上显示上次复制的时间；在服务器上，列表显示每台电脑以及它的副本有多
-          新。<b>撤销</b> （Revoke）可以阻止某台电脑（比如丢失的笔记本）继续复制。</li>
-      </ol>
-      <p>副本放在应用自己的数据旁边，绝不会碰它。管理员的副本是整个实验室，服务器万一丢失，可以用它
-        重建（<a href="../server.html#move">方法</a>）：存有这种副本的电脑，要像服务器本身一样对待。
-        成员的副本只包含他们在应用里能看到的内容：没有任何人的密码，没有别人的私人实验记录本页面、
-        个人数据库或个人的待办和日程，也没有审计日志。访客不能保留副本。</p>
+      <p>桌面版加入你的实验室后（<b>打开你的实验室</b> （Open your lab），见下文），会自动在那台电脑上保留一份实验室副本，这样实验室的记录就不止
+        存在一台机器上：只要应用开着，每天做一份新副本、校验、保留最近 14 份，并同步上传的文件。电脑上的 <b>设置 → 设备与副本</b>
+        （Settings → Devices &amp; copies）显示上次复制的时间。</p>
+      <p>不想加入实验室的电脑，也可以用密钥保留副本：在服务器上，<b>设置 → 设备与副本</b>，填写电脑名称，点 <b>生成密钥</b> （Make a key，只显示一次）；
+        在那台电脑的桌面版里输入服务器地址和密钥，点 <b>保存并立即备份</b> （Save and copy now）。（管理员总是可以；成员需要 <b>设置 → 人员与权限 → 成员可以做什么</b> （Settings → People &amp; access → What members may do）允许。）<b>吊销</b> （Revoke）可以阻止某台电脑继续复制。</p>
+      <p>每份副本都同时用实验室密钥和那台电脑自己的密钥加密，所以没有恢复密钥，它只能在那台电脑上打开。管理员的副本是整个实验室，服务器万一丢失，
+        可以用它重建（<a href="../server.html#move">方法</a>）：存有这种副本的电脑，要像服务器本身一样对待。成员的副本只包含他们在应用里能看到的内容：
+        没有任何人的密码，没有别人的私人实验记录本页面、个人数据库或个人的待办和日程，也没有审计日志。访客不能保留副本。</p>
       <h2 id="devices">一个实验室，多台设备</h2>
       <p>一台设备保存实验室的 <b>主副本</b> （master copy）；其他设备都通过它的地址在主副本上工作，所以从不需要
         合并，也不会因为两处同时写入而丢失内容。<b>设置 → 设备与副本 → 设备</b> （Settings → Devices &amp; copies → Devices）显示当前是哪台设备，以及每台
-        与实验室关联的电脑（通过 <b>实验室副本</b> （Copies of the lab）里的密钥）：它怎样使用实验室、版本，以及最后一次
-        联络的时间。</p>
+        与实验室关联的电脑：它怎样使用实验室、版本，以及最后一次联络的时间。</p>
+      <h3 id="your-devices">你的设备</h3>
+      <p>你登录过的每台电脑、手机和浏览器都是你的一台设备，列在 <b>设置 → 设备与副本</b> 的 <b>你的设备</b> （Your devices）下：它是什么、
+        最后一次出现的时间和地点。直接输入新名字即可重命名；<b>退出登录</b> （Sign out）会立刻让那台设备退出，而不用改密码（丢失的手机、
+        共用的电脑）。管理员还能看到 <b>所有人的设备</b> （Everyone’s devices）。</p>
+      <ul>
+        <li><b>桌面版作为你的一台设备加入实验室。</b> <b>打开你的实验室</b> （Open your lab，在新桌面版的首页，或 <b>Go → Your Lab's BioManager</b>）
+          先找到实验室的地址，再请你用在实验室的方式登录。用 Google 或 Microsoft 登录？选 <b>我用 Google 或 Microsoft 登录：使用代码</b>：
+          它会显示一个代码，在已经登录的电脑或手机上，于 <b>设备上显示了一个代码？</b> （A device shows a code?）下输入即可。之后应用窗口通过应用本身
+          使用实验室，从不直接打开服务器的页面，并保留每天的副本。<b>Go → This Computer's BioManager</b> 回到这台电脑自己的实验室，<b>Go → Your Lab's BioManager</b> 回到实验室。在它窗口里 <b>退出登录</b> 会问 <b>让这台电脑退出实验室？</b>，确认后这台设备失效，
+          它保留的实验室内容也会被清除。</li>
+        <li><b>手机应用</b> 在你通过它登录后成为你的一台设备，于是可以把动物房需要的内容存在手机上，没有信号时也能用
+          （<a href="phones-and-cage-cards.html#offline">离线工作</a>）。</li>
+        <li>你登录过的 <b>浏览器</b> 也会列出；在另一台设备上让它退出，它就在那边退出登录。</li>
+      </ul>
       <ul>
         <li><b>实验室服务器</b> 就是主副本，除非管理员把它移交出去。</li>
-        <li><b>在此窗口打开实验室</b> （Open the lab in this window，已关联的桌面版）：应用窗口直接打开实验室本身，就像浏览器
-          一样，而电脑照常保留每天的副本。<b>前往 → 本机的 BioManager</b> （Go → This Computer's BioManager）回到它自己的数据。</li>
+        <li><b>在这个窗口中打开实验室</b> （Open the lab in this window，已关联的桌面版）：应用作为你的一台设备加入实验室，如上所述。</li>
         <li><b>在网络上共享此实验室</b> （Share this lab on the network，桌面版，管理员）：这台电脑成为同一网络中所有设备的
           主副本，其他设备打开它显示的地址，并用在那里的账号登录。它必须保持开机、不休眠。
           连接没有加密，所以只在你信任的网络上共享；其他场合请用实验室服务器。它自己的页面
@@ -218,8 +232,7 @@
         <li>一个随机的安装 ID，让每个实验室只算一次。</li>
       </ul>
       <p>绝不包括姓名、邮箱地址、任何人写的任何内容、你的数据库叫什么，以及电脑的名称或地址。
-        数据发送到 PostHog，并要求它不要推断来源位置。管理员可以在
- <b>使用报告</b> （Usage report，<b>帮助 → 发送反馈 → 使用报告</b> （Help → Send feedback → Usage report））里看到发送的确切内容，并可以在那里 <b>关闭</b> （Switch off）；设置问卷会先询问。在
+        数据发送到 PostHog，并要求它不要推断来源位置。管理员可以在 <b>使用报告</b> （Usage report，<b>帮助 → 发送反馈 → 使用报告</b> （Help → Send feedback → Usage report））里看到发送的确切内容，并可以在那里 <b>关闭</b> （Switch off）；设置问卷会先询问。在
         服务器上，在 <code>.env</code> 里设置 <code>BIOMANAGER_TELEMETRY=0</code>（或 <code>DO_NOT_TRACK=1</code>）可以永久关闭。</p>
     <!-- /page -->
       <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="lab-setup.html"><small>上一页</small>实验室设置</a><a class="next" href="restore-a-backup.html"><small>下一页</small>从备份恢复</a></nav>
@@ -230,14 +243,16 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="本页内容">
-      <p>本页内容 · 阅读约 5 分钟</p>
+      <p>本页内容 · 阅读约 7 分钟</p>
       <ol>
         <li class="lvl2"><a href="#the-desktop-app">桌面版</a></li>
         <li class="lvl3"><a href="#whole-lab">把整个实验室存成一个文件</a></li>
         <li class="lvl3"><a href="#set-aside">搁置的实验室</a></li>
         <li class="lvl2"><a href="#a-lab-server">实验室服务器</a></li>
+        <li class="lvl2"><a href="#lab-key">实验室密钥</a></li>
         <li class="lvl2"><a href="#copies">在你电脑上保留一份实验室副本</a></li>
         <li class="lvl2"><a href="#devices">一个实验室，多台设备</a></li>
+        <li class="lvl3"><a href="#your-devices">你的设备</a></li>
         <li class="lvl2"><a href="#everyone">导出你的数据</a></li>
         <li class="lvl2"><a href="#counts">BioManager 会向开发者发送什么</a></li>
       </ol>

@@ -166,31 +166,58 @@
       <h2 id="a-lab-server">A lab server</h2>
       <p>A server backs up every night, restores the newest backup every week to prove it works, and can keep encrypted copies
         off-site — see <a href="../server.html#safe">Keeping the data safe</a>.</p>
+      <h2 id="lab-key">The lab's key</h2>
+      <p>Every lab has its own key. The server's nightly backups, <b>Save the whole lab</b> files and the copies on your
+        computers are locked with it, so anyone who gets hold of one (a lost laptop, a backup disk, a file sent to the wrong
+        person) sees only random bytes. The server, and the desktop apps of the lab's admins that join it, hold the key and open
+        these files for you; you never type it in day to day.</p>
+      <ul>
+        <li><b>Settings → Your data → Lab key</b> (admins) shows the key and when its recovery key was last shown, and to whom.
+          <b>Show the recovery key</b> asks for your password, then shows it. Write it down or keep it in a password manager,
+          away from the backups.</li>
+        <li>If the server and every admin's computer were lost, the recovery key is the only way to open a backup. A new server
+          restores with it (<a href="restore-a-backup.html#lab-server">Restore a backup</a>), and a lab file or copy opens with it
+          under <b>A lab back without its key</b> on the same page, or when you bring the lab file in.</li>
+        <li>Anyone with the recovery key can read the lab's backups: keep it like the server's own password.</li>
+      </ul>
       <h2 id="copies">A copy of the lab on your computer</h2>
-      <p>The desktop app can keep a copy of your lab server's whole database, so the lab's records live on more than one
-        machine:</p>
-      <ol class="steps-list">
-        <li>On the server: <b>Settings → Devices &amp; copies</b>, name the computer and <b>Make a key</b>.
-          Copy the key; it's shown once. (Admins always may; members when <b>Settings → People &amp; access → What members may do</b> allows it.)</li>
-        <li>On that computer, in the desktop app: <b>Settings → Devices &amp; copies</b>. Enter the server's
-          address and the key, and <b>Save and copy now</b>.</li>
-        <li>From then on, while the app is open, it takes a fresh copy every day, checks it, keeps the last 14 and mirrors
-          uploaded files. The card shows when the last copy was made; on the server, the list shows every computer and how
-          fresh its copy is. <b>Revoke</b> stops a computer (a lost laptop, say) from taking more.</li>
-      </ol>
-      <p>The copies sit beside the app's own data, which they never touch. An admin's copy is the whole lab, and can rebuild the
-        server if it's ever lost (<a href="../server.html#move">how</a>): treat a computer holding one like the server itself.
-        A member's copy holds what they can see in the app: no one's password, not other people's private notebook pages,
-        personal databases or personal to-dos and events, not the Audit log. Guests can't keep a copy.</p>
+      <p>When the desktop app joins your lab (<b>Open your lab</b>, below), it keeps a copy of the lab on that computer by itself,
+        so the lab's records live on more than one machine: a fresh one every day while the app is open, checked, the last 14
+        kept, with the uploaded files mirrored. <b>Settings → Devices &amp; copies</b> on the computer shows when the last copy
+        was made.</p>
+      <p>A computer that shouldn't join can still keep a copy with a key: on the server, <b>Settings → Devices &amp; copies</b>,
+        name the computer and <b>Make a key</b> (shown once); in that computer's desktop app, enter the server's address and the
+        key, and <b>Save and copy now</b>. (Admins always may; members when <b>Settings → People &amp; access → What members may
+        do</b> allows it.) <b>Revoke</b> stops a computer from taking more.</p>
+      <p>Each copy is locked with the lab's key and with that computer's own, so it opens on that computer and nowhere else
+        without the recovery key. An admin's copy is the whole lab, and can rebuild the server if it's ever lost
+        (<a href="../server.html#move">how</a>): treat a computer holding one like the server itself. A member's copy holds what
+        they can see in the app: no one's password, not other people's private notebook pages, personal databases or personal
+        to-dos and events, not the Audit log. Guests can't keep a copy.</p>
       <h2 id="devices">One lab on many devices</h2>
       <p>One device holds the lab's <b>master copy</b>; every other one works on it through its address, so nothing is ever
         merged and nothing written in two places is lost. <b>Settings → Devices &amp; copies → Devices</b> shows which device it is, and every
-        computer linked to the lab (by a key from <b>Copies of the lab</b>): how it uses the lab, its version, when it was last
-        heard from.</p>
+        computer linked to the lab: how it uses the lab, its version, when it was last heard from.</p>
+      <h3 id="your-devices">Your devices</h3>
+      <p>Every computer, phone and browser you are signed in on is one of your devices, listed under <b>Your devices</b> in
+        <b>Settings → Devices &amp; copies</b>: what it is, when it was last seen and from where. Rename one by typing its new
+        name; <b>Sign out</b> ends it there at once, without changing your password (a lost phone, a shared computer). Admins
+        also see <b>Everyone's devices</b>.</p>
+      <ul>
+        <li><b>The desktop app joins the lab as one of your devices.</b> <b>Open your lab</b> (on a new desktop app's first page,
+          or <b>Go → Your Lab's BioManager</b>) finds the lab's address, then asks you to sign in as you do at the lab. Signed in
+          with Google or Microsoft? <b>Use a code</b>: it shows a code to type under <b>A device shows a code?</b> on a
+          computer or phone already signed in. The app's window then works on the lab through the app itself, never the
+          server's page, and keeps its daily copy. <b>Go → This Computer's BioManager</b> comes back to its own lab, and
+          <b>Go → Your Lab's BioManager</b> returns to the lab. <b>Sign out</b> in its window asks <b>Sign this computer out of
+          the lab?</b>, which ends the device and forgets what it kept of the lab.</li>
+        <li><b>The phone apps</b> become one of your devices once you sign in through them, which lets them keep the facility
+          on the phone for working without a signal (<a href="phones-and-cage-cards.html#offline">Working offline</a>).</li>
+        <li><b>A browser</b> you sign in on is listed too; signing it out from another device signs it out there.</li>
+      </ul>
       <ul>
         <li><b>A lab server</b> is the master copy unless an admin hands it on.</li>
-        <li><b>Open the lab in this window</b> (a linked desktop): the app's window opens the lab itself, as a browser
-          would, and the computer keeps its daily copy. <b>Go → This Computer's BioManager</b> comes back to its own.</li>
+        <li><b>Open the lab in this window</b> (a linked desktop): the app joins the lab as one of your devices, as above.</li>
         <li><b>Share this lab on the network</b> (a desktop, admins): the computer becomes the master for every device on the
           same network, which opens the address it shows and signs in with an account there. It must stay on and awake. The
           connection isn't encrypted, so share only on a network you trust; for anywhere else, a lab server. Its own pages
@@ -234,14 +261,16 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 6 min read</p>
+      <p>On this page · 8 min read</p>
       <ol>
         <li class="lvl2"><a href="#the-desktop-app">The desktop app</a></li>
         <li class="lvl3"><a href="#whole-lab">The whole lab in one file</a></li>
         <li class="lvl3"><a href="#set-aside">Labs set aside</a></li>
         <li class="lvl2"><a href="#a-lab-server">A lab server</a></li>
+        <li class="lvl2"><a href="#lab-key">The lab&#x27;s key</a></li>
         <li class="lvl2"><a href="#copies">A copy of the lab on your computer</a></li>
         <li class="lvl2"><a href="#devices">One lab on many devices</a></li>
+        <li class="lvl3"><a href="#your-devices">Your devices</a></li>
         <li class="lvl2"><a href="#everyone">Getting your data out</a></li>
         <li class="lvl2"><a href="#counts">What BioManager sends its makers</a></li>
       </ol>

@@ -925,15 +925,19 @@ docker compose cp /tmp/lab-uploads/. app:/data/uploads/</pre><button type="butto
       <p>Several independent copies, so no single failure (a deleted VM, a dead disk, a stolen laptop, a bad update) loses
         the lab's records.</p>
       <table class="gtable layers">
-        <tr><th>1 · Every night</th><td>The server backs up the database and uploaded files, checks each backup can be read,
-          and keeps the last 30. <i>Automatic on every server.</i></td></tr>
+        <tr><th>1 · Every night</th><td>The server backs up the database and uploaded files, locks each backup with the
+          lab's own key (a backup that leaks can't be read), checks it can be opened, and keeps the last 30. <i>Automatic on
+          every server.</i> The key lives apart from the backups; an admin keeps its <b>recovery key</b>
+          (<b>Settings → Your data → Lab key</b>), the one way to open a backup on a new machine
+          (<a href="guide/your-data.html#lab-key">The lab's key</a>).</td></tr>
         <tr><th>2 · Every week</th><td>The newest backup is restored into a scratch database and checked. <i>Automatic.</i></td></tr>
         <tr><th>3 · Off-site</th><td>Encrypted copies in cloud storage, kept 30 days, 12 weeks and 24 months; with the
           bucket's Object Lock on, safe even from someone who takes over the server. Backblaze B2's first 10 GB are free.
           <code>sudo /opt/biomanager/Biomanager/deploy/host/offsite-setup.sh</code>.</td></tr>
-        <tr><th>4 · On lab computers</th><td>The <b>desktop app</b> keeps its own copy of the whole lab: on the server,
-          <b>Settings → Copies of the lab on your computers → Make a key</b>; in the desktop app, <b>Settings → Keep a copy of
-          your lab server</b>, with the address and the key. It takes a fresh copy every day while open and keeps the last 14.
+        <tr><th>4 · On lab computers</th><td>The <b>desktop app</b> keeps its own copy of the lab once it joins (<b>Open your
+          lab</b>): a fresh one every day while open, the last 14 kept, locked with the lab's key and that computer's own. An
+          admin's is the whole lab. A computer that shouldn't join can use a key instead: on the server, <b>Settings → Devices &amp;
+          copies → Make a key</b>; in the desktop app, <b>Settings → Devices &amp; copies</b>, with the address and the key.
           An admin's Mac can also pull the server's nightly backups: <code>deploy/mac/install.sh</code>
           (<a href="https://github.com/gaspolymerase/biomanager/blob/master/deploy/README.md#a-copy-on-a-mac">how</a>).</td></tr>
         <tr><th>5 · Everyone</th><td><b>Export</b> on every sheet gives a CSV; <b>Settings → Export my data</b> downloads your
