@@ -156,6 +156,9 @@
         <li>It can read mice, cages, litters, strains, tanks and fish, plasmids, fly and worm vials, every inventory and every
           experiment; and change a mouse (its cage, genotype, note, status…), record a weight, change a vial, add or change an
           inventory item, and record an experiment's readout.</li>
+        <li>A plasmid comes with its box, position and the glycerol stocks that carry it; its DNA sequence and map annotations,
+          which can run to many thousands of letters, only when asked: <code>/api/v1/plasmids/14?sequence=1</code>. A litter
+          names the cage its pups are in, and <code>/api/v1/litters?cage=88</code> lists the litters in cage 88.</li>
         <li>For a tool that starts from your own words (an AI assistant, say), it can also find the records a phrase means, each
           with a reference to use (<code>/api/v1/resolve?q=cage 88</code>), list what your lab calls things: strains, statuses,
           purposes, racks, people and each database's own fields (<code>/api/v1/vocabulary</code>), and list what is due, as

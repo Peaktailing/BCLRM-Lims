@@ -13,7 +13,7 @@ class SettingsWindowTests(AppTestCase):
         links = re.findall(r'data-pane-link="([a-z]+)"', html)
         panes = re.findall(r'data-pane="([a-z]+)"', html)
         self.assertEqual(links, ["profile", "security", "appearance", "notifications", "assistant", "data",
-                                 "stats", "general", "databases", "people", "devices", "history"])
+                                 "stats", "general", "databases", "people", "devices", "version", "history"])
         self.assertEqual(panes, links)
         self.assertIn('placeholder="Search settings"', html)
 

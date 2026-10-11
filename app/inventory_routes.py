@@ -222,7 +222,7 @@ def _item_payload(mv, item: InventoryItem) -> dict:
         "_locked": not _can_edit(item), "_manage": _can_manage(item),
         "name": item.name, "category": item.category, "status": item.status, "owner": item.owner,
         "is_shared": project_groups.record_value(item), "quantity": item.quantity, "unit": item.unit,
-        "low_at": svc.number_text(item.low_at),
+        "low_at": svc.number_text(item.low_at), "pack_size": item.pack_size or "",
         "vendor": item.vendor, "catalog_number": item.catalog_number, "lot": item.lot,
         "rack_id": item.rack_id_fk or "", "position": svc.rack_label(item),
         "location_note": item.location_note,
@@ -244,7 +244,8 @@ def _item_payload(mv, item: InventoryItem) -> dict:
 # Cells the server may change behind the user's back (a status that stamps
 # a received date, a grid move, a refused owner change); an answer to a
 # save carries their stored values so the row and its "_was" copies match.
-ROW_VALUES = ("status", "owner", "is_shared", "rack_id", "position", "received_on", "expires_on", "low_at")
+ROW_VALUES = ("status", "owner", "is_shared", "rack_id", "position", "received_on", "expires_on", "low_at",
+              "pack_size")
 
 
 def _row_json(mv, item: InventoryItem) -> dict:
@@ -436,7 +437,8 @@ def module(key: str):
         # Saved column widths / hidden columns are by position, so a
         # reconfigured sheet starts fresh instead of hiding the wrong ones.
         layout = json.dumps([mv.settings["features"], [f["key"] for f in mv.table_fields], bool(mv.statuses), 2]
-                            + (["low_at"] if svc.tracks_low(mv) else []))
+                            + (["low_at"] if svc.tracks_low(mv) else [])
+                            + (["pack_size"] if svc.has_pack_size(mv) else []))
         stock_targets = _stock_targets(session) if row.kind == "orders" else []
         order_module = _order_module(session) if row.kind in STOCK_KINDS else None
         reorder = (_reorder_payload(session, mv, items, request.args.get("reorder", ""))
@@ -445,7 +447,8 @@ def module(key: str):
             reorder = _from_order_payload(session, mv, request.args["from_order"],
                                           shared=request.args.get("shared") == "1")
         context = {
-            "module": mv, "rows": rows, "racks": racks, "low_stock": svc.tracks_low(mv), "col_sig": format(zlib.crc32(layout.encode()), "x"),
+            "module": mv, "rows": rows, "racks": racks, "low_stock": svc.tracks_low(mv),
+            "pack_sizes": svc.has_pack_size(mv), "col_sig": format(zlib.crc32(layout.encode()), "x"),
             "manageable_racks": {r.id for r in racks if _can_manage_rack(r)},
             "places": svc.places_in_use(session) if mv.has("storage") else [],
             "box_labels": {r.id: svc.box_label(r) for r in racks},
@@ -640,6 +643,11 @@ def _item_from_form(session, mv, item: InventoryItem, form, creating: bool = Fal
         if raw and level is None:
             raise Refused(gettext("Low at is a number, in the quantity's unit: “%(value)s” isn't one.", value=raw))
         item.low_at = level
+    if "pack_size" in form and svc.has_pack_size(mv):
+        raw = (form.get("pack_size") or "").strip()
+        if raw and svc.pack_size(raw) is None:
+            raise Refused(gettext("Pack size is what one of its unit holds, a number and a unit (10 mL): “%(value)s” isn't one.", value=raw))
+        item.pack_size = svc.pack_size_text(raw)[:40]
     for name in ("received_on", "expires_on"):
         if name in form and form_changed(form, name):
             setattr(item, name, _date(form.get(name)))
@@ -1031,7 +1039,7 @@ def duplicate_item(key: str, item_id: int):
             module_id_fk=row.id, number=svc.next_number(session, row.id), name=item.name,
             category=item.category, status=(svc.view(row).statuses or [""])[0], owner=g.user.username,
             is_shared=item.is_shared, share_group_id=item.share_group_id, quantity=item.quantity, unit=item.unit,
-            low_at=item.low_at, vendor=item.vendor,
+            low_at=item.low_at, pack_size=item.pack_size, vendor=item.vendor,
             catalog_number=item.catalog_number, lot="", attrs=json.dumps(attrs), notes=item.notes)
         session.add(copy)
         session.commit()

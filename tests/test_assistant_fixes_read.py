@@ -79,7 +79,7 @@ class Filters(Base):
         self.assertEqual(bad.status_code, 400)
         self.assertIn("planned, active, paused, done, cancelled, or all", bad.get_json()["error"])
         for path, named in (("/mice?colour=brown", "alive"), ("/cages?rack=R1", "occupied"),
-                            ("/litters?cage=12", "born_since"), ("/experiments?name=x", "status")):
+                            ("/litters?rack=12", "born_since"), ("/experiments?name=x", "status")):
             r = self.call("get", path, tok)
             self.assertEqual(r.status_code, 400, path)
             self.assertIn(named, r.get_json()["error"])

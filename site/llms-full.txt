@@ -858,6 +858,8 @@ Reagents, chemicals, antibodies, viruses and primers have a **Low at** column be
 
 - In the sheet, a quantity or Low at is saved when you leave the cell or press Enter, so typing `12` doesn't pass through `1` on the way.
 
+- Counted in ampoules, vials, tubes or bottles but used by the mL? Give the item a **Pack size**, what one of them holds (`10 mL`), in its dialog beside **Unit** (or show the column in the sheet). An AI assistant told *2 mL used* then takes 0.2 of an ampoule off the quantity.
+
 ### Every inventory
 
 - **Mine** and **Lab common** keep your own stock apart from the lab's shared shelf.
@@ -1526,6 +1528,8 @@ BioManager has an API: other programs can read the lab's records, and change the
 
 - It can read mice, cages, litters, strains, tanks and fish, plasmids, fly and worm vials, every inventory and every experiment; and change a mouse (its cage, genotype, note, status…), record a weight, change a vial, add or change an inventory item, and record an experiment's readout.
 
+- A plasmid comes with its box, position and the glycerol stocks that carry it; its DNA sequence and map annotations, which can run to many thousands of letters, only when asked: `/api/v1/plasmids/14?sequence=1`. A litter names the cage its pups are in, and `/api/v1/litters?cage=88` lists the litters in cage 88.
+
 - For a tool that starts from your own words (an AI assistant, say), it can also find the records a phrase means, each with a reference to use (`/api/v1/resolve?q=cage 88`), list what your lab calls things: strains, statuses, purposes, racks, people and each database's own fields (`/api/v1/vocabulary`), and list what is due, as Home does (`/api/v1/due`).
 
 - Make one token for each thing that uses it, so you can **Revoke** one without the others. The card shows when each was last used. Admins see everyone's tokens and can revoke any; **Members may make API tokens**, under **What members may do** in **Settings → People & access**, can keep them to admins.
@@ -1583,7 +1587,7 @@ At the rack you rarely have time for a conversation. **Capture** keeps what you'
 
 - In the mouse colony, zebrafish, fly and worm databases and any other organism's: the everyday records. New animals, cages, tanks and vials; litters (with how many pups were born), weaning, moves and deaths; crosses, clutches and flips; weights and readings; scheduled jobs done.
 
-- In your inventories: a new item, a change, an amount used (the item turns low at its **Low at**; say it in another unit of weight or volume, *40 mg* of an item kept in g, and BioManager converts it), an order received (and added to stock under the name, amount and unit your stock keeps), a sample taken from an animal.
+- In your inventories: a new item, a change, an amount used (the item turns low at its **Low at**; say it in another unit of weight or volume, *40 mg* of an item kept in g, and BioManager converts it; *2 mL* of one kept in ampoules once it has a **Pack size**), an order received (and added to stock under the name, amount and unit your stock keeps), a sample taken from an animal.
 
 - In plasmids: a new plasmid (with its sequence pasted as GenBank or FASTA), a change, a glycerol stock, a primer or a primer pair.
 
