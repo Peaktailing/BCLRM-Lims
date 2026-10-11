@@ -1692,6 +1692,28 @@ page itself.
   called while another batch is open joins it (yielding a stand-in, no
   second row), so Batch history undoes the whole proposal as one; anything
   failing keeps nothing.
+- Beyond the animals, the catalogue covers inventories, plasmids, the
+  notebook and the calendar. Inventory items are written through the API's
+  item writes (`_item_from_form`), so required columns, statuses and Low at
+  behave as on the sheet. `inventory_quantity_used` takes an amount off a
+  numeric quantity, and the status follows Low at. `order_received` marks an
+  order received; with `to_stock` it saves the stock record that **Add to
+  stock** would make (`_stock_from_order`) with `from_order`, so the two are
+  linked. `sample_from_animal` fills a sample's Source with the mouse, tank
+  or animal. Plasmids go through `/plasmids` and `/plasmids/<id>/update`,
+  with a pasted sequence through upload-sequence. Glycerol stocks and primers
+  are items in those inventories, and a primer pair goes through
+  `/items/pair`. `notebook_page_new` makes the page through the notebook's
+  Import, from a template or starter if given, starting with "Drafted by
+  <source>" and never signed. `notebook_page_append` adds a section with the
+  plain-text save and is refused while the page is open in the editor.
+  `calendar_event_new` posts to `/calendar/items` and `equipment_booking_new`
+  to `/calendar/bookings`. The kinds `inventory_item`, `plasmid`, `equipment`
+  and `notebook_template` are found by `/resolve`, and `/vocabulary` lists
+  each inventory's statuses, categories, columns and boxes, plasmid boxes,
+  instruments and templates. `experiment_new` makes a **planned** experiment
+  (*Planned experiments and changes from the plan*, above); no action starts
+  one.
 
 ### Proposals (`app/proposals.py`)
 
@@ -1757,6 +1779,50 @@ BioManager"), `resolve`, `get`/`list` limited to the API's read paths (`READABLE
 built from the lab's own `/actions` (`description(api, name)`).
 `call_tool()` turns an `ApiError` or bad arguments into `{"error": …}` for
 the assistant to read.
+
+**Evidence, Send back and Captures.** A proposed change may carry
+`evidence` (`{quote, capture, where}` or a string; `proposals.evidence_of`),
+kept in `request_json`, shown on Proposed changes and stripped by
+`_runnable` before `actions.run`. **Send back** (`proposals.send_back`,
+`POST /proposals/<id>/send-back`) sets `sent_back` with `proposals.reason`;
+`as_dict` then gives `reason` and a `next` telling the assistant to propose
+again with `replaces`. Captures (`app/captures.py`, table `captures`,
+revision `0032_assistant_inbox`) are what a person wrote or photographed at
+the bench: text and one file (kept by `services.save_uploaded_file`, served
+to its owner only by `/captures/<id>/file`), with the record it was taken at
+(`at_kind`, `at_id`, `at_label`; from Bench mode or a scanned card's link,
+`from_card`). Status is waiting → used or dismissed. `GET
+/api/v1/captures[/<id>]` serve them; `for_assistant` inlines a photo as
+base64 (downscaled with Pillow when present, else refused over 5 MB) or a
+text file's first 20,000 characters. `list_captures` and `get_capture` are
+tools; a tool returning `_content` has those MCP content items appended
+after the text by `mcp_http._call` (the local server uses
+`mcp.types.ImageContent`). `propose_changes`' `captures` (and evidence's
+capture ids) must be the owner's and are kept in `proposals.captures_json`;
+`approve` marks them used with the proposal and batch
+(`captures.mark_used`). Captures are in a member's lab copy as their own
+rows only (`lab_copy.OWN_ROWS`).
+
+**Looking up and working out (`app/assistant_compute.py`,
+`lookup.search/history/record/mouse_lineage/plasmid_lineage`).** BioManager
+computes; the model talks. `/search`, `/history`, `/lineage`,
+`/availability`, `/reorder-forecast`, `/lab-checks`,
+`/experiments/<id>/summary` and `/regimens` read; `/breeding-plan`,
+`/randomize` and `/power` are POSTs that change nothing (`api.COMPUTING`,
+open to any token). Each runs as the token's person: `lookup.record` 404s a
+record in a database they can't open, history shows only their own changes
+unless they are an admin, and search is the ⌘K search
+(`app.search_results`, which gives each match a `ref`). The genotype model
+counts copies of the allele that matters at each autosomal, unlinked locus
+(one to three loci); litter sizes are the line's own mean when it has three
+litters with pup counts, else the lab's, else 6; power is exact, from the
+noncentral F distribution over `exp_stats.inc_beta` (two groups are the t² =
+F case), and matches G*Power. The pure parts (genotype model, binomial
+matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
+builder) take plain values and are tested in
+`tests/test_assistant_compute.py`; the endpoints in `tests/test_api_compute.py`.
+The prompts `weekly_review`, `design_experiment` and `write_methods` drive
+them.
 
 ### The plugin (`plugins/biomanager/`)
 

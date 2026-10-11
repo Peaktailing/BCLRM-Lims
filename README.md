@@ -153,6 +153,13 @@ never what you may edit.
     counts), with each test in a table below it.
   - **Export** gives an Excel workbook: the readout (long, for Prism or R,
     and wide), each animal's manipulations, and the tests.
+  - **Planned, then started.** An experiment an AI assistant designs with
+    you arrives as **Planned**: nothing is due until you press **Start**,
+    which keeps a copy of the plan (the groups, the **Main readout day**,
+    the **Planned test**). After that, changing the main readout, the
+    groups, the test, or leaving an animal out (**Leave out…**) asks for a
+    one-line reason; **Changes from the plan** lists each, beside
+    **Planned → done**, and the export gets a sheet of them.
   - **Bench mode**, on a phone (scan its QR code): one animal at a time,
     with big numbers: weigh or count each, or give each today's
     manipulation and tick it. **Scan a card** reads a cage, tank or vial
@@ -713,6 +720,11 @@ database has a name of its own (one another database has is refused), so
       anything itself, and an approved proposal can be undone like any batch.
       Add the <b>BioManager plugin</b> once (Claude, Codex, VS Code, Qwen Code)
       and "I want to change something in BioManager" is all you need to say.
+      At the bench, a <b>Capture</b> (words, dictation or a photo) waits
+      for it until later. It can also plan with you: breeding, animals per
+      group, random groups, a whole experiment, worked out by BioManager
+      from your own records; review the week; and draft an experiment's
+      methods with its ARRIVE checklist.
     </td>
     <td valign="top">
       <h4>↕️ Your sidebar, your order</h4>
@@ -1292,13 +1304,18 @@ track.
   experiment's readout can be written. For tools that start from your
   own words, such as an AI assistant, it also finds the records a phrase
   means (`/api/v1/resolve`), lists what the lab calls things
-  (`/api/v1/vocabulary`) and what is due (`/api/v1/due`). A *Read and
+  (`/api/v1/vocabulary`) and what is due (`/api/v1/due`), searches
+  (`/api/v1/search`), reads a record's history and family tree, and works
+  things out from the lab's own records, changing nothing: animals available,
+  a breeding plan, random groups, animals per group, when stock runs out, the
+  week's checks and an experiment's facts for its methods. A *Read and
   propose* token, meant for an AI assistant, changes nothing itself: it
   sends its changes as one proposal, which BioManager checks as its pages
   would and keeps under **Proposed changes** (in your account menu and in
   **Settings → AI assistant & tokens**, with a notification) as one plain summary. **Approve** makes every change at
   once, as one batch you can undo; **Discard** makes none; only you, signed
-  in, can approve. **Connect an AI assistant**, at the top of the same
+  in, can approve, or **Send back** with a reason for the assistant to
+  correct. **Connect an AI assistant**, at the top of the same
   pane, connects one (it is also under **Help**). Claude Code, Codex, Cursor,
   VS Code and Cherry Studio use BioManager's own MCP address (`/api/v1/mcp`),
   nothing to install: paste the page's message into the assistant and it sets
