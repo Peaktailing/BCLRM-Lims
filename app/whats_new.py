@@ -30,6 +30,18 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.7.0": {
+        "new": [
+            "Work in the animal facility without a signal: the Android and desktop apps keep a copy, record what you do, and send it to the lab once you're back.",
+            "**Needs your decision** in the account menu: a change made offline that clashes with one made meanwhile waits there for **Keep mine** or **Keep theirs**.",
+            "**Your devices** under **Settings → Devices & copies**: every computer, phone and browser you're signed in on, each with **Sign out**.",
+            "Backups, lab files and the copies on your computers are locked with the lab's own key. Admins: keep its recovery key from **Settings → Your data → Lab key**.",
+        ],
+        "changed": [
+            "**Open your lab** joins the lab as one of your devices: sign in once, and the desktop app works on the lab without opening the server's page.",
+            "Litter born, Genotyping and Wean are refused on a cage that isn't a Breeding cage, by the server too. Weights are in History, with undo.",
+        ],
+    },
     "1.6.0": {
         "new": [
             "The BioManager plugin for AI assistants: add it once, and \"I want to change something in BioManager\" is all you need to say. **Help → Connect an AI assistant** has the steps for each app.",
