@@ -262,7 +262,7 @@ checked first; if anything can't go in, nothing changes. Stored connections
 
 The server looks for a new release once a day and tells its admins. With the
 **server bundle** and `host/install.sh` run, an admin presses **Update now**
-in **Settings → Devices & copies → Updates**: it does everything below
+in **Settings → Version**: it does everything below
 (`host/update.sh`, as root, through `biomanager-update.path`), checks the
 bundle and the image against the SHA-256 GitHub publishes, and the page
 follows it to the end. It always installs the latest release GitHub lists,

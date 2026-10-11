@@ -371,6 +371,23 @@ def current_note(now: tuple[int, ...] | None = None) -> list[dict]:
     return [n for n in due(None, parse(newest)) if n["version"] == newest]
 
 
+def version_info() -> dict:
+    """What Settings → Version says: the version, whether it is the desktop
+    app, and whether it is a server built from the source code (which
+    doesn't know its version, "server", and is updated by hand)."""
+    from flask import current_app
+    from .server_updates import current
+    raw = current()
+    now = parse(raw)
+    source = now is None or "+dev" in raw
+    if now is None:
+        known = [parse(v) for v in NOTES if parse(v) is not None]
+        now = max(known) if known else None
+    number = _label(now) if now else ""
+    return {"number": number, "source": source, "desktop": bool(current_app.config.get("LOCAL_SETUP")),
+            "notes": RELEASES_URL.format(version=number) if number and not source else ""}
+
+
 def stamp(user) -> None:
     """Mark the running version as seen by this person (a new account, or
     Got it)."""

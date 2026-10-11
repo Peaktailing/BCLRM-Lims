@@ -307,7 +307,7 @@ never any lab data. [RUNBOOK.md](RUNBOOK.md) says what to do for each.
 The app looks for a new release once a day (it sends only its version;
 `BIOMANAGER_UPDATE_CHECK=0` in `.env` stops it) and tells its admins. With
 the server bundle and `host/install.sh` run, **Update now** in **Settings →
-Devices & copies → Updates** takes a backup, downloads the newest release's
+Version** takes a backup, downloads the newest release's
 bundle and image, checks both against the SHA-256 GitHub publishes, loads
 the image, unpacks the bundle over this one and restarts, and the page
 follows it. The app asks through `deploy/control/` (mounted at `/control`),

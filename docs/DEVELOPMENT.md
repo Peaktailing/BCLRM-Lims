@@ -2193,7 +2193,8 @@ and both compare versions with `app/releases.py` (`is_newer`,
   notes, date); a newer version than this one notifies every active admin
   once (`updates:told`, claimed the same way; category `lab`, link
   `/settings#updates`). `updates:check` = `off` (the switch in Settings →
-  Devices & copies → Updates) or `BIOMANAGER_UPDATE_CHECK=0` stops it;
+  Version → Updates, which also says the version to everyone and, on a
+  server built from source, how to update it by hand) or `BIOMANAGER_UPDATE_CHECK=0` stops it;
   **Check now** (`POST /settings/updates`, `action=check`) always asks. The
   `updates:` keys are this machine's (`devices.LOCAL_SETTINGS`).
 - **Update now** (`action=install`, admins): the app cannot restart its

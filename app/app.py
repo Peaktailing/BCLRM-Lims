@@ -2322,10 +2322,11 @@ def settings():
     with SessionLocal() as db_session:
         lab_data = settings_lab.panes(db_session) if not g.user.expires_at else None
         updates = server_updates.state(db_session) if g.user.role == "admin" else None
+    from . import whats_new
     from .stocks import PRESETS as STOCK_PRESETS
     return render_template(
         "settings.html",
-        lab_data=lab_data, updates=updates, lab_features=lab.FEATURES, stock_choices=lab.STOCK_CHOICES,
+        lab_data=lab_data, updates=updates, version_info=whats_new.version_info(), lab_features=lab.FEATURES, stock_choices=lab.STOCK_CHOICES,
         inventory_choices=lab.INVENTORY_CHOICES, member_permissions=lab.MEMBER_PERMISSIONS,
         date_styles=lab.DATE_STYLES, timezones=lab.timezone_names(), server_timezone=lab.server_timezone(),
         wean_offset_days=WEAN_OFFSET_DAYS, roles=access.ROLES, group_switches=project_groups.SWITCHES,
@@ -2385,7 +2386,7 @@ def settings_lab_save():
 @app.route("/settings/updates", methods=["POST"])
 @admin_required
 def settings_updates():
-    """Settings → Devices & copies → Updates, on a lab server: the daily
+    """Settings → Version → Updates, on a lab server: the daily
     check on or off, Check now, and Update now (app/server_updates.py)."""
     action = request.form.get("action", "")
     autosave = request.headers.get("X-Autosave") == "1"

@@ -272,7 +272,7 @@ def request_update(by: str, version: str) -> bool:
 
 
 def state(session) -> dict:
-    """Everything Settings → Devices & copies shows about updates."""
+    """Everything Settings → Version shows about updates."""
     on = applies()
     return {"applies": on, "current": current(), "latest": latest(session) if on else None,
             "checking": checking(session), "env_off": off_by_env(), "checked": last_checked(session),

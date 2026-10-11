@@ -60,7 +60,8 @@
       {{ pane_link('databases', 'database', _('Databases'), 'lab') }}
       {{ pane_link('people', 'users', _('People & access'), 'lab') }}
     {% endif %}
-    {{ pane_link('devices', 'copy', _('Devices & copies'), 'lab', _('Update') if updates and updates.latest else '') }}
+    {{ pane_link('devices', 'copy', _('Devices & copies'), 'lab') }}
+    {{ pane_link('version', 'tag', _('Version'), 'lab', _('Update') if updates and updates.latest else '') }}
     {% if lab_data %}{{ pane_link('history', 'history', _('History'), 'lab') }}{% endif %}
     <p class="set-search-none" data-settings-none hidden>{{ _('No setting matches.') }}</p>
   </nav>
@@ -809,61 +810,99 @@
           </a>
         {% endif %}
       </div>
-      {% if updates and updates.applies %}
-        {# A lab server hearing of a newer release, and updating itself (app/server_updates.py). #}
-        {% set upd = updates.latest %}
-        <div class="set-title" id="updates">{{ _('Updates') }}</div>
-        <div class="set-group" data-updates data-status-url="{{ url_for('settings_updates_status') }}"
-             data-current="{{ updates.current }}" data-state="{{ (updates.progress or {}).get('state', '') }}">
-          <div class="set-row">
-            <span class="set-label"><b>{{ _('This server runs BioManager %(version)s', version=updates.current) }}</b>
-              <small>{% if upd %}{{ _('BioManager %(version)s is available.', version=upd.version) }}{% else %}{{ _('The newest version.') }}{% endif %}</small></span>
-            {% if upd and updates.can_update %}
-              <form method="post" action="{{ url_for('settings_updates') }}"
-                    data-confirm="{{ _('Update the lab’s server to BioManager %(version)s now? A backup is taken first, and BioManager is unavailable for a minute or two while the server restarts.', version=upd.version) }}">
-                <input type="hidden" name="action" value="install">
-                <button type="submit" class="btn btn-primary btn-sm" data-update-button>{{ _('Update now') }}</button>
-              </form>
-            {% else %}
-              <form method="post" action="{{ url_for('settings_updates') }}">
-                <input type="hidden" name="action" value="check">
-                <button type="submit" class="btn btn-sm">{{ _('Check now') }}</button>
-              </form>
-            {% endif %}
-          </div>
-          <div class="set-row" data-update-progress {% if not updates.progress or updates.progress.state in ('current',) %}hidden{% endif %}>
-            <span class="set-label"><b data-update-line></b><small data-update-detail></small></span>
-          </div>
-          {% if upd %}
-            <div class="set-more">
-              {% if upd.notes %}<pre class="set-notes">{{ upd.notes }}</pre>{% endif %}
-              <p><a href="{{ upd.page }}" target="_blank" rel="noopener">{{ _('Release notes') }}</a>{% if not updates.can_update %} · {{ _('To update from here, run sudo host/install.sh on the server once; it sets up the updater. Or update by hand, as the runbook’s “Updating the app” says.') }}{% endif %}</p>
-            </div>
-          {% endif %}
-          <form method="post" action="{{ url_for('settings_updates') }}" data-autosave-form>
-            <input type="hidden" name="action" value="switch">
-            <label class="set-row">
-              <span class="set-label"><b>{{ _('Check for new versions every day') }}</b>
-                <small>{% if updates.env_off %}{{ _('Switched off for this server (BIOMANAGER_UPDATE_CHECK=0).') }}{% else %}{{ _('Asks GitHub once a day, sending only this server’s version. Admins are told of a new one.') }}{% endif %}{% if updates.checked %} · {{ _('Checked %(when)s', when=(updates.checked | local).strftime('%Y-%m-%d %H:%M')) }}{% endif %}</small></span>
-              <input type="checkbox" class="set-switch" name="check" value="1" {% if updates.checking %}checked{% endif %} {% if updates.env_off %}disabled{% endif %}>
-            </label>
-          </form>
-        </div>
-        <script type="application/json" id="update-words">{{ {
-          'asked': _('Waiting for the server to start the update…'),
-          'check': _('Looking for the newest release…'),
-          'backup': _('Taking a backup…'),
-          'download': _('Downloading BioManager %(version)s…', version='%(version)s'),
-          'image': _('Loading the new version…'),
-          'restart': _('Restarting the server…'),
-          'done': _('Updated to BioManager %(version)s.', version='%(version)s'),
-          'failed': _('The update stopped: %(detail)s', detail='%(detail)s'),
-          'failed_help': _('The server’s runbook says what to do, under “Updating went wrong”.'),
-          'current': _('This server runs the newest BioManager.'),
-          'away': _('The server is restarting…'),
-        } | tojson }}</script>
-      {% endif %}
       {% include "lab_copy/_cards.html" %}
+    </section>
+
+    {# ---------------------------------------------------------------- Version (app/server_updates.py, app/whats_new.py) #}
+    <section class="set-pane" id="version" data-pane="version">
+      {{ pane_head('tag', _('Version'), _('Which BioManager this is, what is new in it, and updating it.'), 'lab') }}
+      <div class="set-group">
+        <div class="set-row">
+          <span class="set-label">
+            <b>{% if version_info.number %}{{ _('BioManager %(version)s', version=version_info.number) }}{% else %}BioManager{% endif %}</b>
+            <small>{% if version_info.desktop %}{{ _('The desktop app on this computer.') }}{% elif version_info.source %}{{ _('This lab server was built from BioManager’s source code, so it doesn’t update itself.') }}{% else %}{{ _('The lab’s server.') }}{% endif %}</small>
+          </span>
+          <a class="btn btn-sm" href="#whats-new" data-whats-new-open>{{ icon('sparkle') }} {{ _("What's new") }}</a>
+        </div>
+        {% if version_info.notes %}
+          <a class="set-row set-row-link" href="{{ version_info.notes }}" target="_blank" rel="noopener">
+            <span class="set-label"><b>{{ _('Release notes') }}</b><small>{{ _('Everything in this version, on GitHub.') }}</small></span>
+            {{ icon('chevron-right', 'set-chev') }}
+          </a>
+        {% endif %}
+      </div>
+      {% if version_info.desktop %}
+        <div class="set-title">{{ _('Updates') }}</div>
+        <div class="set-group">
+          <div class="set-row">
+            <span class="set-label"><b>{{ _('Check for Updates…') }}</b>
+              <small>{{ _('In the BioManager menu on a Mac, or Help on Windows and Linux. The app also checks by itself once a day, and Install and Restart puts a new version in place; your data stays where it is.') }}</small></span>
+          </div>
+        </div>
+      {% elif version_info.source and current_user.role == 'admin' %}
+        <div class="set-title" id="updates">{{ _('Updates') }}</div>
+        <div class="set-group">
+          <div class="set-row">
+            <span class="set-label"><b>{{ _('Update it on the server') }}</b>
+              <small>{{ _('In its deploy folder: take a backup (docker compose exec backup backup.sh), then git pull and docker compose up -d --build. To have Update now here instead, move the server to the release bundle once, as the runbook’s “Updating the app” says.') }}</small></span>
+          </div>
+        </div>
+      {% else %}
+      {% if updates and updates.applies %}
+          {# A lab server hearing of a newer release, and updating itself (app/server_updates.py). #}
+          {% set upd = updates.latest %}
+          <div class="set-title" id="updates">{{ _('Updates') }}</div>
+          <div class="set-group" data-updates data-status-url="{{ url_for('settings_updates_status') }}"
+               data-current="{{ updates.current }}" data-state="{{ (updates.progress or {}).get('state', '') }}">
+            <div class="set-row">
+              <span class="set-label"><b>{{ _('This server runs BioManager %(version)s', version=updates.current) }}</b>
+                <small>{% if upd %}{{ _('BioManager %(version)s is available.', version=upd.version) }}{% else %}{{ _('The newest version.') }}{% endif %}</small></span>
+              {% if upd and updates.can_update %}
+                <form method="post" action="{{ url_for('settings_updates') }}"
+                      data-confirm="{{ _('Update the lab’s server to BioManager %(version)s now? A backup is taken first, and BioManager is unavailable for a minute or two while the server restarts.', version=upd.version) }}">
+                  <input type="hidden" name="action" value="install">
+                  <button type="submit" class="btn btn-primary btn-sm" data-update-button>{{ _('Update now') }}</button>
+                </form>
+              {% else %}
+                <form method="post" action="{{ url_for('settings_updates') }}">
+                  <input type="hidden" name="action" value="check">
+                  <button type="submit" class="btn btn-sm">{{ _('Check now') }}</button>
+                </form>
+              {% endif %}
+            </div>
+            <div class="set-row" data-update-progress {% if not updates.progress or updates.progress.state in ('current',) %}hidden{% endif %}>
+              <span class="set-label"><b data-update-line></b><small data-update-detail></small></span>
+            </div>
+            {% if upd %}
+              <div class="set-more">
+                {% if upd.notes %}<pre class="set-notes">{{ upd.notes }}</pre>{% endif %}
+                <p><a href="{{ upd.page }}" target="_blank" rel="noopener">{{ _('Release notes') }}</a>{% if not updates.can_update %} · {{ _('To update from here, run sudo host/install.sh on the server once; it sets up the updater. Or update by hand, as the runbook’s “Updating the app” says.') }}{% endif %}</p>
+              </div>
+            {% endif %}
+            <form method="post" action="{{ url_for('settings_updates') }}" data-autosave-form>
+              <input type="hidden" name="action" value="switch">
+              <label class="set-row">
+                <span class="set-label"><b>{{ _('Check for new versions every day') }}</b>
+                  <small>{% if updates.env_off %}{{ _('Switched off for this server (BIOMANAGER_UPDATE_CHECK=0).') }}{% else %}{{ _('Asks GitHub once a day, sending only this server’s version. Admins are told of a new one.') }}{% endif %}{% if updates.checked %} · {{ _('Checked %(when)s', when=(updates.checked | local).strftime('%Y-%m-%d %H:%M')) }}{% endif %}</small></span>
+                <input type="checkbox" class="set-switch" name="check" value="1" {% if updates.checking %}checked{% endif %} {% if updates.env_off %}disabled{% endif %}>
+              </label>
+            </form>
+          </div>
+          <script type="application/json" id="update-words">{{ {
+            'asked': _('Waiting for the server to start the update…'),
+            'check': _('Looking for the newest release…'),
+            'backup': _('Taking a backup…'),
+            'download': _('Downloading BioManager %(version)s…', version='%(version)s'),
+            'image': _('Loading the new version…'),
+            'restart': _('Restarting the server…'),
+            'done': _('Updated to BioManager %(version)s.', version='%(version)s'),
+            'failed': _('The update stopped: %(detail)s', detail='%(detail)s'),
+            'failed_help': _('The server’s runbook says what to do, under “Updating went wrong”.'),
+            'current': _('This server runs the newest BioManager.'),
+            'away': _('The server is restarting…'),
+          } | tojson }}</script>
+        {% endif %}
+      {% endif %}
     </section>
 
     {% if lab_data %}
@@ -962,7 +1001,7 @@
     var panes = Array.prototype.slice.call(root.querySelectorAll('[data-pane]'));
     var links = Array.prototype.slice.call(root.querySelectorAll('[data-pane-link]'));
     var aliases = { 'api-tokens': 'assistant', 'language': 'appearance', 'app-icon': 'appearance', 'racks': 'stats',
-                    'lab-copies': 'devices', 'lab-copy': 'devices', 'lab-server': 'devices', 'updates': 'devices' };
+                    'lab-copies': 'devices', 'lab-copy': 'devices', 'lab-server': 'devices', 'updates': 'version' };
     root.classList.add('is-ready');
     function show() {
       var id = decodeURIComponent(location.hash.slice(1));

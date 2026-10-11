@@ -1015,7 +1015,7 @@ app also checks by itself, at most once a day; turn that off with
 version.
 
 A **lab server** looks for a new version once a day and tells its admins
-(a notification, and **Settings → Devices & copies → Updates**, with
+(a notification, and **Settings → Version**, with
 what's new and a link to the release notes). **Update now** there takes a
 backup, downloads the new version, checks it against the checksum GitHub
 publishes, installs it and restarts the server; BioManager is away for a

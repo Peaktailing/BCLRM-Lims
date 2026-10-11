@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,10 +16,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from app import server_updates
-from app.app import app
-from app.db import SessionLocal
-from tests.base import AppTestCase, execute, one
+# tests.base first: it points the app at a throwaway database before anything
+# imports the app. Importing app first would open data/biomanager.db.
+from tests.base import AppTestCase, execute, one  # isort: skip
+
+from app import server_updates  # noqa: E402
+from app.app import app  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 APPLIES = server_updates.applies          # before UpdateCase stands in for it
@@ -114,6 +118,37 @@ class SettingsTests(UpdateCase):
         self.assertNotEqual(self.m.post("/settings/updates", data={"action": "install"}).status_code, 200)
         self.assertFalse((self.control / server_updates.REQUEST).exists())
         self.assertNotEqual(self.m.get("/settings/updates/status").status_code, 200)
+
+
+class VersionPane(UpdateCase):
+    def pane(self, html, name):
+        found = re.search(rf'<section class="set-pane" id="{name}"[\s\S]*?</section>', html)
+        return found.group(0) if found else ""
+
+    def test_the_version_has_its_own_pane_and_devices_keeps_the_connections(self):
+        self.check()
+        self.listening()
+        html = self.get_ok(self.a, "/settings")
+        version, devices = self.pane(html, "version"), self.pane(html, "devices")
+        self.assertIn("BioManager 1.2.3", version)
+        self.assertIn('id="updates"', version)
+        self.assertIn('value="install"', version)
+        self.assertNotIn('id="updates"', devices)
+        self.assertNotIn("Update now", devices)
+        self.assertIn('data-pane-link="version"', html)
+
+    def test_everyone_sees_which_version_it_is(self):
+        html = self.get_ok(self.m, "/settings")
+        self.assertIn("BioManager 1.2.3", self.pane(html, "version"))
+        self.assertIn("releases/tag/v1.2.3", self.pane(html, "version"))
+
+    def test_a_server_built_from_source_says_how_to_update_it(self):
+        with mock.patch.object(server_updates, "current", return_value="server"):
+            html = self.get_ok(self.a, "/settings")
+        version = self.pane(html, "version")
+        self.assertIn("built from BioManager’s source code", version)
+        self.assertIn("docker compose up -d --build", version)
+        self.assertNotIn('value="install"', version)
 
 
 class UpdateNowTests(UpdateCase):

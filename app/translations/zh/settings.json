@@ -410,5 +410,15 @@
   "The server is restarting…": "服务器正在重启…",
   "BioManager couldn't reach GitHub to check. Try again later.": "BioManager 无法连接 GitHub 进行检查，请稍后再试。",
   "This server can't update itself yet: run sudo host/install.sh on it once.": "此服务器还不能自行更新：请在服务器上运行一次 sudo host/install.sh。",
-  "The server’s runbook says what to do, under “Updating went wrong”.": "服务器运维手册中“Updating went wrong”一节说明了该怎么做。"
+  "The server’s runbook says what to do, under “Updating went wrong”.": "服务器运维手册中“Updating went wrong”一节说明了该怎么做。",
+  "Which BioManager this is, what is new in it, and updating it.": "这是哪个版本的 BioManager、有哪些新功能，以及怎样更新。",
+  "BioManager %(version)s": "BioManager %(version)s",
+  "The desktop app on this computer.": "这台电脑上的桌面版。",
+  "This lab server was built from BioManager’s source code, so it doesn’t update itself.": "这台实验室服务器是从 BioManager 源代码搭建的，所以不会自己更新。",
+  "The lab’s server.": "实验室的服务器。",
+  "Everything in this version, on GitHub.": "这个版本的全部内容，在 GitHub 上。",
+  "Check for Updates…": "检查更新…",
+  "In the BioManager menu on a Mac, or Help on Windows and Linux. The app also checks by itself once a day, and Install and Restart puts a new version in place; your data stays where it is.": "在 Mac 上的 BioManager 菜单里，Windows 和 Linux 上在“帮助”菜单里。应用每天也会自己检查一次，“安装并重启”会换上新版本；你的数据保持原样。",
+  "Update it on the server": "在服务器上更新",
+  "In its deploy folder: take a backup (docker compose exec backup backup.sh), then git pull and docker compose up -d --build. To have Update now here instead, move the server to the release bundle once, as the runbook’s “Updating the app” says.": "在它的 deploy 文件夹里：先备份（docker compose exec backup backup.sh），再运行 git pull 和 docker compose up -d --build。如果想在这里用“立即更新”，按运维手册“Updating the app”一节，把服务器换成发布包一次即可。"
 }
