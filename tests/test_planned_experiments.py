@@ -112,11 +112,11 @@ class Designing(Planned):
         tok = re.search(r'id="api-token"[^>]*>(bmt_\w+)<', r.get_data(as_text=True)).group(1)
         due = app.test_client().get("/api/v1/due", headers={"Authorization": f"Bearer {tok}"}).get_json()["data"]
         steps = {s["id"] for s in self.data(exp)["steps"]}
-        self.assertFalse([d for d in due if d["ref"].get("kind") == "experiment_step" and d["ref"]["id"] in steps])
+        self.assertFalse([d for d in due if (d["ref"] or {}).get("kind") == "experiment_step" and d["ref"]["id"] in steps])
         # Started, today's day is due.
         self.start(exp)
         due = app.test_client().get("/api/v1/due", headers={"Authorization": f"Bearer {tok}"}).get_json()["data"]
-        self.assertTrue([d for d in due if d["ref"].get("kind") == "experiment_step" and d["ref"]["id"] in steps])
+        self.assertTrue([d for d in due if (d["ref"] or {}).get("kind") == "experiment_step" and d["ref"]["id"] in steps])
 
     def test_no_change_starts_it(self):
         exp = self.design()
