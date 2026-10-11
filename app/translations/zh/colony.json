@@ -379,5 +379,6 @@
   "No Breeder cages yet. Set a cage's purpose to Breeder to see it here.": "还没有种鼠笼。把笼的用途设为“种鼠笼”，它就会显示在这里。",
   "cage purpose::Breeder": "种鼠笼",
   "cage purpose::Breeding": "配种笼",
-  "cage purpose::Experiment": "实验笼"
+  "cage purpose::Experiment": "实验笼",
+  "Cage %(cage)s isn't a Breeding cage: only a mating cage has litters, genotyping and weaning. Set its purpose to Breeding first.": "笼 %(cage)s 不是配种笼：只有正在交配的笼才有产仔、基因型鉴定和断奶。请先把它的用途设为配种笼。"
 }

@@ -36,7 +36,7 @@ class Tools(Base):
     def test_from_overview_to_a_proposal(self):
         api = TestApi(self.token(self.m, scope="propose"))
         code = uniq("88")
-        cage = self.make_cage(self.m, code)
+        cage = self.make_cage(self.m, code, purpose="Breeding")
         overview = bm.lab_overview(api)
         self.assertEqual(overview["you"]["username"], self.member)
         self.assertEqual(overview["lab"]["today"], days_ago(0))

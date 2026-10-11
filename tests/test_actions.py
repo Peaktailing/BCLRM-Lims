@@ -21,7 +21,7 @@ def number(mouse_row: int) -> int:
 
 class APreview(AppTestCase):
     def test_says_what_would_change_and_keeps_nothing(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         code = one("select cage_id from mouse_cages where id=?", cage)
         mice, batches, entries = count("mice"), count("batches"), count("audit_log")
         out = actions.run(app, self.member, [
@@ -37,15 +37,15 @@ class APreview(AppTestCase):
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
 
     def test_the_pages_warning_comes_through(self):
-        cage = self.make_cage(self.m, date_give_birth=days_ago(40))
+        cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(40))
         out = actions.run(app, self.member, [{"action": "litter_born", "target": cage_ref(cage),
                                               "fields": {"date": days_ago(1)}}])
         self.assertTrue(out.ok, out.errors)
         self.assertTrue(any("replaces the litter born" in w for w in out.changes[0].warnings), out.changes[0])
 
     def test_the_pages_refusal_comes_through_and_the_next_change_still_runs(self):
-        cage = self.make_cage(self.m)
-        other = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
+        other = self.make_cage(self.m, purpose="Breeding")
         out = actions.run(app, self.member, [
             {"action": "litter_genotyping", "target": cage_ref(cage), "fields": {"pups": 99}},
             {"action": "litter_born", "target": cage_ref(other), "fields": {"date": days_ago(2)}},
@@ -55,8 +55,8 @@ class APreview(AppTestCase):
         self.assertTrue(out.changes[1].ok, out.changes[1])
 
     def test_a_failed_change_leaves_nothing_for_the_next_to_see(self):
-        source, mine, theirs, later = (self.make_cage(self.m), self.make_cage(self.m), self.make_cage(self.o),
-                                       self.make_cage(self.m))
+        source, mine, theirs, later = (self.make_cage(self.m, purpose="Breeding"), self.make_cage(self.m, purpose="Breeding"), self.make_cage(self.o),
+                                       self.make_cage(self.m, purpose="Breeding"))
         code = one("select cage_id from mouse_cages where id=?", source)
         a, b = (self.make_mouse(self.m, self.member, cage=code) for _ in range(2))
         theirs_code = one("select cage_id from mouse_cages where id=?", theirs)
@@ -74,13 +74,13 @@ class APreview(AppTestCase):
         self.assertEqual(moved[0]["changes"]["changes"]["cage_id_fk"], [source, later])
 
     def test_someone_else_cannot_propose_changes_to_your_cage(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         out = actions.run(app, self.other, [{"action": "litter_born", "target": cage_ref(cage), "fields": {}}])
         self.assertFalse(out.ok)
         self.assertTrue(out.changes[0].errors)
 
     def test_what_is_not_an_action_is_refused_plainly(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         cases = [
             ({"action": "drop_tables"}, "no action called"),
             ({"action": "litter_born", "target": cage_ref(cage), "fields": {"when": "today"}}, "has no when"),
@@ -103,8 +103,8 @@ class APreview(AppTestCase):
 
 class Applying(AppTestCase):
     def test_everything_goes_in_as_one_batch_that_undoes_as_one(self):
-        cage = self.make_cage(self.m)
-        dest = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
+        dest = self.make_cage(self.m, purpose="Breeding")
         code, dest_code = (one("select cage_id from mouse_cages where id=?", c) for c in (cage, dest))
         mice = count("mice")
         out = actions.run(app, self.member, [
@@ -135,7 +135,7 @@ class Applying(AppTestCase):
         self.assertEqual(count("mice"), mice + 4)
 
     def test_nothing_is_kept_when_one_change_fails(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         out = actions.run(app, self.member, [
             {"action": "litter_born", "target": cage_ref(cage), "fields": {"date": days_ago(3)}},
             {"action": "litter_genotyping", "target": cage_ref(cage), "fields": {"pups": 0}},
@@ -153,7 +153,7 @@ class EachActionDoesWhatThePageDoes(AppTestCase):
         return out
 
     def test_new_mice_in_a_cage(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         self.apply({"action": "mouse_new", "fields": {"count": 3, "sex": "F", "cage": cage_ref(cage),
                                                       "transgenes": ["Ai14", "Cre"], "status": "experiment"}})
         self.assertEqual(rows("select gender, transgene_1, transgene_2, owner from mice where cage_id_fk=?", cage),
@@ -171,7 +171,7 @@ class EachActionDoesWhatThePageDoes(AppTestCase):
         self.assertEqual(one("select grams from mouse_weights where mouse_id_fk=?", mouse), 23.5)
 
     def test_move_mice(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         a, b = self.make_mouse(self.m, self.member), self.make_mouse(self.m, self.member)
         self.apply({"action": "mice_move", "target": cage_ref(cage), "fields": {"mice": [number(a), f"#{number(b)}"]}})
         self.assertEqual(count("mice", "cage_id_fk=?", cage), 2)
@@ -196,7 +196,7 @@ class EachActionDoesWhatThePageDoes(AppTestCase):
                          (1, 2, "B12", "Breeder"))
 
     def test_notes_add_to_what_is_there(self):
-        cage = self.make_cage(self.m, notes="first")
+        cage = self.make_cage(self.m, purpose="Breeding", notes="first")
         litter = self.make_litter(self.m, notes="born at night")
         mouse = self.make_mouse(self.m, self.member)
         self.apply({"action": "note_add", "target": cage_ref(cage), "fields": {"text": "flooded"}},
@@ -207,7 +207,7 @@ class EachActionDoesWhatThePageDoes(AppTestCase):
         self.assertEqual(one("select note from mice where id=?", mouse), "ear tag 3")
 
     def test_weaning_too_young_needs_early(self):
-        cage = self.make_cage(self.m, date_give_birth=days_ago(10))
+        cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(10))
         out = actions.run(app, self.member, [{"action": "wean", "target": cage_ref(cage), "fields": {}}])
         self.assertFalse(out.ok)
         self.assertIn("days old", out.changes[0].errors[0])

@@ -173,18 +173,18 @@ class LitterAddExistingMouseTests(AppTestCase):
 class GiveBirthGenotypingTests(AppTestCase):
 
     def test_give_birth_stamps_today_on_the_users_cage(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         self.m.post(f"/colony/cages/{cage}/give-birth")
         self.assertEqual(one("select date_give_birth from mouse_cages where id=?", cage), T)
 
     def test_the_birth_date_confirmed_in_the_dialog_is_recorded(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         r = self.post(self.m, f"/colony/cages/{cage}/give-birth", {"date_give_birth": days_ago(2)})
         self.assertEqual(one("select date_give_birth from mouse_cages where id=?", cage), days_ago(2))
         self.assertFlash(r, "Recorded a litter born on", "success")
 
     def test_a_birth_date_in_the_future_is_refused(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         r = self.post(self.m, f"/colony/cages/{cage}/give-birth",
                       {"date_give_birth": (date.today() + timedelta(days=3)).isoformat()})
         self.assertFlash(r, "can't be in the future", "error")
@@ -205,23 +205,34 @@ class GiveBirthGenotypingTests(AppTestCase):
         self.m.post(f"/colony/cages/{cage}/give-birth")
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
 
-    def test_a_breeder_cage_in_any_case_is_shared_but_a_breeding_one_is_its_owners(self):
-        # Only a breeder cage starts shared (access.STARTS_SHARED_PURPOSES), so
-        # a member may record a birth in someone else's, not in their breeding cage.
-        for purpose, shared in (("Breeder", True), ("BREEDER", True), ("Breeding", False)):
+    def test_only_a_breeding_cage_has_litters(self):
+        # A Breeder cage is the lab's stock, not a mating cage: no litter, no
+        # genotyping, no weaning, whatever case its purpose is written in,
+        # even through the route the page only shows on a Breeding cage.
+        for purpose in ("Breeder", "BREEDER", "Experiments", ""):
             with self.subTest(purpose=purpose):
-                cage = self.make_cage(self.o, purpose=purpose)
-                self.m.post(f"/colony/cages/{cage}/give-birth")
-                self.assertEqual(one("select date_give_birth from mouse_cages where id=?", cage), T if shared else None)
+                cage = self.make_cage(self.m, purpose=purpose, date_give_birth=days_ago(21))
+                r = self.post(self.m, f"/colony/cages/{cage}/give-birth", {"date_give_birth": days_ago(1)})
+                self.assertFlash(r, "isn't a Breeding cage", "error")
+                self.assertEqual(one("select date_give_birth from mouse_cages where id=?", cage), days_ago(21))
+                self.assertFlash(self.post(self.m, f"/colony/cages/{cage}/genotyping", {"total_pups": "3"}),
+                                 "isn't a Breeding cage", "error")
+                self.assertFlash(self.post(self.m, f"/colony/cages/{cage}/wean", {}), "isn't a Breeding cage", "error")
+                self.assertEqual(one("select date_give_birth from mouse_cages where id=?", cage), days_ago(21))
+
+    def test_someone_elses_breeding_cage_is_theirs(self):
+        cage = self.make_cage(self.o, purpose="Breeding")
+        self.m.post(f"/colony/cages/{cage}/give-birth")
+        self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
 
     def test_wean_clears_the_birth_date(self):
-        cage = self.make_cage(self.m, date_give_birth=days_ago(21))
+        cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(21))
         self.m.post(f"/colony/cages/{cage}/wean")
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
 
     def test_genotyping_creates_a_litter_of_pups_in_the_cage(self):
         code = uniq("C")
-        cage = self.make_cage(self.m, code, date_give_birth=days_ago(8))
+        cage = self.make_cage(self.m, code, purpose="Breeding", date_give_birth=days_ago(8))
         r = self.post(self.m, f"/colony/cages/{cage}/genotyping",
                       {"total_pups": "3", "father_info": "11", "mother_info": "12"})
         self.assertFlash(r, "with 3 pups", "success")
@@ -232,7 +243,7 @@ class GiveBirthGenotypingTests(AppTestCase):
         self.assertEqual(pups, [("geno", self.member, cage)] * 3)
 
     def test_position_columns_are_short_and_named_in_full(self):
-        self.make_cage(self.m)
+        self.make_cage(self.m, purpose="Breeding")
         for view, key in (("mice", "cage_position"), ("cages", "position")):
             with self.subTest(view=view):
                 html = self.get_ok(self.m, f"/colony?view={view}")
@@ -248,7 +259,7 @@ class GiveBirthGenotypingTests(AppTestCase):
         self.assertIn("Type the mouse numbers of the father and the mother, and how many pups were born.", dialog)
 
     def test_genotyping_rejects_pups_that_are_not_1_to_40(self):
-        cage = self.make_cage(self.m)
+        cage = self.make_cage(self.m, purpose="Breeding")
         litters, mice = count("litters"), count("mice")
         for raw in ("abc", "0", "41", ""):
             with self.subTest(total_pups=raw):
@@ -294,23 +305,23 @@ class OneWeaningListTests(AppTestCase):
 
     def test_a_cage_birth_date_is_due_on_home_and_the_calendar(self):
         code = uniq("C")
-        self.make_cage(self.m, code, date_give_birth=days_ago(18))
+        self.make_cage(self.m, code, purpose="Breeding", date_give_birth=days_ago(18))
         self.assertIn(f"Cage {code}", self.get_ok(self.m, "/home"))
         self.assertTrue(any(f"Cage {code}" in t for t in self.calendar_weans(self.m)))
 
     def test_a_litter_without_a_cage_date_is_due_on_the_calendar_too(self):
-        col = self.make_colony(self.m, self.member, n_mice=2, dob=days_ago(18))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=2, dob=days_ago(18))
         titles = self.calendar_weans(self.m)
         self.assertIn(f"Wean - Litter {col['litter']} · cage {col['cage']}", titles)
         self.assertIn(f"Litter {col['litter']}", self.get_ok(self.m, "/home"))
 
     def test_a_litter_in_a_cage_with_its_date_counts_once(self):
-        col = self.make_colony(self.m, self.member, n_mice=2, dob=days_ago(18), date_give_birth=days_ago(18))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=2, dob=days_ago(18), date_give_birth=days_ago(18))
         titles = [t for t in self.calendar_weans(self.m) if col["cage"] in t]
         self.assertEqual(titles, [f"Wean - Litter {col['litter']} · cage {col['cage']}"])
 
     def test_weaning_takes_the_litter_off_every_list(self):
-        col = self.make_colony(self.m, self.member, n_mice=2, dob=days_ago(22))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=2, dob=days_ago(22))
         self.m.post(f"/colony/cages/{col['cage_id']}/wean")
         self.assertEqual(one("select weaned_on from litters where id=?", col["litter_id"]), T)
         self.assertNotIn(f"Litter {col['litter']}", self.get_ok(self.m, "/home"))
@@ -319,7 +330,7 @@ class OneWeaningListTests(AppTestCase):
         self.assertEqual(r.get_json()["row"]["values"]["wean_due"], "")
 
     def test_distributing_marks_the_litter_weaned_before_the_pups_leave(self):
-        col = self.make_colony(self.m, self.member, n_mice=1, dob=days_ago(21), date_give_birth=days_ago(21))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1, dob=days_ago(21), date_give_birth=days_ago(21))
         self.post(self.m, f"/colony/cages/{col['cage_id']}/wean-distribute", {
             "mouse_ids[]": [str(mouse_number(col["mice"][0]))], "gender[]": ["F"], "cage_id[]": [""], "card_id[]": [""]})
         self.assertEqual(one("select weaned_on from litters where id=?", col["litter_id"]), T)
@@ -328,7 +339,7 @@ class OneWeaningListTests(AppTestCase):
         self.assertEqual(r.get_json()["row"]["values"]["wean_due"], "")
 
     def test_weaning_and_distributing_can_be_undone(self):
-        col = self.make_colony(self.m, self.member, n_mice=1, dob=days_ago(21), date_give_birth=days_ago(21))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1, dob=days_ago(21), date_give_birth=days_ago(21))
         before = cage_of(col["mice"][0])
         self.post(self.m, f"/colony/cages/{col['cage_id']}/wean-distribute", {
             "mouse_ids[]": [str(mouse_number(col["mice"][0]))], "gender[]": ["F"], "cage_id[]": [""], "card_id[]": [""]})
@@ -340,7 +351,7 @@ class OneWeaningListTests(AppTestCase):
         self.assertIsNone(one("select weaned_on from litters where id=?", col["litter_id"]))
 
     def test_young_pups_are_weaned_only_once_confirmed(self):
-        cage = self.make_cage(self.m, date_give_birth=days_ago(12))
+        cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(12))
         r = self.post(self.m, f"/colony/cages/{cage}/wean", {})
         self.assertFlash(r, "are 12 days old", "error")
         self.assertEqual(one("select date_give_birth from mouse_cages where id=?", cage), days_ago(12))
@@ -348,7 +359,7 @@ class OneWeaningListTests(AppTestCase):
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
 
     def test_the_wean_button_carries_the_pups_by_sex(self):
-        col = self.make_colony(self.m, self.member, n_mice=2, dob=days_ago(20))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=2, dob=days_ago(20))
         html = self.get_ok(self.m, "/colony?view=cages")
         button = re.search(r'<button[^>]*data-wean\s[^>]*data-target-label="' + col["cage"] + r'"[^>]*>', html).group(0)
         self.assertIn('data-age="20"', button)
@@ -486,7 +497,7 @@ class WeanDistributeTests(AppTestCase):
         return self.post(client, f"/colony/cages/{cage}/wean-distribute", data)
 
     def test_pups_go_to_a_new_cage_owned_by_the_user_with_card_and_sex(self):
-        col = self.make_colony(self.m, self.member, n_mice=2, date_give_birth=days_ago(21))
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=2, date_give_birth=days_ago(21))
         a, b = col["mice"]
         card = uniq("W")
         r = self.distribute(self.m, col["cage_id"], ([mouse_number(a), mouse_number(b)], "M", "", card))
@@ -499,7 +510,7 @@ class WeanDistributeTests(AppTestCase):
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", col["cage_id"]))
 
     def test_only_mice_in_the_source_cage_move(self):
-        col = self.make_colony(self.m, self.member, n_mice=1)
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1)
         elsewhere = self.make_mouse(self.m, self.member, cage=uniq("C"), gender="F")
         home = cage_of(elsewhere)
         r = self.distribute(self.m, col["cage_id"], ([mouse_number(elsewhere)], "M", "", ""))
@@ -507,7 +518,7 @@ class WeanDistributeTests(AppTestCase):
         self.assertEqual(rows("select cage_id_fk, gender from mice where id=?", elsewhere), [(home, "F")])
 
     def test_mice_the_user_may_not_edit_stay_in_the_source_cage(self):
-        col = self.make_colony(self.m, self.member, n_mice=1)
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1)
         # An admin parked someone else's mouse in the member's cage.
         theirs = self.make_mouse(self.a, self.other, cage=col["cage"])
         r = self.distribute(self.m, col["cage_id"], ([mouse_number(theirs), mouse_number(col["mice"][0])], "", "", ""))
@@ -516,7 +527,7 @@ class WeanDistributeTests(AppTestCase):
         self.assertNotEqual(cage_of(col["mice"][0]), col["cage_id"])
 
     def test_refuses_an_existing_destination_cage_the_user_may_not_edit(self):
-        col = self.make_colony(self.m, self.member, n_mice=1)
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1)
         target = uniq("C")
         self.make_cage(self.o, target, purpose="Experiments")
         r = self.distribute(self.m, col["cage_id"], ([mouse_number(col["mice"][0])], "", target, ""))
@@ -524,21 +535,21 @@ class WeanDistributeTests(AppTestCase):
         self.assertEqual(cage_of(col["mice"][0]), col["cage_id"])
 
     def test_moves_into_an_existing_cage_the_user_may_edit(self):
-        col = self.make_colony(self.m, self.member, n_mice=1)
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1)
         target_code = uniq("C")
         target = self.make_cage(self.m, target_code)
         self.distribute(self.m, col["cage_id"], ([mouse_number(col["mice"][0])], "F", target_code, ""))
         self.assertEqual(cage_of(col["mice"][0]), target)
 
     def test_a_typed_cage_id_that_does_not_exist_is_created_for_the_user(self):
-        col = self.make_colony(self.m, self.member, n_mice=1)
+        col = self.make_colony(self.m, self.member, purpose="Breeding", n_mice=1)
         code = uniq("C")
         self.distribute(self.m, col["cage_id"], ([mouse_number(col["mice"][0])], "", code, ""))
         self.assertEqual(row("select id, owner from mouse_cages where cage_id=?", code),
                          (cage_of(col["mice"][0]), self.member))
 
     def test_bad_tokens_are_reported_and_the_cage_is_still_weaned(self):
-        cage = self.make_cage(self.m, date_give_birth=days_ago(21))
+        cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(21))
         missing = one("select coalesce(max(mouse_id), 0) + 1000 from mice")
         r = self.distribute(self.m, cage, (["x1", missing], "", "", ""))
         text = flash_text(r)

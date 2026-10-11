@@ -78,7 +78,7 @@ class Endpoint(Base):
     def test_a_proposal_through_the_endpoint_is_signed_with_the_connection(self):
         tok = self.token(self.m, scope="propose", label="Claude")
         code = uniq("C")
-        cage = self.make_cage(self.m, code)
+        cage = self.make_cage(self.m, code, purpose="Breeding")
         found = self.rpc(tok, "tools/call", {"name": "resolve", "arguments": {"q": f"cage {code}"}}).get_json()
         ref = found["result"]["structuredContent"]["matches"][0]["ref"]
         self.assertEqual(ref, {"kind": "cage", "id": cage})

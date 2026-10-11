@@ -26,7 +26,7 @@ from . import i18n, inventory_service, organism_service, positions, stock_servic
 from .i18n import gettext, translate_value
 from .icons import resolve as resolve_icon
 from .models import CageRecord, CalendarEvent, InventoryItem, LitterRecord, MouseRack, MouseRecord, StockRack, StockUnit
-from .services import WEAN_OFFSET_DAYS, weaning_due, weaning_title
+from .services import WEAN_OFFSET_DAYS, is_breeding_cage, weaning_due, weaning_title
 
 LAYOUTS = {
     "classic": ("Classic", "columns"),
@@ -427,7 +427,10 @@ def _colony_items(session, today, until) -> list[dict]:
         out.append(_item("colony:wean", wean["due"], gettext("Wean %(what)s", what=weaning_title(wean)), today, url,
                          detail=" · ".join(bits), loc=_cage_loc(cage),
                          owner=cage.owner if cage is not None else "", ref=_ref("cage", cage),
-                         propose=_done("wean", _ref("cage", cage))))
+                         # Weaning is a Breeding cage's (app.py _not_breeding):
+                         # elsewhere the litter is weaned by hand.
+                         propose=_done("wean", _ref("cage", cage))
+                         if cage is not None and is_breeding_cage(cage.purpose) else None))
 
     # Waiting on genotyping: due now.
     geno = session.scalars(

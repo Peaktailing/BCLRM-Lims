@@ -4541,6 +4541,16 @@ def add_mouse_from_cage(cage_row_id: int):
     return redirect(url_for("colony", view="cages"))
 
 
+def _not_breeding(cage) -> str | None:
+    """Litters, genotyping and weaning are a Breeding (mating) cage's alone
+    (services.is_breeding_cage). The page shows the buttons only there; the
+    server says so too, for the API, an assistant's proposals and a phone
+    syncing what was done offline."""
+    if cage is None or is_breeding_cage(cage.purpose):
+        return None
+    return gettext("Cage %(cage)s isn't a Breeding cage: only a mating cage has litters, genotyping and weaning. Set its purpose to Breeding first.", cage=cage.cage_id)
+
+
 @app.route("/colony/cages/<int:cage_row_id>/give-birth", methods=["POST"])
 @login_required
 def cage_give_birth(cage_row_id: int):
@@ -4549,6 +4559,10 @@ def cage_give_birth(cage_row_id: int):
         blocked = deny(cage, "cages")
         if blocked:
             return blocked
+        not_breeding = _not_breeding(cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return _back_to_colony("cages")
         if cage is not None:
             # The date the person confirmed in the Litter born dialog (today
             # when a form sends none).
@@ -4585,6 +4599,10 @@ def cage_genotyping(cage_row_id: int):
         blocked = deny(cage, "cages")
         if blocked:
             return blocked
+        not_breeding = _not_breeding(cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return redirect(url_for("colony", view="cages"))
         raw_pups = (request.form.get("total_pups") or "").strip()
         if not raw_pups.isdigit() or not 1 <= int(raw_pups) <= 40:
             flash(gettext("Pups must be a whole number from 1 to 40, not “%(value)s”. No litter was created.",
@@ -4627,6 +4645,10 @@ def cage_wean(cage_row_id: int):
         blocked = deny(cage, "cages")
         if blocked:
             return blocked
+        not_breeding = _not_breeding(cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return _back_to_colony("cages")
         if cage is not None:
             young = _too_young_to_wean(cage)
             if young:
@@ -4698,6 +4720,10 @@ def cage_wean_distribute(cage_row_id: int):
         if blocked:
             return blocked
         source_cage_label = source_cage.cage_id
+        not_breeding = _not_breeding(source_cage)
+        if not_breeding:
+            flash(not_breeding, "error")
+            return redirect(url_for("colony", view="cages"))
         young = _too_young_to_wean(source_cage)
         if young:
             flash(young, "error")
