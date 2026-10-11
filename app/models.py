@@ -2020,6 +2020,11 @@ class Proposal(Base):
     # after it is changed since the preview.
     audit_mark: Mapped[int] = mapped_column(Integer, default=0)
     lang: Mapped[str] = mapped_column(String(10), default="")
+    # Sent back: the person's one-line reason, for the assistant to correct it
+    # (revision 0032_assistant_inbox).
+    reason: Mapped[str] = mapped_column(Text, default="")
+    # The captures it was made from ([3, 4], app/captures.py): used once approved.
+    captures_json: Mapped[str] = mapped_column(Text, default="[]")
 
 
 class ProposalChange(Base):
@@ -2037,6 +2042,31 @@ class ProposalChange(Base):
     errors_json: Mapped[str] = mapped_column(Text, default="[]")
     warnings_json: Mapped[str] = mapped_column(Text, default="[]")
     records_json: Mapped[str] = mapped_column(Text, default="[]")     # what the preview changed
+
+
+class Capture(Base):
+    """Something a person wrote down or photographed at the bench, waiting
+    for an assistant to turn it into records (app/captures.py): text and/or
+    one file (a photo, a small CSV), and the record it was taken at."""
+    __tablename__ = "captures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_username: Mapped[str] = mapped_column(String(80), index=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    file_path: Mapped[str] = mapped_column(String(400), default="")     # uploads/<stored name>
+    file_name: Mapped[str] = mapped_column(String(255), default="")     # as it was uploaded
+    file_type: Mapped[str] = mapped_column(String(100), default="")     # image/jpeg, text/csv…
+    file_size: Mapped[int] = mapped_column(Integer, default=0)
+    # Where it was taken: the card scanned or the bench page ("cage", 12).
+    at_kind: Mapped[str] = mapped_column(String(40), default="")
+    at_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    at_label: Mapped[str] = mapped_column(String(200), default="")
+    # waiting | used | dismissed
+    status: Mapped[str] = mapped_column(String(20), default="waiting", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    proposal_id_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)   # the proposal that used it
+    batch_id_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)      # and its batch
 
 
 class NotebookPendingInsert(Base):

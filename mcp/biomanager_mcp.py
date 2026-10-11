@@ -24,6 +24,7 @@ the assistant without editing this file.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -31,10 +32,27 @@ from pathlib import Path
 # The shared tools live in the app (app/assistant_tools.py: standard library only).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool, description,  # noqa: E402,F401
-                                 describe_actions, discard_proposal, get, lab_overview, list_actions, list_records,
-                                 proposal_status, propose_changes, resolve, whats_due)
+                                 describe_actions, discard_proposal, get, get_capture, lab_overview, list_actions,
+                                 list_captures, list_records, proposal_status, propose_changes, resolve, whats_due)
 from app.assistant_tools import (availability, breeding_plan, experiment_summary, history, lab_checks,  # noqa: E402,F401
                                  lineage, power_analysis, randomize, reorder_forecast, search)
+
+
+def with_content(out: dict):
+    """A tool's answer with MCP content of its own (get_capture's photo,
+    `_content`): the text, then each image as the SDK's ImageContent. An SDK
+    without it gets the text, saying the photo couldn't be attached."""
+    extra = out.pop("_content", None) if isinstance(out, dict) else None
+    if not extra:
+        return out
+    try:
+        from mcp.types import ImageContent, TextContent
+    except ImportError:
+        out["photo"] = "This MCP server can't attach the photo: ask the person what it shows."
+        return out
+    return [TextContent(type="text", text=json.dumps(out, ensure_ascii=False, default=str)),
+            *(ImageContent(type="image", data=c["data"], mimeType=c["mimeType"]) for c in extra
+              if c.get("type") == "image")]
 
 
 def build_server(api: Api):
@@ -67,8 +85,10 @@ def build_server(api: Api):
         return call_tool(api, "list_actions", {})
 
     @server.tool(name="propose_changes", description=description(api, "propose_changes"))
-    def propose_changes_tool(summary: str, changes: list[dict], replaces: int | None = None) -> dict:
-        return call_tool(api, "propose_changes", {"summary": summary, "changes": changes, "replaces": replaces})
+    def propose_changes_tool(summary: str, changes: list[dict], replaces: int | None = None,
+                             captures: list[int] | None = None) -> dict:
+        return call_tool(api, "propose_changes", {"summary": summary, "changes": changes, "replaces": replaces,
+                                                  "captures": captures})
 
     @server.tool(name="proposal_status", description=description(api, "proposal_status"))
     def proposal_status_tool(proposal_id: int) -> dict:
@@ -142,6 +162,15 @@ def build_server(api: Api):
     def experiment_summary_tool(experiment_id: int) -> dict:
         return call_tool(api, "experiment_summary", {"experiment_id": experiment_id})
 
+    @server.tool(name="list_captures", description=description(api, "list_captures"))
+    def list_captures_tool(status: str = "waiting") -> dict:
+        return call_tool(api, "list_captures", {"status": status})
+
+    # No return annotation: its answer is text and an image, not one JSON object.
+    @server.tool(name="get_capture", description=description(api, "get_capture"))
+    def get_capture_tool(capture_id: int):
+        return with_content(call_tool(api, "get_capture", {"capture_id": capture_id}))
+
     @server.prompt(name="log_today", description=PROMPTS["log_today"][0])
     def log_today(notes: str) -> str:
         return PROMPTS["log_today"][2]({"notes": notes})
@@ -149,6 +178,10 @@ def build_server(api: Api):
     @server.prompt(name="log_from_photo", description=PROMPTS["log_from_photo"][0])
     def log_from_photo(what_it_shows: str = "") -> str:
         return PROMPTS["log_from_photo"][2]({"what_it_shows": what_it_shows})
+
+    @server.prompt(name="process_captures", description=PROMPTS["process_captures"][0])
+    def process_captures() -> str:
+        return PROMPTS["process_captures"][2]({})
 
     @server.prompt(name="plan_tomorrow", description=PROMPTS["plan_tomorrow"][0])
     def plan_tomorrow() -> str:

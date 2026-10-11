@@ -228,6 +228,10 @@
                         {{ icon('list-check') }} {{ _('Proposed changes') }}{% if proposals_pending %} <span class="badge">{{ proposals_pending }}</span>{% endif %}
                       </a>
                     {% endif %}
+                    {% set waiting_captures = captures_waiting() if captures_waiting is defined else 0 %}
+                    <a class="menu-item" href="{{ url_for('captures.page') }}" role="menuitem">
+                      {{ icon('note') }} {{ _('Captures') }}{% if waiting_captures %} <span class="badge">{{ waiting_captures }}</span>{% endif %}
+                    </a>
                     <div class="menu-rule"></div>
                     <form method="post" action="{{ url_for('logout') }}">
                       <button type="submit" class="menu-item menu-item-danger" role="menuitem">

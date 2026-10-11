@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from migrations.helpers import add_column, create_table
 
 revision = "0033_planned_experiments"
-down_revision = "0031_low_stock"
+down_revision = "0032_assistant_inbox"
 branch_labels = None
 depends_on = None
 

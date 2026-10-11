@@ -59,7 +59,8 @@ class Endpoint(Base):
         tools = {t["name"]: t for t in self.rpc(tok, "tools/list").get_json()["result"]["tools"]}
         from app.mcp_http import COMPUTE_TITLES
         self.assertEqual(set(tools), {"lab_overview", "resolve", "get", "list", "whats_due", "list_actions",
-                                      "propose_changes", "proposal_status", "discard_proposal"} | set(COMPUTE_TITLES))
+                                      "propose_changes", "proposal_status", "discard_proposal", "list_captures",
+                                      "get_capture"} | set(COMPUTE_TITLES))
         self.assertIn("litter_born", tools["propose_changes"]["description"])     # the lab's own actions
         self.assertTrue(tools["resolve"]["annotations"]["readOnlyHint"])
         self.assertEqual(tools["resolve"]["inputSchema"]["required"], ["q"])

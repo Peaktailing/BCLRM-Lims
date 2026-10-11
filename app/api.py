@@ -1176,7 +1176,7 @@ def regimens():
 
 @bp.post("/proposals")
 def proposal_create():
-    """{"summary", "source", "changes": [{action, target, fields}], "replaces"}:
+    """{"summary", "source", "changes": [{action, target, fields, evidence}], "replaces", "captures"}:
     previewed at once and kept for its person to approve in BioManager."""
     from flask import current_app
     from . import actions, proposals
@@ -1191,9 +1191,12 @@ def proposal_create():
         abort(400, "replaces is the id of an earlier proposal of yours.")
     source = " ".join(str(data.get("source") or g.api_token.label or "").split())[:80]
     with SessionLocal() as s:
-        p = proposals.create(current_app._get_current_object(), s, g.user.username, changes,
-                             summary=str(data.get("summary") or ""), source=source,
-                             token_id=g.api_token.id or None, replaces=replaces)
+        try:
+            p = proposals.create(current_app._get_current_object(), s, g.user.username, changes,
+                                 summary=str(data.get("summary") or ""), source=source,
+                                 token_id=g.api_token.id or None, replaces=replaces, captures=data.get("captures"))
+        except proposals.ProposalError as error:
+            abort(400, str(error))
         body = proposals.as_dict(s, p)
     body["review_url"] = url_for("proposals.page", _external=True) + f"#proposal-{body['id']}"
     return jsonify(body), 201
@@ -1243,6 +1246,34 @@ def proposal_discard(proposal_id: int):
         except proposals.ProposalError as error:
             abort(409 if "already" in str(error) else 404, str(error))
         return jsonify(proposals.as_dict(s, p))
+
+
+# ---------------------------------------------------------------- captures (app/captures.py)
+
+@bp.get("/captures")
+def capture_list():
+    """Your captures, newest first: those waiting, unless ?status= says
+    used, dismissed or all (waiting first)."""
+    from . import captures
+    status = (request.args.get("status") or "waiting").strip()
+    if status not in (*captures.STATUSES, "all"):
+        abort(400, f"status is one of {', '.join(captures.STATUSES)}, all.")
+    limit = _int_arg("limit", 50, 1, 200)
+    with SessionLocal() as s:
+        rows = captures.of(s, g.user.username, status, limit)
+        return jsonify({"data": [captures.as_dict(c) for c in rows], "next": None})
+
+
+@bp.get("/captures/<int:capture_id>")
+def capture_get(capture_id: int):
+    """One capture of yours, with what is in it: a photo as base64
+    (`image`: {mimeType, data}), a CSV or text file's text (`file_text`)."""
+    from . import captures
+    with SessionLocal() as s:
+        c = captures.mine(s, capture_id, g.user.username)
+        if c is None:
+            abort(404, f"There is no capture {capture_id} of yours.")
+        return jsonify(captures.for_assistant(c))
 
 
 # ---------------------------------------------------------------- MCP (app/mcp_http.py)
@@ -1311,14 +1342,18 @@ ENDPOINTS = [
      "An experiment's facts for its methods, and the ARRIVE Essential 10", ()),
     ("GET", "/api/v1/regimens", "read", "The lab's saved regimens", ("family",)),
     ("POST", "/api/v1/proposals", "propose",
-     "Propose changes for your approval: {summary, source, changes: [{action, target, fields}], replaces}", ()),
+     "Propose changes for your approval: {summary, source, changes: [{action, target, fields, evidence}], replaces, "
+     "captures}", ()),
     ("GET", "/api/v1/proposals", "read", "Your proposals, newest first", ("status",)),
     ("GET", "/api/v1/proposals/{proposal_id}", "read", "One proposal: its status and each change as previewed", ()),
     ("POST", "/api/v1/proposals/{proposal_id}/discard", "propose", "Withdraw a proposal still waiting", ()),
+    ("GET", "/api/v1/captures", "read", "Your captures from the bench, waiting to be turned into records",
+     ("status",)),
+    ("GET", "/api/v1/captures/{capture_id}", "read", "One capture: its text, and its photo (base64) or file's text", ()),
     ("POST", "/api/v1/mcp", "propose", "MCP (streamable HTTP) for assistant apps: the tools of mcp/biomanager_mcp.py", ()),
 ]
-NOT_PAGED = {"/", "/me", "/resolve", "/vocabulary", "/due", "/actions", "/proposals", "/mcp", "/search", "/history",
-             "/lineage", "/availability", "/reorder-forecast", "/lab-checks", "/regimens"}
+NOT_PAGED = {"/", "/me", "/resolve", "/vocabulary", "/due", "/actions", "/proposals", "/mcp", "/captures", "/search",
+             "/history", "/lineage", "/availability", "/reorder-forecast", "/lab-checks", "/regimens"}
 PARAM_HELP = {
     "limit": "How many a page (default 100, at most 1000)",
     "after": "Continue after this row (from `next`)",

@@ -11,6 +11,15 @@ through or a record it touches was changed after the preview.
 
 Only the person whose token sent it may approve or discard a proposal, and
 only signed in: no token can approve.
+
+Each change may carry its evidence (`evidence`: the words of the person's
+notes it comes from, or what a photo shows, and the capture it is in),
+shown beside it; it is kept with the request and taken off before the
+change runs. A proposal may name the captures it was made from (`captures`,
+app/captures.py): they become used when it is approved. Instead of
+approving, the person may **Send back** a proposal with a one-line reason
+(status `sent_back`), which the assistant reads to correct it and propose
+again with `replaces`.
 """
 from __future__ import annotations
 
@@ -25,7 +34,9 @@ from .models import AuditEntry, Proposal, ProposalChange
 
 EXPIRE_DAYS = 14
 MAX_SUMMARY = 2000
-STATUSES = ("pending", "approved", "discarded", "superseded", "expired", "invalid")
+STATUSES = ("pending", "approved", "discarded", "superseded", "expired", "invalid", "sent_back")
+MAX_EVIDENCE = 300
+MAX_REASON = 300
 # What each database's changes are listed under on Proposed changes.
 AREAS = {"mice": "Mouse colony", "zebrafish": "Zebrafish", "stocks": "Flies and worms",
          "organisms": "Other organisms", "experiments": "Experiments", "notebook": "Notebook",
@@ -57,19 +68,62 @@ def expire_old(session) -> None:
                     .values(status="expired", decided_at=datetime.utcnow()))
 
 
+def evidence_of(raw) -> dict | None:
+    """A change's evidence as kept and shown: {"quote", "capture", "where"},
+    from a string (the quote) or an object; None when it has none."""
+    ev = raw.get("evidence") if isinstance(raw, dict) else None
+    if isinstance(ev, str):
+        ev = {"quote": ev}
+    if not isinstance(ev, dict):
+        return None
+    quote = " ".join(str(ev.get("quote") or ev.get("text") or "").split())
+    if len(quote) > MAX_EVIDENCE:
+        quote = quote[:MAX_EVIDENCE - 1] + "…"
+    capture = ev.get("capture")
+    capture = capture if isinstance(capture, int) and not isinstance(capture, bool) else None
+    where = " ".join(str(ev.get("where") or "").split())[:120]
+    if not quote and capture is None:
+        return None
+    return {"quote": quote, "capture": capture, "where": where}
+
+
+def _runnable(changes) -> list:
+    """The changes as actions.run takes them: without their evidence."""
+    if not isinstance(changes, list):
+        return []
+    return [{k: v for k, v in c.items() if k != "evidence"} if isinstance(c, dict) else c for c in changes]
+
+
+def _capture_ids(session, owner: str, changes, captures) -> list[int]:
+    """The captures named, and those the evidence points into: all the
+    owner's (ProposalError otherwise)."""
+    from . import captures as lab_captures
+    named = list(captures) if isinstance(captures, list) else captures
+    if isinstance(named, list):
+        named += [ev["capture"] for ev in map(evidence_of, changes if isinstance(changes, list) else [])
+                  if ev and ev["capture"] is not None]
+    try:
+        return lab_captures.check_ids(session, owner, named)
+    except lab_captures.CaptureError as error:
+        raise ProposalError(str(error)) from None
+
+
 def create(app, session, owner: str, changes, summary: str = "", source: str = "", token_id: int | None = None,
-           replaces: int | None = None) -> Proposal:
+           replaces: int | None = None, captures=None) -> Proposal:
     """Preview `changes` as `owner` and keep the proposal: pending, or
-    invalid with the reasons. Commits."""
+    invalid with the reasons. Commits. A capture that isn't the owner's
+    raises ProposalError, with nothing kept."""
+    capture_ids = _capture_ids(session, owner, changes, captures if captures is not None else [])
     lang = i18n.language_for(session, owner)
     mark = session.scalar(select(func.max(AuditEntry.id))) or 0
     session.commit()  # the preview runs in a transaction of its own
-    outcome = actions.run(app, owner, changes if isinstance(changes, list) else [], lang=lang,
+    outcome = actions.run(app, owner, _runnable(changes), lang=lang,
                           source=(source or "")[:80])
     now = datetime.utcnow()
     p = Proposal(owner_username=owner, token_id_fk=token_id, source=(source or "")[:80],
                  summary=(summary or "").strip()[:MAX_SUMMARY], status="pending" if outcome.ok else "invalid",
-                 created_at=now, expires_at=now + timedelta(days=EXPIRE_DAYS), audit_mark=mark, lang=lang)
+                 created_at=now, expires_at=now + timedelta(days=EXPIRE_DAYS), audit_mark=mark, lang=lang,
+                 captures_json=json.dumps(capture_ids))
     session.add(p)
     session.flush()
     for i, (raw, out) in enumerate(zip(changes if isinstance(changes, list) else [{}], outcome.changes)):
@@ -110,6 +164,7 @@ def changes_of(session, p: Proposal) -> list[ProposalChange]:
 def as_dict(session, p: Proposal, full: bool = False) -> dict:
     """A proposal as the API and the page show it."""
     rows = changes_of(session, p)
+    requests = [json.loads(c.request_json or "{}") for c in rows]
     out = {"id": p.id, "status": p.status, "source": p.source, "summary": p.summary,
            "created_at": p.created_at.isoformat(timespec="seconds") + "Z",
            "expires_at": p.expires_at.isoformat(timespec="seconds") + "Z" if p.expires_at else None,
@@ -119,9 +174,15 @@ def as_dict(session, p: Proposal, full: bool = False) -> dict:
            "warnings": [f"{c.position + 1}. {w}" for c in rows for w in json.loads(c.warnings_json or "[]")],
            "changes": [{"action": c.action, "area": c.area, "summary": c.summary, "ok": c.ok,
                         "errors": json.loads(c.errors_json or "[]"), "warnings": json.loads(c.warnings_json or "[]"),
-                        **({"request": json.loads(c.request_json or "{}"),
+                        **({"evidence": evidence_of(req)} if evidence_of(req) else {}),
+                        **({"request": req,
                             "records": json.loads(c.records_json or "[]")} if full else {})}
-                       for c in rows]}
+                       for c, req in zip(rows, requests)]}
+    out["captures"] = json.loads(p.captures_json or "[]")
+    out["reason"] = p.reason or None
+    if p.status == "sent_back":
+        out["next"] = (f"The person sent this back: \"{p.reason}\". Correct it as they say and propose again, "
+                       f"with replaces set to {p.id}.")
     return out
 
 
@@ -139,6 +200,21 @@ def discard(session, proposal_id: int, username: str) -> Proposal:
         raise ProposalError(gettext("Proposal #%(id)s is already %(status)s.", id=p.id,
                                     status=i18n.translate_value(p.status, "proposal status")))
     p.status, p.decided_at = "discarded", datetime.utcnow()
+    session.commit()
+    return p
+
+
+def send_back(session, proposal_id: int, username: str, reason: str) -> Proposal:
+    """Not approved, with a one-line reason for the assistant to correct it."""
+    expire_old(session)
+    p = _mine(session, proposal_id, username)
+    reason = " ".join((reason or "").split())[:MAX_REASON]
+    if not reason:
+        raise ProposalError(gettext("Say in a line what to correct."))
+    if p.status not in ("pending", "invalid"):
+        raise ProposalError(gettext("Proposal #%(id)s is already %(status)s.", id=p.id,
+                                    status=i18n.translate_value(p.status, "proposal status")))
+    p.status, p.decided_at, p.reason = "sent_back", datetime.utcnow(), reason
     session.commit()
     return p
 
@@ -177,7 +253,7 @@ def approve(app, session, proposal_id: int, username: str) -> Proposal:
     if stale:
         raise ProposalError(gettext("Nothing was applied: %(records)s changed after this proposal was made. Discard it and ask for a fresh one.",  # noqa: E501
                                     records="; ".join(stale)))
-    requests = [json.loads(c.request_json or "{}") for c in changes_of(session, p)]
+    requests = _runnable([json.loads(c.request_json or "{}") for c in changes_of(session, p)])
     lang = i18n.language_for(session, username)
     # Claimed first, so a second Approve (a double click, another tab) finds it taken.
     claimed = session.execute(update(Proposal).where(Proposal.id == p.id, Proposal.status == "pending")
@@ -197,6 +273,8 @@ def approve(app, session, proposal_id: int, username: str) -> Proposal:
                                     problems=" ".join(outcome.errors) or gettext("a change no longer goes through.")))
     p = session.get(Proposal, proposal_id)
     p.status, p.decided_at, p.batch_id_fk = "approved", datetime.utcnow(), outcome.batch_id
+    from . import captures as lab_captures
+    lab_captures.mark_used(session, json.loads(p.captures_json or "[]"), username, p.id, outcome.batch_id)
     session.commit()
     return p
 
@@ -239,10 +317,13 @@ def _card(session, p: Proposal) -> dict:
                                        if isinstance(v, list) and len(v) == 2]})
         groups.setdefault(AREAS.get(c.area, c.area or "Other"), []).append({
             "summary": c.summary or c.action, "ok": c.ok, "errors": json.loads(c.errors_json or "[]"),
-            "warnings": json.loads(c.warnings_json or "[]"), "records": records})
+            "warnings": json.loads(c.warnings_json or "[]"), "records": records,
+            "evidence": evidence_of(json.loads(c.request_json or "{}"))})
     warnings = [w for items in groups.values() for item in items for w in item["warnings"]]
     errors = [e for items in groups.values() for item in items for e in item["errors"]]
-    return {"p": p, "groups": groups, "count": len(rows), "warnings": warnings, "errors": errors}
+    from . import captures as lab_captures
+    return {"p": p, "groups": groups, "count": len(rows), "warnings": warnings, "errors": errors,
+            "captures": lab_captures.proposal_cards(session, p.owner_username, p.captures_json)}
 
 
 def _shown(value) -> str:
@@ -309,4 +390,21 @@ def discard_page(proposal_id: int):
             flash(str(error), "error")
             return redirect(url_for("proposals.page"))
     flash(gettext("Discarded proposal #%(id)s.", id=proposal_id), "success")
+    return redirect(url_for("proposals.page"))
+
+
+@bp.route("/proposals/<int:proposal_id>/send-back", methods=["POST"])
+def send_back_page(proposal_id: int):
+    blocked = _signed_in()
+    if blocked:
+        return blocked
+    from .db import SessionLocal
+    with SessionLocal() as s:
+        try:
+            send_back(s, proposal_id, g.user.username, request.form.get("reason", ""))
+        except ProposalError as error:
+            flash(str(error), "error")
+            return redirect(url_for("proposals.page") + f"#proposal-{proposal_id}")
+    flash(gettext("Sent proposal #%(id)s back: your assistant sees why when it next checks.", id=proposal_id),
+          "success")
     return redirect(url_for("proposals.page"))
