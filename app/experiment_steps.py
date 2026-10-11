@@ -269,7 +269,7 @@ def schedule(session, exp: Experiment, place, subs=None, today: date | None = No
             record = done.get(day)
             if record is not None:
                 state = "done"
-            elif when is None:
+            elif when is None or exp.status == "planned":     # nothing is due before Start
                 state = "planned"
             elif when < today:
                 state = "overdue"

@@ -873,7 +873,15 @@ def experiment(experiment_id: int):
         place = xp.place_for(s, exp.db or "colony") if exp is not None else None
         if exp is None or place is None:
             abort(404, f"There is no experiment {experiment_id}.")
-        return jsonify({**experiment_json(exp), "page": xp.payload(s, exp, place)})
+        # The design kept at Start and the changes from it, with their
+        # reasons (app/experiment_plan.py): for ARRIVE-style reporting.
+        from . import experiment_plan
+        return jsonify({**experiment_json(exp), "page": xp.payload(s, exp, place),
+                        "plan": experiment_plan.plan_of(exp) or None, "planned_test": exp.planned_test or "",
+                        "readout_day": exp.readout_day,
+                        "deviations": [{"what": d.what, "before": d.before, "after": d.after, "reason": d.reason,
+                                        "detail": [x for x in (d.detail or "").split("\n") if x], "who": d.username,
+                                        "at": _stamp(d.updated_at or d.created_at)} for d in exp.deviations]})
 
 
 @bp.post("/experiments/<int:experiment_id>/readings")
@@ -1085,7 +1093,7 @@ ENDPOINTS = [
     ("POST", "/api/v1/inventories/{key}/items", "write", "Add an item: " + ", ".join(ITEM_FIELDS), ()),
     ("PATCH", "/api/v1/inventories/{key}/items/{number}", "write", "Change an item", ()),
     ("GET", "/api/v1/experiments", "read", "Experiments, in every database", ("status", "owner", "database")),
-    ("GET", "/api/v1/experiments/{experiment_id}", "read", "One experiment: animals, readout table, manipulations", ()),
+    ("GET", "/api/v1/experiments/{experiment_id}", "read", "One experiment: animals, readout table, manipulations, the plan kept at Start and the changes from it", ()),
     ("POST", "/api/v1/experiments/{experiment_id}/readings", "write", "Record the readout: {date, values}", ()),
     ("GET", "/api/v1/resolve", "read", "The records a phrase could mean, with references", ("q", "kinds")),
     ("GET", "/api/v1/vocabulary", "read", "What this lab calls things", ()),

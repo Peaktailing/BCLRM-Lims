@@ -29,6 +29,12 @@
       </form>
     {% endif %}
   {% endif %}
+  {% if experiment.editable and experiment.status == 'planned' %}
+    <form method="post" action="{{ url_for('experiments.start', experiment_id=experiment.id) }}"
+          data-confirm="{{ _('Start %(name)s? Day 1 is %(date)s. BioManager keeps a copy of the plan: afterwards, a change to its groups, main readout, readout day or test asks why, and is listed under Changes from the plan.', name=experiment.name, date=experiment.start_date or _('today')) }}">
+      <button type="submit" class="btn btn-primary">{{ icon('chevrons-right') }} {{ _('Start') }}</button>
+    </form>
+  {% endif %}
   {% if experiment.editable %}
     <form method="post"
           action="{{ url_for('delete_experiment', experiment_id=experiment.id) if place.key == 'colony' else url_for('experiments.delete', experiment_id=experiment.id) }}"
@@ -63,6 +69,13 @@
         <option value="custom" {% if readout.key == 'custom' %}selected{% endif %}>{{ _('Something else…') }}</option>
       </select>
     </label>
+    <label>{{ _('Main readout day') }} <input name="readout_day" value="{{ data.readout_day or '' }}" inputmode="numeric" placeholder="{{ _('e.g. 21') }}" data-autosave="1" {% if locked %}disabled{% endif %}></label>
+    <label>{{ _('Planned test') }}
+      <select name="planned_test" data-autosave="1" {% if locked %}disabled{% endif %}>
+        <option value="">{{ _('Not set') }}</option>
+        {% for test in data.tests %}<option value="{{ test.key }}" title="{{ test.hint }}" {% if data.planned_test == test.key %}selected{% endif %}>{{ test.label }}</option>{% endfor %}
+      </select>
+    </label>
     <div class="xp-custom" data-xp-custom {% if readout.key != 'custom' %}hidden{% endif %}>
       <label>{{ _('Measured') }} <input name="readout_label" value="{{ readout.label if readout.key == 'custom' else '' }}" placeholder="{{ _('Tumour size, ear score…') }}" data-autosave="1" {% if locked %}disabled{% endif %}></label>
       <label>{{ _('Unit') }} <input name="readout_unit" value="{{ readout.unit if readout.key == 'custom' else '' }}" placeholder="mm" data-autosave="1" {% if locked %}disabled{% endif %}></label>
@@ -79,6 +92,20 @@
       <textarea name="treatment_plan" rows="4" data-autosave="1" {% if locked %}disabled{% endif %} placeholder="{{ _("Endpoints, vehicle, anything the manipulations below don't say") }}">{{ experiment.treatment_plan }}</textarea>
     </details>
   </form>
+</section>
+
+{# The plan: before Start, what Start does; after it, the changes from the plan (drawn by experiment-page.js) #}
+<section class="panel xp-plan-card" data-xp-plan-card {% if not data.planned and not data.plan %}hidden{% endif %}>
+  {% if data.planned %}
+    <p class="xp-plan-note">{{ icon('calendar') }} <span>{{ _('Planned: nothing of it is due yet, on Home, the calendar or in notifications. Check the groups, the regimen, the main readout and its day, and the test; then press Start. BioManager keeps a copy of the plan, and a change to it afterwards asks why.') }}</span></p>
+  {% else %}
+    <details class="xp-deviations" data-xp-deviations-box {% if data.deviations %}open{% endif %}>
+      <summary><h2>{{ _('Changes from the plan') }} <span class="xp-muted" data-xp-deviation-count></span></h2></summary>
+      <ol class="xp-deviation-list" data-xp-deviations></ol>
+      <h3 class="xp-h4">{{ _('Planned → done') }}</h3>
+      <div class="table-wrap"><table class="dense-table fit-table xp-compare" data-xp-compare></table></div>
+    </details>
+  {% endif %}
 </section>
 
 {# 2 · Its animals: the treatments each got, or the readout #}

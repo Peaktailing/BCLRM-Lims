@@ -749,6 +749,17 @@ class Experiment(Base):
     # database's usual one (body weight for mice, survival for flies…).
     db: Mapped[str] = mapped_column(String(120), default="colony", index=True)
     readout: Mapped[str] = mapped_column(Text, default="")
+    # The design, fixed at Start (app/experiment_plan.py, revision 0033): a
+    # "planned" experiment is designed but not started, nothing of it due.
+    # Start keeps a copy of the plan (groups and their animals, the main
+    # readout and its day, the regimen, the test) as JSON in plan_json;
+    # blank for one started before this, which never asks for a reason.
+    # The day of the main readout (day 1 = the start date) and the
+    # statistical test planned (a key of experiment_plan.TESTS) are set
+    # while it is planned.
+    plan_json: Mapped[str] = mapped_column(Text, default="")
+    readout_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    planned_test: Mapped[str] = mapped_column(String(20), default="")
 
     memberships: Mapped[list["ExperimentMouse"]] = relationship(
         back_populates="experiment", cascade="all, delete-orphan"
@@ -757,6 +768,36 @@ class Experiment(Base):
         back_populates="experiment", cascade="all, delete-orphan",
         order_by="(ExperimentStep.position, ExperimentStep.id)",
     )
+    deviations: Mapped[list["ExperimentDeviation"]] = relationship(
+        back_populates="experiment", cascade="all, delete-orphan",
+        order_by="ExperimentDeviation.id",
+    )
+
+
+class ExperimentDeviation(Base):
+    """A change from an experiment's plan after Start, with its reason: the
+    main readout or its day, the groups or their size, an animal left out
+    of the analysis (or put back), the statistical test
+    (app/experiment_plan.py). Changes of the same kind by the same person
+    soon after are kept in the same row (`detail` grows, `after` follows)."""
+    __tablename__ = "experiment_deviations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    experiment_id_fk: Mapped[int] = mapped_column(ForeignKey("experiments.id"), index=True)
+    what: Mapped[str] = mapped_column(String(20))                # readout | readout_day | groups | left_out | test
+    before: Mapped[str] = mapped_column(Text, default="")
+    after: Mapped[str] = mapped_column(Text, default="")
+    detail: Mapped[str] = mapped_column(Text, default="")        # each change, a line each
+    reason: Mapped[str] = mapped_column(Text, default="")
+    username: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    experiment: Mapped[Experiment] = relationship(back_populates="deviations")
+
+    @property
+    def audit_label(self) -> str:
+        return f"{self.what}: {self.reason}"[:200]
 
 
 class ExperimentSubject(Base):
@@ -773,6 +814,9 @@ class ExperimentSubject(Base):
     start_count: Mapped[int | None] = mapped_column(Integer, nullable=True)   # animals at the start, for a survival
     note: Mapped[str] = mapped_column(String(200), default="")
     assigned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Why it is left out of the analysis (the tests by day and the chart);
+    # blank: it is in. Revision 0033.
+    left_out: Mapped[str] = mapped_column(String(200), default="")
 
     experiment: Mapped[Experiment] = relationship()
 
@@ -878,6 +922,7 @@ class ExperimentMouse(Base):
     treatment_group: Mapped[str] = mapped_column(String(80), default="")
     assigned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     note: Mapped[str] = mapped_column(String(200), default="")
+    left_out: Mapped[str] = mapped_column(String(200), default="")   # as ExperimentSubject.left_out
 
     experiment: Mapped[Experiment] = relationship(back_populates="memberships")
     mouse: Mapped["MouseRecord"] = relationship()

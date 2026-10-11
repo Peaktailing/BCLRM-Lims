@@ -70,6 +70,35 @@
     return data;
   }
 
+  // A change from the plan kept at Start (app/experiment_plan.py): the app
+  // answers needs_reason, the person gives one (or Cancel: nothing changes),
+  // and it is sent again with it.
+  async function askReason(message, checks) {
+    for (;;) {
+      const answer = window.BioDialog && BioDialog.prompt
+        ? await BioDialog.prompt(t('Why the change from the plan?'), '', { message, placeholder: t('A reason, in a line'), okLabel: t('Save with this reason'), checks: checks || undefined })
+        : window.prompt(message);
+      if (answer === null || answer === undefined) return null;
+      const out = typeof answer === 'string' ? { value: answer, checks: {} } : answer;
+      if (String(out.value || '').trim()) return { value: String(out.value).trim(), checks: out.checks || {} };
+    }
+  }
+
+  async function sendReason(url, body, { form = false, checks = null, extra = null } = {}) {
+    try {
+      return await send(url, body, { form });
+    } catch (error) {
+      if (!error.data || !error.data.needs_reason) throw error;
+      const answer = await askReason(error.message, checks);
+      if (!answer) { say('saved', t('Not changed')); return null; }
+      if (form) {
+        body.set('reason', answer.value);
+        return send(url, body, { form });
+      }
+      return send(url, { ...body, reason: answer.value, ...(extra ? extra(answer.checks) : {}) });
+    }
+  }
+
   async function get(url) {
     const r = await fetch(url);
     const data = await r.json().catch(() => ({}));
@@ -79,9 +108,11 @@
 
   function apply(data, { sheet = true } = {}) {
     ['subjects', 'groups', 'steps', 'schedule', 'table', 'readout', 'weighs', 'start_date', 'editable', 'kinds',
-      'regimens', 'reagents', 'sample_inventories'].forEach((k) => {
+      'regimens', 'reagents', 'sample_inventories', 'planned', 'fixed', 'plan', 'readout_day', 'planned_test',
+      'deviations', 'comparison'].forEach((k) => {
       if (data[k] !== undefined) D[k] = data[k];
     });
+    drawPlan();
     if (data.add) refreshAddOptions(data.add);
     const list = $('#xp-groups');
     if (list) list.innerHTML = D.groups.map((g) => `<option value="${esc(g)}">`).join('');
@@ -149,7 +180,8 @@
 
     const rowsByKey = Object.fromEntries(D.table.rows.map((r) => [r.key, r]));
     const body = subs.map((s) => {
-      const cells = [`<td class="sheet-pin sheet-pin-start xp-id"><span class="sheet-id"><span class="life-dot${s.alive ? ' is-alive' : ''}"></span><span class="ident">${esc(s.label)}</span></span></td>`];
+      const out = s.left_out ? ` <span class="xp-left-tag" title="${esc(t('Left out of the analysis: %(reason)s', { reason: s.left_out }))}">${esc(t('left out'))}</span>` : '';
+      const cells = [`<td class="sheet-pin sheet-pin-start xp-id"><span class="sheet-id"><span class="life-dot${s.alive ? ' is-alive' : ''}"></span><span class="ident">${esc(s.label)}</span>${out}</span></td>`];
       if (showSex) cells.push(`<td>${esc(s.sex)}</td>`);
       cells.push(`<td class="xp-geno" title="${esc(s.genotype)}">${esc(s.genotype)}</td>`, `<td>${esc(s.housing)}</td>`);
       cells.push(`<td><input class="xp-cell" data-xp-group="${esc(s.key)}" value="${esc(s.group)}" placeholder="${esc(t('(no group)'))}" list="xp-groups" aria-label="${esc(t('Group of %(label)s', { label: s.label }))}" ${D.editable ? '' : 'disabled'}></td>`);
@@ -162,8 +194,13 @@
         D.table.dates.forEach((d, i) => cells.push(readingCell(s, d, row.values[i])));
         if (D.editable) cells.push(readingCell(s, '', null, true));
       }
-      if (D.editable) cells.push(`<td class="xp-actions"><button type="button" class="xp-link xp-danger" data-xp-remove="${esc(s.key)}" aria-label="${esc(t('Take %(label)s out of the experiment', { label: s.label }))}" title="${esc(t('Take out of the experiment'))}">×</button></td>`);
-      return `<tr>${cells.join('')}</tr>`;
+      if (D.editable) {
+        const leave = s.left_out
+          ? `<button type="button" class="xp-link" data-xp-leave="${esc(s.key)}" data-back="1" title="${esc(t('Count it in the tests and the chart again'))}">${t('Put back')}</button>`
+          : `<button type="button" class="xp-link" data-xp-leave="${esc(s.key)}" title="${esc(t('Leave it out of the tests by day and the chart; its readout stays'))}">${t('Leave out…')}</button>`;
+        cells.push(`<td class="xp-actions">${leave}<button type="button" class="xp-link xp-danger" data-xp-remove="${esc(s.key)}" aria-label="${esc(t('Take %(label)s out of the experiment', { label: s.label }))}" title="${esc(t('Take out of the experiment'))}">×</button></td>`);
+      }
+      return `<tr${s.left_out ? ' class="xp-left-out"' : ''}>${cells.join('')}</tr>`;
     }).join('');
     table.innerHTML = `<thead><tr>${head.join('')}</tr></thead><tbody>${body}</tbody>`;
   }
@@ -196,9 +233,22 @@
   document.addEventListener('change', async (event) => {
     const t = event.target;
     if (t.matches('[data-xp-group]')) {
-      try { apply(await send(`${XP}/subjects/${encodeURIComponent(t.dataset.xpGroup)}/update`, { group: t.value })); } catch (_e) { /* shown */ }
+      const s = D.subjects.find((x) => x.key === t.dataset.xpGroup);
+      const was = s ? s.group : '';
+      const n = was ? D.subjects.filter((x) => inGroup(x, was)).length : 0;
+      // A whole group can be renamed, or merged into another, at once.
+      const checks = n > 1 ? [{ name: 'whole', label: window.t('Every %(noun)s in “%(group)s” (%(n)s): rename or merge the group', { noun: noun(), group: was, n }) }] : null;
+      try {
+        const data = await sendReason(`${XP}/subjects/${encodeURIComponent(t.dataset.xpGroup)}/update`, { group: t.value },
+          { checks, extra: (c) => (c.whole ? { whole_group: 1 } : {}) });
+        if (data) apply(data); else t.value = was;
+      } catch (_e) { /* shown */ }
     } else if (t.matches('[data-xp-start]')) {
-      try { apply(await send(`${XP}/subjects/${encodeURIComponent(t.dataset.xpStart)}/update`, { start: t.value }), { sheet: false }); } catch (_e) { t.classList.add('is-error'); }
+      const s = D.subjects.find((x) => x.key === t.dataset.xpStart);
+      try {
+        const data = await sendReason(`${XP}/subjects/${encodeURIComponent(t.dataset.xpStart)}/update`, { start: t.value });
+        if (data) apply(data, { sheet: false }); else t.value = s && s.start != null ? s.start : '';
+      } catch (_e) { t.classList.add('is-error'); }
     } else if (t.matches('[data-xp-reading]')) {
       const on = t.dataset.fresh ? ($('.xp-newday-date') || {}).value : t.dataset.date;
       if (!on) return;
@@ -227,7 +277,25 @@
     } else if (btn.dataset.xpRemove) {
       const s = D.subjects.find((x) => x.key === btn.dataset.xpRemove);
       if (!(await confirmAsk(t('Take %(label)s out of this experiment? Its own record is unchanged.', { label: s ? s.label : t('it') }), true))) return;
-      try { apply(await send(`${XP}/subjects/${encodeURIComponent(btn.dataset.xpRemove)}/remove`, {})); } catch (_e) { /* shown */ }
+      try {
+        const data = await sendReason(`${XP}/subjects/${encodeURIComponent(btn.dataset.xpRemove)}/remove`, {});
+        if (data) apply(data);
+      } catch (_e) { /* shown */ }
+    } else if (btn.dataset.xpLeave) {
+      const s = D.subjects.find((x) => x.key === btn.dataset.xpLeave);
+      const url = `${XP}/subjects/${encodeURIComponent(btn.dataset.xpLeave)}/leave-out`;
+      try {
+        if (btn.dataset.back) {
+          const data = await sendReason(url, { back: 1 });
+          if (data) apply(data);
+          return;
+        }
+        const answer = window.BioDialog && BioDialog.prompt
+          ? await BioDialog.prompt(t('Leave %(label)s out of the analysis?', { label: s ? s.label : '' }), '', { message: t('Its readout stays in the sheet; the tests by day and the chart leave it out. Say why.'), placeholder: t('A reason, in a line'), okLabel: t('Leave it out') })
+          : window.prompt(t('Leave %(label)s out of the analysis?', { label: s ? s.label : '' }));
+        if (answer === null || answer === undefined || !String(answer).trim()) return;
+        apply(await send(url, { reason: String(answer).trim() }));
+      } catch (_e) { /* shown */ }
     } else if (btn.dataset.xpOpen) {
       open(btn.dataset.xpOpen, btn.dataset.on);
     } else if (btn.matches('[data-xp-close]')) {
@@ -249,7 +317,7 @@
     const xs = tb.days.every((d) => d !== null) ? tb.days : tb.dates.map((_d, i) => i + 1);
     const pct = scale === 'pct';
     const byGroup = new Map();
-    tb.rows.forEach((r) => {
+    tb.rows.filter((r) => !r.left_out).forEach((r) => {
       const key = r.group || t('All %(nouns)s', { nouns: nouns() });
       if (!byGroup.has(key)) byGroup.set(key, []);
       byGroup.get(key).push(r);
@@ -434,7 +502,8 @@
     if (!body.value) return showError(dialog, t('Pick a %(housing)s, or one.', { housing: t(D.housing) }));
     body.group = f.group.value;
     try {
-      const data = await send(`${XP}/subjects/add`, body);
+      const data = await sendReason(`${XP}/subjects/add`, body);
+      if (!data) return undefined;
       apply(data);
       addForm.reset();
       say('saved', data.message || t('Added'));
@@ -687,12 +756,29 @@
   // ---------------------------------------------------------------- the details, autosaved
 
   const info = $('[data-xp-info]');
+  // Cancel on a reason puts back what the plan fixed, and saves the rest.
+  function revertPlanned() {
+    const f = info.elements;
+    const r = D.readout || {};
+    if (f.readout) f.readout.value = r.key === 'custom' ? 'custom' : r.key;
+    if (f.readout_label) f.readout_label.value = r.key === 'custom' ? r.label : '';
+    if (f.readout_unit) f.readout_unit.value = r.key === 'custom' ? r.unit : '';
+    if (f.readout_kind) f.readout_kind.value = r.kind || 'value';
+    if (f.readout_day) f.readout_day.value = D.readout_day || '';
+    if (f.planned_test) f.planned_test.value = D.planned_test || '';
+    const custom = $('[data-xp-custom]', info);
+    if (custom && f.readout) custom.hidden = f.readout.value !== 'custom';
+  }
   if (info) {
     let timer = null;
     const save = () => {
       clearTimeout(timer);
       timer = setTimeout(async () => {
-        try { apply(await send(info.action, new FormData(info), { form: true })); } catch (_e) { /* shown */ }
+        try {
+          const data = await sendReason(info.action, new FormData(info), { form: true });
+          if (data) apply(data);
+          else { revertPlanned(); apply(await send(info.action, new FormData(info), { form: true })); }
+        } catch (_e) { /* shown */ }
       }, 350);
     };
     $$('[data-autosave]', info).forEach((el) => {
@@ -703,10 +789,37 @@
     if (readout) readout.addEventListener('change', () => { $('[data-xp-custom]', info).hidden = readout.value !== 'custom'; });
   }
 
+  // ---------------------------------------------------------------- the plan and the changes from it
+
+  function drawPlan() {
+    const list = $('[data-xp-deviations]');
+    if (!list) return;
+    const devs = D.deviations || [];
+    const count = $('[data-xp-deviation-count]');
+    if (count) count.textContent = `(${devs.length})`;
+    // A new change from the plan opens the list, so it is seen kept.
+    const box = $('[data-xp-deviations-box]');
+    if (box && drawPlan.seen !== undefined && devs.length > drawPlan.seen) box.open = true;
+    drawPlan.seen = devs.length;
+    const when = (iso) => (iso ? new Date(`${iso}Z`).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+    list.innerHTML = devs.length ? devs.slice().reverse().map((d) => `<li class="xp-deviation">
+      <div class="xp-dev-head"><b>${esc(d.what_label)}</b><span class="xp-dev-change">${esc(d.before)} → ${esc(d.after)}</span></div>
+      <p class="xp-dev-reason">${esc(d.reason)}</p>
+      <span class="xp-muted">${esc(d.who)} · ${esc(when(d.when))}</span>
+      ${d.detail && d.detail.length ? `<details class="xp-dev-detail"><summary>${esc(t(d.detail.length === 1 ? '%(n)s change' : '%(n)s changes', { n: d.detail.length }))}</summary><ul>${d.detail.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></details>` : ''}
+    </li>`).join('') : `<li class="xp-empty">${t('No changes from the plan.')}</li>`;
+    const table = $('[data-xp-compare]');
+    if (table) {
+      table.innerHTML = `<thead><tr><th></th><th>${tc('plan', 'Planned')}</th><th>${tc('plan', 'Done')}</th></tr></thead><tbody>${(D.comparison || []).map((r) => `
+        <tr${r.changed ? ' class="is-changed"' : ''}><th scope="row">${esc(r.what)}</th><td>${esc(r.planned)}</td><td>${esc(r.done)}${r.changed ? ` <span class="xp-changed">${t('changed')}</span>` : ''}</td></tr>`).join('')}</tbody>`;
+    }
+  }
+
   drawSheet();
   drawChart();
   drawDays();
   drawLabels();
+  drawPlan();
   if (window.location.hash.startsWith('#day-')) {
     const target = document.getElementById(window.location.hash.slice(1));
     if (target) target.scrollIntoView({ block: 'center' });
