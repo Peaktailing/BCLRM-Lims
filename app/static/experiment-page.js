@@ -42,6 +42,11 @@
   const num = (v, digits = 1) => (v === null || v === undefined || Number.isNaN(v) ? ''
     : Number(v).toFixed(digits).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''));
   const fraction = () => D.readout.kind === 'fraction';
+  // A readout BioManager works out (app/derived.py): typed as what was measured (length and width), never as the result.
+  const derivedRO = () => Boolean(D.readout.formula);
+  const inputsOf = () => D.readout.inputs || [];
+  const measuredText = (inputs) => (inputs ? inputsOf().filter((i) => inputs[i.key] != null)
+    .map((i) => `${t(i.label)} ${num(inputs[i.key], 3)}${i.unit ? ` ${i.unit}` : ''}`).join(', ') : '');
   const STATE = { done: t('Done'), today: t('Today'), overdue: t('Overdue'), upcoming: t('To come'), planned: t('Planned') };
 
   // ---------------------------------------------------------------- talking to the app
@@ -132,6 +137,8 @@
     const r = D.readout;
     $$('[data-xp-readout-label]').forEach((el) => { el.textContent = RL(); });
     $$('[data-xp-reading-verb]').forEach((el) => { el.textContent = verb(); });
+    const note = $('[data-xp-derived-note]');
+    if (note) note.textContent = derivedRO() ? t(r.description || '') : '';
     const title = $('[data-xp-chart-title]');
     if (title) title.textContent = `${RL()}${r.unit && !fraction() ? ` (${unitOf()})` : ''}`;
     const [raw, pct] = $$('[data-xp-scale]');
@@ -174,7 +181,8 @@
         <span class="xp-dayhead">${t('Day %(n)s', { n: c.day })}</span><span class="xp-daywhat">${esc(titleOf(c))}</span><span class="xp-daydate">${esc(niceDate(c.date))}${c.group ? ` · ${esc(c.group)}` : ''}</span></th>`));
     } else {
       D.table.dates.forEach((d, i) => head.push(`<th class="xp-daycol"><span class="xp-dayhead">${D.table.days[i] !== null ? t('Day %(n)s', { n: D.table.days[i] }) : ''}</span><span class="xp-daydate">${esc(niceDate(d))}</span></th>`));
-      if (D.editable) head.push(`<th class="xp-daycol xp-newday"><span class="xp-dayhead">${t('Another day')}</span><input type="date" class="xp-newday-date" value="${today()}" max="${today()}" aria-label="${esc(t('The day of the new column'))}"></th>`);
+      if (D.editable && derivedRO()) head.push(`<th class="xp-daycol xp-newday"><button type="button" class="xp-link" data-xp-open="reading">${t('Another day')}</button></th>`);
+      else if (D.editable) head.push(`<th class="xp-daycol xp-newday"><span class="xp-dayhead">${t('Another day')}</span><input type="date" class="xp-newday-date" value="${today()}" max="${today()}" aria-label="${esc(t('The day of the new column'))}"></th>`);
     }
     if (D.editable) head.push('<th class="xp-actions"></th>');
 
@@ -191,8 +199,8 @@
         cols.forEach((c) => cells.push(treatmentCell(s, c)));
       } else {
         const row = rowsByKey[s.key] || { values: [] };
-        D.table.dates.forEach((d, i) => cells.push(readingCell(s, d, row.values[i])));
-        if (D.editable) cells.push(readingCell(s, '', null, true));
+        D.table.dates.forEach((d, i) => cells.push(derivedRO() ? derivedCell(d, row.values[i], (row.inputs || [])[i]) : readingCell(s, d, row.values[i])));
+        if (D.editable) cells.push(derivedRO() ? '<td></td>' : readingCell(s, '', null, true));
       }
       if (D.editable) {
         const leave = s.left_out
@@ -227,6 +235,14 @@
     const of = fraction() && subject.start != null ? `<span class="xp-of">/ ${subject.start}</span>` : '';
     return `<td class="xp-r"><span class="xp-rwrap"><input class="xp-cell xp-num" data-xp-reading="${esc(subject.key)}" data-date="${esc(date)}" ${fresh ? 'data-fresh="1"' : ''}
       value="${value === null || value === undefined ? '' : num(value, 2)}" inputmode="decimal" aria-label="${esc(date ? t('%(readout)s of %(label)s on %(date)s', { readout: RL(), label: subject.label, date }) : t('%(readout)s of %(label)s', { readout: RL(), label: subject.label }))}" ${D.editable ? '' : 'disabled'}>${of}</span></td>`;
+  }
+
+  // A readout BioManager works out: the value, what was measured on hover; a click opens the day to change it.
+  function derivedCell(date, value, inputs) {
+    const shown = value === null || value === undefined ? '' : num(value, 2);
+    const what = measuredText(inputs);
+    if (!D.editable) return `<td class="xp-r" title="${esc(what)}"><span class="xp-derived-value">${shown}</span></td>`;
+    return `<td class="xp-r"><button type="button" class="xp-tbtn xp-derived-value" data-xp-open="reading" data-on="${esc(date)}" title="${esc(`${what} ${t('(click to change)')}`.trim())}">${shown || '·'}</button></td>`;
   }
 
   // Sheet edits
@@ -718,10 +734,15 @@
     form.elements.on.value = day;
     form.elements.on.max = today();
     $('#xp-reading-title').textContent = `${verb()}: ${RL()}`;
-    $('[data-xp-reading-sub]', dialog).textContent = fraction()
-      ? t('How many %(unit)s of those each started with.', { unit: unitOf() }).replace('  ', ' ')
-      : (D.readout.unit ? t('%(readout)s in %(unit)s; leave one blank to skip it.', { readout: RL(), unit: unitOf() })
-        : t('%(readout)s; leave one blank to skip it.', { readout: RL() }));
+    const control = D.readout.per_group ? (D.readout.control
+      ? t('Against the mean ΔCt of the control group, %(group)s, on the same day.', { group: D.readout.control })
+      : t('Say which group is the control first (Control group, beside the readout).')) : '';
+    $('[data-xp-reading-sub]', dialog).textContent = derivedRO()
+      ? `${t('Type what you measured; BioManager works out the rest: %(expression)s. Leave one blank to skip it.', { expression: D.readout.expression })} ${control}`.trim()
+      : fraction()
+        ? t('How many %(unit)s of those each started with.', { unit: unitOf() }).replace('  ', ' ')
+        : (D.readout.unit ? t('%(readout)s in %(unit)s; leave one blank to skip it.', { readout: RL(), unit: unitOf() })
+          : t('%(readout)s; leave one blank to skip it.', { readout: RL() }));
     drawReadingRows(dialog, day);
   }
   function drawReadingRows(dialog, day) {
@@ -731,6 +752,13 @@
       const r = rows[s.key] || { values: [] };
       const current = idx >= 0 ? r.values[idx] : null;
       const before = [...D.table.dates.keys()].filter((i) => D.table.dates[i] < day && r.values[i] != null).pop();
+      if (derivedRO()) {
+        const measured = idx >= 0 ? (r.inputs || [])[idx] : null;
+        const fields = inputsOf().map((i) => `<label>${esc(t(i.label))}<input class="xp-cell xp-num" data-key="${esc(s.key)}" data-input="${esc(i.key)}" inputmode="decimal" value="${measured && measured[i.key] != null ? num(measured[i.key], 4) : ''}" aria-label="${esc(`${t(i.label)}, ${s.label}`)}"></label>`).join('');
+        const unit = D.readout.unit ? ` ${unitOf()}` : '';
+        return `<tr><td>${esc(s.label)} <span class="xp-muted">${esc(s.group)}</span></td><td><span class="xp-inputs">${fields}</span></td>
+          <td class="xp-muted">${current != null ? `→ ${num(current, 2)}${unit}` : (before !== undefined ? t('before: %(value)s (%(date)s)', { value: num(r.values[before], 2), date: esc(niceDate(D.table.dates[before])) }) : '')}</td></tr>`;
+      }
       return `<tr><td>${esc(s.label)} <span class="xp-muted">${esc(s.group)}</span></td>
         <td><input class="xp-cell xp-num" name="v-${esc(s.key)}" data-key="${esc(s.key)}" inputmode="decimal" value="${current == null ? '' : num(current, 2)}" aria-label="${esc(s.label)}">${fraction() && s.start != null ? ` <span class="xp-of">/ ${s.start}</span>` : ''}</td>
         <td class="xp-muted">${before !== undefined ? t('before: %(value)s (%(date)s)', { value: num(r.values[before], 2), date: esc(niceDate(D.table.dates[before])) }) : ''}</td></tr>`;
@@ -743,7 +771,14 @@
       event.preventDefault();
       const dialog = readingForm.closest('dialog');
       const values = {};
-      $$('[data-key]', dialog).forEach((i) => { if (i.value.trim() !== '' || D.table.dates.includes(readingForm.elements.on.value)) values[i.dataset.key] = i.value; });
+      const known = D.table.dates.includes(readingForm.elements.on.value);
+      if (derivedRO()) {
+        // What was measured, by animal; one left blank is skipped (or, on a day it has, removed).
+        $$('[data-input]', dialog).forEach((i) => { (values[i.dataset.key] = values[i.dataset.key] || {})[i.dataset.input] = i.value; });
+        Object.keys(values).forEach((k) => { if (!known && Object.values(values[k]).every((v) => !v.trim())) delete values[k]; });
+      } else {
+        $$('[data-key]', dialog).forEach((i) => { if (i.value.trim() !== '' || known) values[i.dataset.key] = i.value; });
+      }
       try {
         const data = await send(`${XP}/readings`, { on: readingForm.elements.on.value, values });
         apply(data);
@@ -764,10 +799,24 @@
     if (f.readout_label) f.readout_label.value = r.key === 'custom' ? r.label : '';
     if (f.readout_unit) f.readout_unit.value = r.key === 'custom' ? r.unit : '';
     if (f.readout_kind) f.readout_kind.value = r.kind || 'value';
+    if (f.readout_control) f.readout_control.value = r.control || '';
     if (f.readout_day) f.readout_day.value = D.readout_day || '';
     if (f.planned_test) f.planned_test.value = D.planned_test || '';
+    showReadoutFields();
+  }
+  // Under the readout: your own one's name and unit, or what one BioManager works out takes (and its control group).
+  function showReadoutFields() {
+    const select = $('[data-xp-readout]', info);
+    if (!select) return;
     const custom = $('[data-xp-custom]', info);
-    if (custom && f.readout) custom.hidden = f.readout.value !== 'custom';
+    if (custom) custom.hidden = select.value !== 'custom';
+    const chosen = select.selectedOptions[0];
+    const box = $('[data-xp-derived]', info);
+    if (box) box.hidden = !select.value.startsWith('derived:');
+    const control = $('[data-xp-control]', info);
+    if (control) control.hidden = !(chosen && chosen.dataset.perGroup);
+    const note = $('[data-xp-derived-note]', info);
+    if (note && chosen && select.value !== (D.readout || {}).key) note.textContent = chosen.title || '';
   }
   if (info) {
     let timer = null;
@@ -786,7 +835,7 @@
       el.addEventListener('change', save);
     });
     const readout = $('[data-xp-readout]', info);
-    if (readout) readout.addEventListener('change', () => { $('[data-xp-custom]', info).hidden = readout.value !== 'custom'; });
+    if (readout) readout.addEventListener('change', showReadoutFields);
   }
 
   // ---------------------------------------------------------------- the plan and the changes from it

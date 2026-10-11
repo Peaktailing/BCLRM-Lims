@@ -34,7 +34,7 @@ from sqlalchemy import func, select
 
 from . import contained
 from .db import SessionLocal
-from .i18n import gettext, ngettext
+from .i18n import gettext, ngettext, translate_value
 from .models import (FISH_SEX_OPTIONS, FISH_STATUS_OPTIONS, TANK_PURPOSE_OPTIONS, AuditEntry, BatchRecord, CageRecord,
                      ClutchRecord, FishLine, FishRack, FishRecord, LitterRecord, MouseRack, MouseRecord, TankRecord,
                      Experiment, ExperimentStep, Organism, OrganismModule, OrgCohort, OrgCross, OrgDue, OrgHousing,
@@ -1334,17 +1334,80 @@ def _experiment_step_done(s, step, v):
     return [Call("POST", f"/colony/experiments/{exp.id}/steps/{step.id}/day/{day}/record", json=body)]
 
 
+def _derived_readings(s, exp, v) -> list[str]:
+    """For a readout BioManager works out (app/derived.py): the inputs given
+    per animal, checked, and each animal's line "1043: Length 12 mm, Width
+    8 mm → 384 mm³", the value worked out as the page will. An ActionError,
+    in words, for inputs that don't fit the formula."""
+    from . import derived
+    from . import experiments as xp
+    place = _place(s, exp)
+    readout = xp.readout_of(exp, place)
+    names = list(v["inputs"])
+    keys = _subject_keys(s, exp, names)
+    labels = {x.key: x.label for x in xp.subjects(s, exp, place)}
+    on = date.fromisoformat(v["date"]) if v.get("date") else date.today()
+    checked = {}
+    for name, key in zip(names, keys):
+        try:
+            checked[key] = derived.check(readout["formula"], v["inputs"][name])
+        except derived.DerivedError as e:
+            raise ActionError(f"{_show(name)}: {e}") from None
+    try:
+        values = xp.derive_day(s, exp, place, on, checked)
+    except derived.DerivedError as e:
+        raise ActionError(str(e)) from None
+    unit = f" {readout['unit']}" if readout["unit"] else ""
+    lines = [f"{labels.get(k, k)}: {derived.inputs_text(readout['formula'], checked[k])} → {values[k]:g}{unit}"
+             for k in checked]
+    return lines
+
+
+def _reading_check(s, exp, v) -> list[str]:
+    """The lines a readout change shows; refuses inputs for a readout typed
+    as a number, and a number for one BioManager works out."""
+    from . import experiments as xp
+    readout = xp.readout_of(exp, _place(s, exp))
+    if not v.get("values") and not v.get("inputs"):
+        raise ActionError(gettext("experiment_reading needs values (or, for a readout BioManager works out, inputs)."))
+    if readout.get("formula"):
+        if v.get("values"):
+            raise ActionError(gettext("“%(name)s”'s readout, %(readout)s, is worked out by BioManager from %(inputs)s: send them as inputs for each animal, not values.",  # noqa: E501
+                                      name=exp.name, readout=translate_value(readout["label"]),
+                                      inputs=", ".join(i["key"] for i in readout["inputs"])))
+        return _derived_readings(s, exp, v)
+    if v.get("inputs"):
+        raise ActionError(gettext("“%(name)s”'s readout, %(readout)s, is one number for each animal: send values, not inputs.",
+                                  name=exp.name, readout=translate_value(readout["label"])))
+    return []
+
+
 @action(name="experiment_reading", area="experiments", title="Record a readout",
-        help="The experiment's readout (a weight, a count, a score) for some animals on one day.",
+        help="The experiment's readout (a weight, a count, a score) for some animals on one day. When the readout "
+             "is one BioManager works out (its key starts derived:, e.g. a tumour volume from length and width; "
+             "GET /api/v1/experiments/{id} has readout.inputs), send what was measured as inputs and BioManager "
+             "computes the value: never work it out yourself.",
         target="experiment",
-        fields=(Field("values", "object", "Each animal's reading, by its key or label: {\"1043\": 24.5}",
-                      required=True),
+        fields=(Field("values", "object", "Each animal's reading, by its key or label: {\"1043\": 24.5}"),
+                Field("inputs", "object", "For a readout BioManager works out: each animal's measurements, by its key "
+                      "or label: {\"1043\": {\"length\": 12.1, \"width\": 8.4}}"),
                 Field("date", "date", "The day (today if left out)")),
-        describe=lambda _s, e, v: gettext("Experiment “%(name)s”: readout%(on)s for %(n)s animals", name=e.name,
-                                          on=_on(v.get("date")), n=len(v["values"])))
-def _experiment_reading(_s, exp, v):
-    return [Call("POST", f"/api/v1/experiments/{exp.id}/readings",
-                 json={"date": v.get("date") or date.today().isoformat(), "values": v["values"]})]
+        describe=lambda s, e, v: _reading_summary(s, e, v))
+def _experiment_reading(s, exp, v):
+    _reading_check(s, exp, v)
+    body = {"date": v.get("date") or date.today().isoformat()}
+    if v.get("inputs"):
+        body["inputs"] = v["inputs"]
+    else:
+        body["values"] = v["values"]
+    return [Call("POST", f"/api/v1/experiments/{exp.id}/readings", json=body)]
+
+
+def _reading_summary(s, exp, v) -> str:
+    lines = _reading_check(s, exp, v)
+    head = gettext("Experiment “%(name)s”: readout%(on)s for %(n)s animals", name=exp.name, on=_on(v.get("date")),
+                   n=len(v.get("inputs") or v.get("values") or {}))
+    return f"{head}: {'; '.join(lines)}" if lines else head
 
 
 @action(name="experiment_add_animals", area="experiments", title="Add animals to an experiment",
@@ -1500,7 +1563,11 @@ def _design_steps(steps) -> list[dict]:
                       "\"Tamoxifen\", \"dose\": \"75 mg/kg\", \"route\": \"i.p.\", \"concentration\": \"20 mg/mL\", "
                       "\"group\": \"HDM\" (every animal if left out), \"notes\"}]; a readout day is kind \"reading\""),
                 Field("readout", "text", "The main readout: body_weight, tumour_volume, score, survival, length, "
-                      "phenotype, eclosion, climbing, brood or paralysis; or your own one's name"),
+                      "phenotype, eclosion, climbing, brood or paralysis; one BioManager works out from what is "
+                      "measured, derived:<formula> (GET /api/v1/derive lists them: derived:tumour_lw, "
+                      "derived:fold_change…); or your own one's name"),
+                Field("readout_control", "text", "For derived:delta_delta_ct or derived:fold_change: the control "
+                      "group, whose mean ΔCt each day the others are against"),
                 Field("readout_unit", "text", "Your own readout's unit"),
                 Field("readout_kind", "text", "Your own readout: a number for each, or how many of those at the start",
                       choices=("value", "fraction")),
@@ -1521,7 +1588,9 @@ def _experiment_new(s, _target, v):
     if not isinstance(v.get("groups") or [], list) or not isinstance(v.get("steps") or [], list):
         raise ActionError(gettext("groups and steps are lists."))
     readout = v.get("readout") or ""
-    if readout and readout not in xp.READOUTS:
+    if readout.startswith(xp.DERIVED):
+        readout = {"key": readout, "control": v.get("readout_control", "")}
+    elif readout and readout not in xp.READOUTS:
         readout = {"label": readout, "unit": v.get("readout_unit", ""), "kind": v.get("readout_kind") or "value"}
     description = v.get("description", "")
     if "seed" in v:

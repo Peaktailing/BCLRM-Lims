@@ -139,6 +139,16 @@ never what you may edit.
   from its latest weight, and the volume given the solution's
   concentration. Day 1 is the start date. The readout can be body weight,
   tumour volume, a clinical score, survival or your own.
+  - **Readouts worked out from what you measure.** Under **Readout**,
+    *Worked out by BioManager from what you measure* has tumour volume
+    from caliper length and width (L × W² / 2) or three diameters
+    (π/6 × L × W × H), whichever your lab uses; ΔCt, ΔΔCt and fold change
+    (2^−ΔΔCt) against the **Control group**'s mean ΔCt that day; % of a
+    baseline; and absorbance less the blank. You type the length and width
+    (or each gene's Ct, or the OD and blank) on the page or in bench mode;
+    BioManager works out the value, keeps what you measured with it
+    (shown when you point at the value, and in the export), and refuses a
+    missing, negative or impossible number in words.
   - **The regimen reminds you; you record it.** Days still to do are on
     the calendar, and the experiment's owner gets a notification each
     morning of what is due (Settings → Notifications → Experiments).
@@ -161,7 +171,8 @@ never what you may edit.
     one-line reason; **Changes from the plan** lists each, beside
     **Planned → done**, and the export gets a sheet of them.
   - **Bench mode**, on a phone (scan its QR code): one animal at a time,
-    with big numbers: weigh or count each, or give each today's
+    with big numbers: weigh or count each (or type what you measured, a
+    tumour's length and width, and see the volume), or give each today's
     manipulation and tick it. **Scan a card** reads a cage, tank or vial
     card with the phone's camera and jumps to the animal in it.
 
@@ -1354,8 +1365,9 @@ track.
   (`/api/v1/search`), reads a record's history and family tree, and works
   things out from the lab's own records, changing nothing: animals available,
   a breeding plan, random groups, animals per group, when stock runs out, the
-  week's checks, an experiment's facts for its methods, the animals used per
-  protocol over a year (`/api/v1/animal-use`) and everything one person
+  week's checks, an experiment's facts for its methods, a derived readout
+  (a tumour volume, ΔΔCt, fold change) from raw measurements, the animals used
+  per protocol over a year (`/api/v1/animal-use`) and everything one person
   looks after (`/api/v1/handover`: your own, or an admin's of anyone). A *Read and
   propose* token, meant for an AI assistant, changes nothing itself: it
   sends its changes as one proposal, which BioManager checks as its pages

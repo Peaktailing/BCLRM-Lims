@@ -522,8 +522,10 @@ def _record(session, exp, place, step, day, data):
     problems = []
     if ex.is_reading(step.kind):
         values = data.get("values") or data.get("grams") or {}
-        for x in chosen:
-            raw = str(values.get(x.key, values.get(str(x.id), ""))).strip()
+        # A readout BioManager works out takes what was measured ({"length", "width"}), the control group first.
+        for x in ex.control_first(ex.readout_of(exp, place), chosen, lambda x: x):
+            raw = values.get(x.key, values.get(str(x.id), ""))
+            raw = raw if isinstance(raw, dict) else str(raw).strip()
             if not raw:
                 continue
             problem = ex.set_reading(session, exp, place, x, on, raw)

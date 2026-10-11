@@ -26,8 +26,11 @@
     return [s.agent || t(s.kind_label), s.dose, s.route].filter(Boolean).join(' ');
   };
   const fraction = D.readout.kind === 'fraction';
+  // A readout BioManager works out (app/derived.py): type what was measured, one box each; it works out the rest.
+  const inputs = D.readout.formula ? (D.readout.inputs || []) : null;
   let task = null;      // {kind: 'reading'} | {kind: 'step', stepId, day, title, animals}
   let at = 0;
+  let saved = '';       // the value BioManager worked out for the animal just saved
   const given = new Map();
 
   async function post(url, body) {
@@ -124,10 +127,12 @@
     const row = D.table.rows.find((r) => r.key === key);
     if (!row) return null;
     for (let i = D.table.dates.length - 1; i >= 0; i -= 1) {
-      if (row.values[i] != null) return { value: row.values[i], date: D.table.dates[i], today: D.table.dates[i] === today() };
+      if (row.values[i] != null) return { value: row.values[i], date: D.table.dates[i], today: D.table.dates[i] === today(), inputs: (row.inputs || [])[i] || null };
     }
     return null;
   }
+
+  const shownValue = (v) => String(Number(v.toFixed(2)));
 
   function show() {
     const list = task.animals;
@@ -139,7 +144,19 @@
     const head = `<div class="xb-who"><span class="xb-label">${esc(a.label)}</span><span>${esc([a.group, a.housing, a.sex].filter(Boolean).join(' · '))}</span></div>`;
     if (task.kind === 'reading') {
       const prev = previous(key);
-      $('[data-xb-card]').innerHTML = `${head}
+      const unitText = D.readout.unit && !fraction ? ` ${esc(unitOf())}` : '';
+      const field = inputs
+        ? `<div class="xb-inputs">${inputs.map((i) => `<label class="xb-input"><span>${esc(t(i.label))}${i.unit ? ` (${esc(i.unit)})` : ''}</span>
+            <input type="text" inputmode="decimal" autocomplete="off" data-xb-input="${esc(i.key)}" value="${prev && prev.today && prev.inputs && prev.inputs[i.key] != null ? prev.inputs[i.key] : ''}"></label>`).join('')}</div>
+          <p class="xb-prev">${esc(t('BioManager works out the rest: %(expression)s.', { expression: D.readout.expression }))}</p>`
+        : '';
+      $('[data-xb-card]').innerHTML = inputs ? `${head}${field}
+        <p class="xb-prev">${prev && !prev.today ? t('Last: %(value)s on %(date)s', { value: `${shownValue(prev.value)}${unitText}`, date: esc(nice(prev.date)) }) : prev ? t('Already recorded today: %(value)s. Change it or go on.', { value: `${shownValue(prev.value)}${unitText}` }) : t('No readout yet.')}</p>
+        ${saved ? `<p class="xb-prev">${esc(saved)}</p>` : ''}
+        <p class="xp-error" data-xb-error hidden></p>
+        <div class="xb-buttons"><button type="button" class="btn" data-xb-back ${at ? '' : 'disabled'}>${t('Back')}</button>
+          <button type="button" class="btn" data-xb-skip>${t('Skip')}</button>
+          <button type="button" class="btn btn-primary" data-xb-save>${t('Save and next')}</button></div>` : `${head}
         <label class="xb-input"><span>${fraction && D.readout.unit ? esc(unitOf().charAt(0).toUpperCase() + unitOf().slice(1)) : esc(RL())}${D.readout.unit && !fraction ? ` (${esc(unitOf())})` : ''}</span>
           <input type="text" inputmode="decimal" autocomplete="off" data-xb-value value="${prev && prev.today ? prev.value : ''}">
           ${fraction && a.start != null ? `<em>${t('of %(n)s', { n: a.start })}</em>` : ''}</label>
@@ -148,9 +165,14 @@
         <div class="xb-buttons"><button type="button" class="btn" data-xb-back ${at ? '' : 'disabled'}>${t('Back')}</button>
           <button type="button" class="btn" data-xb-skip>${t('Skip')}</button>
           <button type="button" class="btn btn-primary" data-xb-save>${t('Save and next')}</button></div>`;
-      const input = $('[data-xb-value]');
-      input.focus();
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveReading(); } });
+      const boxes = inputs ? [...document.querySelectorAll('[data-xb-input]')] : [$('[data-xb-value]')];
+      boxes[0].focus();
+      // Enter goes to the next box, and saves from the last.
+      boxes.forEach((input, n) => input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (boxes[n + 1]) boxes[n + 1].focus(); else saveReading();
+      }));
     } else {
       const dose = [a.amount, a.volume].filter(Boolean).join(' · ');
       $('[data-xb-card]').innerHTML = `${head}
@@ -170,12 +192,19 @@
 
   async function saveReading() {
     const a = task.animals[at];
-    const input = $('[data-xb-value]');
-    const value = input.value.trim();
+    let value;
+    if (inputs) {
+      const measured = Object.fromEntries([...document.querySelectorAll('[data-xb-input]')].map((i) => [i.dataset.xbInput, i.value.trim()]));
+      value = Object.values(measured).some(Boolean) ? measured : '';
+    } else {
+      value = $('[data-xb-value]').value.trim();
+    }
     if (value) {
       try {
         const data = await post(`/experiments/${D.id}/readings`, { on: today(), values: { [a.key]: value } });
         D.table = data.table;
+        const now = previous(a.key);
+        saved = inputs && now && now.today ? t('Saved %(label)s: %(value)s', { label: a.label, value: `${shownValue(now.value)}${D.readout.unit ? ` ${unitOf()}` : ''}` }) : '';
       } catch (error) {
         const box = $('[data-xb-error]');
         box.textContent = error.message;

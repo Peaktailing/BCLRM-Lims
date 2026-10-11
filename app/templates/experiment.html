@@ -66,6 +66,9 @@
     <label>{{ _('Readout') }}
       <select name="readout" data-autosave="1" data-xp-readout {% if locked %}disabled{% endif %}>
         {% for r in readouts %}<option value="{{ r.key }}" {% if readout.key == r.key %}selected{% endif %}>{{ r.label|tr }}{% if r.unit %} ({{ r.unit|tr }}){% endif %}</option>{% endfor %}
+        <optgroup label="{{ _('Worked out by BioManager from what you measure') }}">
+          {% for r in derived_readouts %}<option value="{{ r.key }}" title="{{ r.description|tr }}" data-per-group="{{ 1 if r.per_group else '' }}" {% if readout.key == r.key %}selected{% endif %}>{{ r.label|tr }}{% if r.unit %} ({{ r.unit|tr }}){% endif %}</option>{% endfor %}
+        </optgroup>
         <option value="custom" {% if readout.key == 'custom' %}selected{% endif %}>{{ _('Something else…') }}</option>
       </select>
     </label>
@@ -85,6 +88,12 @@
           <option value="fraction" {% if readout.kind == 'fraction' %}selected{% endif %}>{{ _('how many of those at the start') }}</option>
         </select>
       </label>
+    </div>
+    {# A readout BioManager works out: what it takes, and for ΔΔCt or fold change, the control group #}
+    <div class="xp-derived" data-xp-derived {% if not readout.formula %}hidden{% endif %}>
+      <p class="xp-sub" data-xp-derived-note>{% if readout.formula %}{{ readout.description|tr }}{% endif %}</p>
+      <label data-xp-control {% if not readout.per_group %}hidden{% endif %}>{{ _('Control group') }}
+        <input name="readout_control" value="{{ readout.control or '' }}" list="xp-groups" placeholder="{{ _('e.g. Vehicle') }}" data-autosave="1" {% if locked %}disabled{% endif %}></label>
     </div>
     <label class="xp-wide">{{ _('Description') }} <textarea name="description" rows="2" data-autosave="1" {% if locked %}disabled{% endif %}>{{ experiment.description }}</textarea></label>
     <details class="xp-wide xp-plan-text" {% if experiment.treatment_plan %}open{% endif %}>

@@ -34,8 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool, description,  # noqa: E402,F401
                                  describe_actions, discard_proposal, get, get_capture, lab_overview, list_actions,
                                  list_captures, list_records, proposal_status, propose_changes, resolve, whats_due)
-from app.assistant_tools import (availability, breeding_plan, experiment_summary, history, lab_checks,  # noqa: E402,F401
-                                 lineage, power_analysis, randomize, reorder_forecast, search)
+from app.assistant_tools import (availability, breeding_plan, derive, experiment_summary, history,  # noqa: E402,F401
+                                 lab_checks, lineage, power_analysis, randomize, reorder_forecast, search)
 from app.assistant_tools import animal_use, handover  # noqa: E402,F401
 
 
@@ -171,6 +171,10 @@ def build_server(api: Api):
     @server.tool(name="handover", description=description(api, "handover"))
     def handover_tool(username: str | None = None, days: int = 30) -> dict:
         return call_tool(api, "handover", given(username=username, days=days))
+
+    @server.tool(name="derive", description=description(api, "derive"))
+    def derive_tool(formula: str | None = None, rows: list[dict] | None = None, control: str | None = None) -> dict:
+        return call_tool(api, "derive", given(formula=formula, rows=rows, control=control))
 
     @server.tool(name="list_captures", description=description(api, "list_captures"))
     def list_captures_tool(status: str = "waiting") -> dict:

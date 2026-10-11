@@ -51,8 +51,9 @@ with get at the path resolve gives it.
 BioManager computes; you talk. Never work out a number yourself that a BioManager tool can: how many \
 animals fit (availability), breeding odds and matings (breeding_plan), group allocation (randomize), \
 animals per group (power_analysis), when stock runs out (reorder_forecast), the week's checks \
-(lab_checks), an experiment's facts (experiment_summary), animals used per protocol for a review \
-(animal_use), what someone leaving looks after (handover). Call the tool, give its numbers with the \
+(lab_checks), an experiment's facts (experiment_summary), derived readouts (derive), animals used per \
+protocol for a review (animal_use), what someone leaving looks after (handover). Call the tool, give its \
+numbers with the \
 assumptions it states, and say so when it can't answer rather than estimating."""
 
 
@@ -383,6 +384,12 @@ def handover(api: Api, a: dict) -> dict:
     return api.request("GET", "handover", {k: a.get(k) for k in ("username", "days")})
 
 
+def derive(api: Api, a: dict) -> dict:
+    if not a.get("formula"):
+        return api.request("GET", "derive")
+    return api.request("POST", "derive", body={k: a.get(k) for k in ("formula", "rows", "control")})
+
+
 _REF = {"type": "object", "description": "The record's reference, {\"kind\", \"id\"}, from resolve or search"}
 _KIND = {"type": "string", "description": "Instead of ref: what it is (mouse, cage, plasmid, stock_unit…)"}
 _CODE = {"type": "string", "description": "With kind: what the lab writes on it (1043, 88, FV12)"}
@@ -498,6 +505,26 @@ TOOLS.update({
         _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"}},
              ("experiment_id",)),
         lambda api, a: experiment_summary(api, a["experiment_id"])),
+    "derive": (
+        "Work out a derived readout from raw measurements, as BioManager does when they are recorded, changing "
+        "nothing: tumour volume from caliper length and width (tumour_lw, L × W² / 2) or three diameters "
+        "(tumour_lwh, π/6 × L × W × H), ΔCt (delta_ct), ΔΔCt (delta_delta_ct) and fold change 2^−ΔΔCt "
+        "(fold_change) against a control group's mean ΔCt for the same day, % of a baseline "
+        "(percent_of_baseline) and blank-subtracted absorbance (blank_subtracted). Without formula it lists them, "
+        "each with its inputs and unit. Each row gives its value, or why it can't (a missing, negative or "
+        "impossible input). Use it on a caliper sheet, qPCR export or plate-reader file to show the person the "
+        "numbers before proposing; for an experiment whose readout is one of these (readout key derived:…), "
+        "propose experiment_reading with inputs, not values. Never work these out yourself.",
+        _obj({"formula": {"type": "string", "enum": ["tumour_lw", "tumour_lwh", "delta_ct", "delta_delta_ct",
+                                                     "fold_change", "percent_of_baseline", "blank_subtracted"],
+                          "description": "Left out: the list of formulas"},
+              "rows": {"type": "array", "items": {"type": "object"},
+                       "description": "One per animal or well: its inputs ({\"length\": 12.1, \"width\": 8.4}; "
+                                      "{\"ct_target\", \"ct_reference\"}; {\"value\", \"baseline\"}; "
+                                      "{\"od\", \"blank\"}), with animal, group and day if you have them"},
+              "control": {"type": "string", "description": "For delta_delta_ct and fold_change: the control group "
+                                                           "(each row's group)"}}),
+        lambda api, a: derive(api, a)),
 })
 
 # The write-ups (app/assistant_reports.py): BioManager counts and lists, the assistant writes.

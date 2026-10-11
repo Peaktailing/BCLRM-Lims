@@ -31,7 +31,7 @@ from datetime import date, datetime
 from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import func, select
 
-from . import access, i18n, lab
+from . import access, derived, i18n, lab
 from .db import SessionLocal
 from .i18n import gettext
 from .models import (CageRecord, ClutchRecord, Experiment, ExperimentMouse, ExperimentReading, ExperimentSubject,
@@ -191,6 +191,8 @@ def readout_of(exp: Experiment, place: Place) -> dict:
     preset = READOUTS.get(chosen["key"])
     if preset:
         return {"key": chosen["key"], **preset}
+    if chosen["key"] == "derived" and chosen.get("formula") in derived.FORMULAS:
+        return derived_readout(derived.FORMULAS[chosen["formula"]], str(chosen.get("control") or ""))
     kind = chosen.get("kind") if chosen.get("kind") in ("value", "fraction") else "value"
     return {"key": "custom", "label": str(chosen.get("label") or "Measurement")[:60],
             "unit": str(chosen.get("unit") or "")[:20], "kind": kind, "verb": "Record"}
@@ -198,6 +200,38 @@ def readout_of(exp: Experiment, place: Place) -> dict:
 
 def readout_choices(place: Place) -> list[dict]:
     return [{"key": k, **READOUTS[k]} for k in READOUT_CHOICES.get(place.family, READOUT_CHOICES["organism"])]
+
+
+# Readouts BioManager works out from what is measured (app/derived.py): the
+# experiment keeps {"key": "derived", "formula", "control"} in its readout,
+# and each reading keeps its inputs, as JSON, in its note.
+DERIVED = "derived:"
+
+
+def derived_readout(f: derived.Formula, control: str = "") -> dict:
+    return {"key": f"{DERIVED}{f.key}", "formula": f.key, "label": f.label, "unit": f.unit, "kind": "value",
+            "verb": f.verb, "expression": f.expression, "description": f.description,
+            "inputs": [i.as_dict() for i in f.inputs], "per_group": f.per_group,
+            "control": control if f.per_group else ""}
+
+
+def derived_choices(place: Place) -> list[dict]:
+    """The formulas that fit this database's animals, as readouts to choose."""
+    return [derived_readout(f) for f in derived.FORMULAS.values() if not f.families or place.family in f.families]
+
+
+def readout_json(key: str, control: str = "") -> str | None:
+    """What an experiment keeps for a readout chosen by its key (a built-in
+    one or "derived:<formula>"); None for a key that is neither."""
+    if key in READOUTS:
+        return json.dumps({"key": key})
+    f = derived.FORMULAS.get(key[len(DERIVED):]) if key.startswith(DERIVED) else None
+    if f is None:
+        return None
+    chosen = {"key": "derived", "formula": f.key}
+    if f.per_group and control.strip():
+        chosen["control"] = control.strip()[:80]
+    return json.dumps(chosen)
 
 
 def weighs(exp: Experiment, place: Place) -> bool:
@@ -398,11 +432,69 @@ def readings(session, exp: Experiment, place: Place, subs: list[Subject] | None 
             for w in session.scalars(select(MouseWeight).where(MouseWeight.mouse_id_fk.in_(list(ids)))):
                 out[ids[w.mouse_id_fk]][w.weigh_date] = w.grams
         return out
-    for r in session.scalars(select(ExperimentReading).where(ExperimentReading.experiment_id_fk == exp.id,
-                                                             ExperimentReading.readout_key == readout["key"])):
+    rows = list(session.scalars(select(ExperimentReading).where(ExperimentReading.experiment_id_fk == exp.id,
+                                                                  ExperimentReading.readout_key == readout["key"])))
+    if readout.get("per_group"):
+        # Against the control group's mean ΔCt that day: worked out afresh,
+        # so a change of group or control is followed (a day with no
+        # control has nothing to show).
+        groups = {x.key: x.group for x in subs}
+        by_day: dict[date, dict[str, dict]] = {}
+        for r in rows:
+            inputs = derived.read_note(r.note)
+            if r.subject in out and inputs is not None:
+                by_day.setdefault(r.read_on, {})[r.subject] = inputs
+        for on, day in by_day.items():
+            for key, value in (_group_values(readout, day, groups) or {}).items():
+                out[key][on] = value
+        return out
+    for r in rows:
         if r.subject in out:
             out[r.subject][r.read_on] = r.value
     return out
+
+
+def reading_inputs(session, exp: Experiment, place: Place, subs: list[Subject] | None = None) -> dict[str, dict[date, dict]]:
+    """{subject key: {date: inputs}} for a readout BioManager works out:
+    what was measured, kept with each reading."""
+    readout = readout_of(exp, place)
+    if not readout.get("formula"):
+        return {}
+    keys = {x.key for x in (subjects(session, exp, place) if subs is None else subs)}
+    out: dict[str, dict[date, dict]] = {}
+    for r in session.scalars(select(ExperimentReading).where(ExperimentReading.experiment_id_fk == exp.id,
+                                                             ExperimentReading.readout_key == readout["key"])):
+        inputs = derived.read_note(r.note)
+        if r.subject in keys and inputs is not None:
+            out.setdefault(r.subject, {})[r.read_on] = inputs
+    return out
+
+
+def _group_values(readout: dict, day: dict[str, dict], groups: dict[str, str]) -> dict[str, float] | None:
+    """ΔΔCt or fold change for each animal of one day, from {subject: inputs};
+    None when the day has no control (or no control is set)."""
+    keys = list(day)
+    rows = [{"group": groups.get(k, ""), **day[k]} for k in keys]
+    try:
+        return dict(zip(keys, derived.group_values(readout["formula"], rows, readout.get("control") or "")))
+    except derived.DerivedError:
+        return None
+
+
+def is_control(readout: dict, subject: Subject) -> bool:
+    return bool(readout.get("control")) and subject.group.strip().lower() == readout["control"].strip().lower()
+
+
+def control_first(readout: dict, items: list, subject_of) -> list:
+    """Readings to save in an order that works: for a readout against the
+    control group, its animals first (the others are worked out from them)."""
+    if not readout.get("per_group"):
+        return items
+
+    def rank(item) -> int:
+        x = subject_of(item)
+        return 0 if x is not None and is_control(readout, x) else 1
+    return sorted(items, key=rank)
 
 
 def weight_on(values: dict[date, float], day: date | None) -> tuple[float | None, date | None]:
@@ -411,10 +503,17 @@ def weight_on(values: dict[date, float], day: date | None) -> tuple[float | None
     return (values[usable[-1]], usable[-1]) if usable else (None, None)
 
 
-def set_reading(session, exp: Experiment, place: Place, subject: Subject, on: date, raw: str) -> str | None:
-    """Store (or, blank, remove) one day's readout; a sentence when it can't."""
+def set_reading(session, exp: Experiment, place: Place, subject: Subject, on: date, raw) -> str | None:
+    """Store (or, blank, remove) one day's readout; a sentence when it can't.
+    `raw` is the value typed, or for a readout BioManager works out, what
+    was measured ({"length": 12.1, "width": 8.4})."""
     readout = readout_of(exp, place)
-    raw = (raw or "").strip().replace(",", ".")
+    if readout.get("formula"):
+        return _set_derived(session, exp, place, readout, subject, on, raw)
+    if isinstance(raw, dict):
+        return gettext("%(readout)s is typed as one number for each, not worked out from measurements.",
+                       readout=i18n.translate_value(readout["label"]))
+    raw = ("" if raw is None else str(raw)).strip().replace(",", ".")
     value = None
     if raw:
         try:
@@ -455,6 +554,96 @@ def set_reading(session, exp: Experiment, place: Place, subject: Subject, on: da
     return None
 
 
+def _blank(raw) -> bool:
+    if raw is None:
+        return True
+    if isinstance(raw, dict):
+        return all(v is None or not str(v).strip() for v in raw.values())
+    return not str(raw).strip()
+
+
+def derive_day(session, exp: Experiment, place: Place, on: date, given: dict[str, dict],
+               subs: list[Subject] | None = None) -> dict[str, float]:
+    """What a day's readings would be, for a readout BioManager works out:
+    {subject key: value} for the animals `given` ({key: inputs}, checked),
+    against what that day already has (a control group's mean ΔCt takes
+    every control animal of the day). A DerivedError, in words, otherwise."""
+    readout = readout_of(exp, place)
+    f = derived.formula(readout["formula"])
+    if not f.per_group:
+        return {k: derived.compute(f.key, v) for k, v in given.items()}
+    if not readout.get("control"):
+        raise derived.DerivedError(gettext("Say which group is the control (Control group, beside the readout): %(readout)s is worked out against its mean ΔCt.",  # noqa: E501
+                                           readout=i18n.translate_value(f.label)))
+    subs = subjects(session, exp, place) if subs is None else subs
+    groups = {x.key: x.group for x in subs}
+    day = {k: v[on] for k, v in reading_inputs(session, exp, place, subs).items() if on in v}
+    day.update(given)
+    if not any(groups.get(k, "").strip().lower() == readout["control"].strip().lower() for k in day):
+        raise derived.DerivedError(gettext("No animal of the control group “%(group)s” has its Ct values on %(day)s yet: enter theirs first.",  # noqa: E501
+                                           group=readout["control"], day=on.isoformat()))
+    values = _group_values(readout, day, groups) or {}
+    return {k: values[k] for k in given if k in values}
+
+
+def _set_derived(session, exp: Experiment, place: Place, readout: dict, subject: Subject, on: date, raw) -> str | None:
+    """A reading of a readout BioManager works out: the inputs checked, the
+    value computed and kept with them (the note, as JSON); a day against
+    the control group is worked out again whole."""
+    f = derived.formula(readout["formula"])
+    row = session.scalar(select(ExperimentReading).where(
+        ExperimentReading.experiment_id_fk == exp.id, ExperimentReading.subject == subject.key,
+        ExperimentReading.readout_key == readout["key"], ExperimentReading.read_on == on))
+    subs = subjects(session, exp, place) if f.per_group else None
+    if _blank(raw):
+        if row is None:
+            return None
+        if f.per_group and is_control(readout, subject):
+            day = {k: v[on] for k, v in reading_inputs(session, exp, place, subs).items() if on in v}
+            controls = [x for x in subs if x.key in day and is_control(readout, x)]
+            if len(controls) == 1 and len(day) > 1:
+                return gettext("The other animals' %(readout)s on %(day)s is worked out against the control group: remove theirs first, or keep a control.",  # noqa: E501
+                               readout=i18n.translate_value(f.label), day=on.isoformat())
+        session.delete(row)
+        if f.per_group:
+            session.flush()
+            _store_day(session, exp, readout, on, subs)
+        return None
+    try:
+        inputs = derived.check(f.key, raw)
+        value = derive_day(session, exp, place, on, {subject.key: inputs}, subs)[subject.key]
+    except derived.DerivedError as e:
+        return f"{subject.label}: {e}"
+    if value < 0 and not f.can_be_negative:
+        return gettext("A readout can't be below zero.")
+    if row is None:
+        session.add(ExperimentReading(experiment_id_fk=exp.id, subject=subject.key, readout_key=readout["key"],
+                                      read_on=on, value=value, note=derived.note(inputs),
+                                      recorded_by=g.user.username))
+    else:
+        row.value, row.note, row.recorded_by = value, derived.note(inputs), g.user.username
+    if f.per_group:
+        session.flush()
+        _store_day(session, exp, readout, on, subs)
+    return None
+
+
+def _store_day(session, exp: Experiment, readout: dict, on: date, subs: list[Subject]) -> None:
+    """Keep a day's ΔΔCt or fold change as worked out now, for every animal
+    of it (a new control animal moves the mean the others are against)."""
+    groups = {x.key: x.group for x in subs}
+    rows = {r.subject: r for r in session.scalars(select(ExperimentReading).where(
+        ExperimentReading.experiment_id_fk == exp.id, ExperimentReading.readout_key == readout["key"],
+        ExperimentReading.read_on == on))}
+    day = {}
+    for key, r in rows.items():
+        inputs = derived.read_note(r.note)
+        if inputs is not None:
+            day[key] = inputs
+    for key, value in (_group_values(readout, day, groups) or {}).items():
+        rows[key].value = value
+
+
 def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | None = None) -> dict:
     """The readout by animal and date, each date's day number, and each
     value as a percentage: of the animal's first value, or for a count of
@@ -462,6 +651,7 @@ def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | 
     subs = subjects(session, exp, place) if subs is None else subs
     series = readings(session, exp, place, subs)
     readout = readout_of(exp, place)
+    measured = reading_inputs(session, exp, place, subs)
     dates = sorted({d for values in series.values() for d in values})
     start = exp.start_date
     rows = []
@@ -475,7 +665,8 @@ def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | 
         rows.append({"key": s.key, "mouse": s.id if s.kind == "mouse" else None,
                      "mouse_id": s.label.lstrip("#") if s.kind == "mouse" else s.label, "label": s.label,
                      "group": s.group, "sex": s.sex, "start": s.start, "values": values, "pct": pct,
-                     "left_out": s.left_out})
+                     "left_out": s.left_out,
+                     **({"inputs": [measured.get(s.key, {}).get(d) for d in dates]} if readout.get("formula") else {})})
     table = {"dates": [d.isoformat() for d in dates],
              "days": [((d - start).days + 1) if start else None for d in dates], "rows": rows, "readout": readout}
     from . import exp_stats
@@ -587,7 +778,7 @@ def render_page(experiment_id: int):
         statuses = ["planned", "cancelled"] if exp.status == "planned" else STARTED
         return render_template(
             "experiment.html", experiment=info, place=place, data=data, statuses=statuses,
-            readouts=readout_choices(place), readout=data["readout"], add=candidates(s, exp, place) if data["editable"] else None,
+            readouts=readout_choices(place), derived_readouts=derived_choices(place), readout=data["readout"], add=candidates(s, exp, place) if data["editable"] else None,
             notebook_on=lab.feature_on(s, "notebook"), notebook_page=xs.my_notebook_page(s, exp.id),
             back_url=place.list_url)
 
@@ -662,7 +853,7 @@ def create(db_key: str):
                          description=(form.get("description") or "").strip(),
                          treatment_plan=(form.get("treatment_plan") or "").strip(), status="active",
                          owner_username=g.user.username, start_date=parse_date(form.get("start_date")),
-                         db=place.key, readout=json.dumps({"key": readout}) if readout in READOUTS else "")
+                         db=place.key, readout=readout_json(readout) or "")
         s.add(exp)
         s.flush()
         start_with = (form.get("from_group") or "").strip()
@@ -699,16 +890,15 @@ def design(db_key: str):
             readout = {"key": readout}
         if not isinstance(readout, dict):
             readout = {}
-        if readout.get("key") in READOUTS:
-            readout_json = json.dumps({"key": readout["key"]})
-        elif readout.get("label"):
+        # A built-in readout, one BioManager works out ("derived:tumour_lw", with its control), or your own.
+        chosen_json = readout_json(str(readout.get("key") or ""), str(readout.get("control") or ""))
+        if chosen_json is None and readout.get("label"):
             kind = readout.get("kind") if readout.get("kind") in ("value", "fraction") else "value"
-            readout_json = json.dumps({"key": "custom", "label": str(readout["label"])[:60],
-                                       "unit": str(readout.get("unit") or "")[:20], "kind": kind})
-        elif readout.get("key"):
+            chosen_json = json.dumps({"key": "custom", "label": str(readout["label"])[:60],
+                                      "unit": str(readout.get("unit") or "")[:20], "kind": kind})
+        elif chosen_json is None and readout.get("key"):
             return jsonify({"ok": False, "error": gettext("“%(readout)s” is not a readout; give its label, unit and kind for your own.", readout=readout.get("key"))}), 400  # noqa: E501
-        else:
-            readout_json = ""
+        chosen_json = chosen_json or ""
         test = str(data.get("planned_test") or "").strip()
         if test and test not in plan.TESTS:
             return jsonify({"ok": False, "error": gettext("“%(test)s” is not a test the app runs.", test=test)}), 400
@@ -721,7 +911,7 @@ def design(db_key: str):
             description = "\n\n".join(filter(None, [description, f"Designed with {via}."]))
         exp = Experiment(name=name, description=description, treatment_plan=str(data.get("notes") or "").strip(),
                          status="planned", owner_username=g.user.username,
-                         start_date=parse_date(str(data.get("start_date") or "")), db=place.key, readout=readout_json,
+                         start_date=parse_date(str(data.get("start_date") or "")), db=place.key, readout=chosen_json,
                          readout_day=int(day) if day not in (None, "") else None, planned_test=test)
         s.add(exp)
         s.flush()
@@ -812,8 +1002,8 @@ def update(experiment_id: int):
                 kind = form.get("readout_kind") if form.get("readout_kind") in ("value", "fraction") else "value"
                 exp.readout = json.dumps({"key": "custom", "label": (form.get("readout_label") or "Measurement")[:60],
                                           "unit": (form.get("readout_unit") or "")[:20], "kind": kind})
-            elif key in READOUTS:
-                exp.readout = json.dumps({"key": key})
+            elif readout_json(key) is not None:
+                exp.readout = readout_json(key, form.get("readout_control") or "")
         exp.readout_day, exp.planned_test = readout_day, planned_test
         exp.status, exp.start_date, exp.end_date = status or "active", start, end
         exp.updated_at = datetime.utcnow()
@@ -1051,7 +1241,8 @@ def start(experiment_id: int):
 @bp.post("/<int:experiment_id>/readings")
 def save_readings(experiment_id: int):
     """{"on": date, "values": {subject key: "24.5" or "" (remove)}}: one
-    cell from the sheet, or a whole day."""
+    cell from the sheet, or a whole day. For a readout BioManager works out,
+    each value is what was measured: {"length": "12.1", "width": "8.4"}."""
     data = request.get_json(silent=True) or {}
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
@@ -1066,11 +1257,12 @@ def save_readings(experiment_id: int):
             return jsonify({"ok": False, "error": gettext("A readout can't be for a day still to come.")}), 400
         by_key = {x.key: x for x in subjects(s, exp, place)}
         problems = []
-        for key, raw in (data.get("values") or {}).items():
+        given = list((data.get("values") or {}).items())
+        for key, raw in control_first(readout_of(exp, place), given, lambda item: by_key.get(item[0])):
             subject = by_key.get(key)
             if subject is None:
                 continue
-            problem = set_reading(s, exp, place, subject, on, str(raw))
+            problem = set_reading(s, exp, place, subject, on, raw if isinstance(raw, dict) else str(raw))
             if problem:
                 problems.append(problem)
         if problems and len(problems) == len(data.get("values") or {}):
@@ -1110,17 +1302,19 @@ def _rows_for_export(session, exp, place):
     by_key = {x.key: x for x in subs}
     readout = table["readout"]
     unit = f" ({readout['unit']})" if readout["unit"] else ""
+    measured = readout.get("inputs") or []      # a readout BioManager works out: what was measured, beside it
     long_rows = [["Experiment", "Database", place.noun.capitalize(), "Group", "Sex", "Genotype", place.housing.capitalize(),
                   "Date", "Day", f"{readout['label']}{unit}", "At start", "% of first" if readout["kind"] == "value" else "% of start",
-                  "Left out of the analysis"]]
+                  "Left out of the analysis"] + [f"{i['label']} ({i['unit']})" if i["unit"] else i["label"] for i in measured]]
     for r in table["rows"]:
         x = by_key.get(r["key"])
         for i, d in enumerate(table["dates"]):
             if r["values"][i] is None:
                 continue
+            inputs = (r.get("inputs") or [None] * len(table["dates"]))[i] or {}
             long_rows.append([exp.name, place.label, r["label"], r["group"], r["sex"], x.genotype if x else "",
                               x.housing if x else "", d, table["days"][i], r["values"][i], r["start"], r["pct"][i],
-                              r.get("left_out", "")])
+                              r.get("left_out", "")] + [inputs.get(m["key"], "") for m in measured])
     wide = [[place.noun.capitalize(), "Group"] + [f"Day {n}" if n is not None else d for d, n in zip(table["dates"], table["days"])]]
     wide += [[r["label"], r["group"]] + r["values"] for r in table["rows"]]
     manip = [["Day", "Date planned", "Done on", "Done by", "What", "Kind", "Dose", "Route", "Group", place.noun.capitalize(),
