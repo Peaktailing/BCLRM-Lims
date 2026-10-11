@@ -140,7 +140,10 @@ def get(api: Api, path: str = "", ref: dict | None = None):
         if not isinstance(ref, dict) or not ref.get("kind") or ref.get("id") in (None, ""):
             raise ValueError("ref is {\"kind\", \"id\"}, as resolve gives it")
         path = api.request("GET", "path", {"kind": ref["kind"], "id": ref["id"]})["path"]
-    return api.request("GET", _readable(path))
+    # plasmids/14?sequence=1: the query goes as query parameters, which every
+    # Api sends the same way.
+    path, _, query = (path or "").partition("?")
+    return api.request("GET", _readable(path), dict(urllib.parse.parse_qsl(query)) or None)
 
 
 def list_records(api: Api, path: str, filters: dict | None = None, limit: int = 100) -> dict:
@@ -247,7 +250,9 @@ TOOLS = {
     "get": (
         "Read one record or list from BioManager's API. Paths take what the lab writes on the record, not a "
         "reference's id: mice/1043 (the mouse number; with its weights and experiments), cages/88 (the cage's code), "
-        "plasmids/14 (its number), inventories/reagents/items/1 (the inventory's key, then the item's number), "
+        "plasmids/14 (its number; with its box, position and glycerol stocks, and its DNA sequence and map "
+        "annotations only as plasmids/14?sequence=1), "
+        "inventories/reagents/items/1 (the inventory's key, then the item's number), "
         "experiments/12 (its id; with its plan, steps, animals and groups, and readouts); lists such as stocks, "
         "inventories, inventories/reagents/items. Easiest: the path resolve gives, or ref instead of path.",
         _obj({"path": {"type": "string", "description": "e.g. mice/1043, cages/88, inventories/reagents/items/1"},
@@ -257,7 +262,7 @@ TOOLS = {
     "list": (
         "List records with filters (anything else is refused, naming the ones the path takes). mice: alive, cage, "
         "litter, owner, status, sex, genotype, updated_since; cages: occupied, owner, purpose, room; litters: "
-        "born_since; experiments: status (planned, active, paused, done, cancelled or all), owner, database; tanks: "
+        "born_since, cage (those with a living pup in it); experiments: status (planned, active, paused, done, cancelled or all), owner, database; tanks: "
         "active, owner; fish: tank, status; plasmids: q; stocks/<key>/units: active, purpose, owner, genotype; "
         "inventories/<key>/items (e.g. inventories/reagents/items): status, category, owner, q, updated_since. "
         "E.g. path=mice, filters={\"alive\": \"true\", \"cage\": \"88\"}.",

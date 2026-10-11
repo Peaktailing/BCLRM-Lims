@@ -811,6 +811,15 @@ pages are in `app/lab_routes.py`.
   turns into one `orders`-category notice to its owner (not to whoever
   made the change), so each fall below the level tells them once.
   `attention_items()` carries the quantity and unit for Home.
+- **Pack size:** `inventory_items.pack_size` (text, revision 0036) is what
+  one of the item's unit holds, "10 mL" for an item kept in ampoules. Its
+  sheet column (hidden until shown) and dialog field are where
+  `has_pack_size()` holds (the *quantity* feature, not Orders);
+  `_item_from_form` refuses one that `pack_size()` can't read as a number
+  above 0 and a unit, and keeps it as `pack_size_text()` gives it ("10mL"
+  → "10 mL"). It changes nothing on the page: `actions._used` reads it,
+  so an amount used in its unit, or one of the same family (`UNITS`), comes
+  off as part of one (2 mL of 10 mL ampoules is 0.2).
 - **Plasmid columns:** field type `plasmid` (the Viruses preset's *Made
   from*; any inventory can add one in Configure) stores the plasmid's
   number as text. `_item_from_form` reads a number, `#42`, a name or a
@@ -1778,7 +1787,13 @@ from `ENDPOINTS`, so a new endpoint goes there too.
   one of `experiments.STATUSES` or `all`.
 - **One record**: `/mice/<number>` has its weights and `experiments` (id,
   name, group, status, and `left_out` when set); `/plasmids/<number>` its
-  box `position` (`plasmid_service.label`); `/experiments/<id>` is
+  box `position` (`plasmid_service.label`) and `glycerol_stocks` (the items
+  of Glycerol stocks inventories naming it, `made_from_plasmid`), its
+  `sequence`, `circular` and `annotations` only with `?sequence=1` (any
+  plasmid has `has_sequence` and `length`); a litter's `cage` is where most
+  of its living pups are and `cages` every one (a litter is in a cage only
+  through its mice, as in `weaning_due`), and `/litters?cage=` lists those
+  with a living pup in it; `/experiments/<id>` is
   `experiments.payload` without `PAGE_ONLY` (the step kinds, regimens,
   reagents, sample inventories and tests the page offers as choices).
 - **Writes reuse the pages' code**, so their rules hold: `PATCH /mice/<id>`
@@ -1850,7 +1865,8 @@ page itself.
   behave as on the sheet. `inventory_quantity_used` takes an amount off a
   numeric quantity, and the status follows Low at; an amount in another unit
   ("40 mg", or `unit`) is converted within mass or volume (`UNITS`, powers
-  of ten), any other unit only matching itself. `order_received` marks an
+  of ten); an item kept in another unit (ampoules, vials) takes one through
+  its pack size, and without one is refused with what would do. `order_received` marks an
   order received; with `to_stock` it saves the stock record that **Add to
   stock** would make (`_stock_from_order`, with `name`, `quantity`, `unit`
   and the rest given over it: `_restock`) with `from_order`, so the two are
@@ -1939,8 +1955,9 @@ marked `mine`, as an admin's list is the whole lab's), with `INSTRUCTIONS` as
 `how_to_work`: a tool result reaches the model in every app, while not
 every app passes on a server's `instructions`, and its description is
 written to be picked for a vague start ("I want to change something in
-BioManager"), `resolve`, `get`/`list` limited to the API's read paths (`READABLE`),
-`whats_due`, `list_actions`, `propose_changes` → `POST /proposals`,
+BioManager"), `resolve`, `get`/`list` limited to the API's read paths
+(`READABLE`; `get` sends a query in its path, `plasmids/14?sequence=1`, as
+query parameters, which every `Api` passes on), `whats_due`, `list_actions`, `propose_changes` → `POST /proposals`,
 `proposal_status`, `discard_proposal`. `propose_changes`' description is
 built from the lab's own `/actions` (`description(api, name)`).
 `call_tool()` turns an `ApiError` or bad arguments into `{"error": …}` for

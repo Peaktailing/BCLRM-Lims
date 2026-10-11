@@ -388,6 +388,34 @@ def number_text(value: float | None) -> str:
     return "" if value is None else format(value, "g")
 
 
+# "Pack size": what one of an item's unit holds, "10 mL" for an item kept in
+# ampoules, so an amount used in mL (or µL, L) comes off as part of an
+# ampoule (actions._used). Any unit it is written in is kept as typed.
+PACK = re.compile(r"\s*(\d[\d.,]*|[.,]\d+)\s*(\S.*?)\s*")
+
+
+def has_pack_size(mv) -> bool:
+    """Whether the sheet and dialog offer Pack size: where there is a
+    quantity, and it is stock that gets used (not an order)."""
+    return mv.has("quantity") and mv.row.kind != "orders"
+
+
+def pack_size(raw) -> tuple[float, str] | None:
+    """A pack size as (amount, unit): "10 mL" → (10.0, "mL"); None for
+    anything without a number above 0 and a unit after it."""
+    match = PACK.fullmatch(str(raw or ""))
+    number = amount(match.group(1)) if match else None
+    if not number:
+        return None
+    return number, match.group(2)
+
+
+def pack_size_text(raw) -> str:
+    """A pack size as it is kept: "10mL" → "10 mL"."""
+    pack = pack_size(raw)
+    return f"{number_text(pack[0])} {pack[1]}" if pack else ""
+
+
 def stock_words(mv) -> tuple[str, str, str | None] | None:
     """The inventory's own spelling of in stock, low and empty (or used up;
     None if it has neither); None when it doesn't track low stock: no

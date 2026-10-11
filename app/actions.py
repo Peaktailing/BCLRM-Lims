@@ -1781,6 +1781,8 @@ ITEM_FIELDS = (Field("name", "text", "Its name (the Sample ID, Item, Target… a
                Field("quantity", "text", "How much there is; a number (12, 2.5) where the inventory follows Low at"),
                Field("unit", "text", "The quantity's unit"),
                Field("low_at", "number", "Low at: at or below this quantity it counts as low"),
+               Field("pack_size", "text", "What one of its unit holds, a number and a unit (\"10 mL\" for an item kept "
+                     "in ampoules), so an amount used in mL or mg comes off as part of one"),
                Field("vendor", "text", "Who sells it"),
                Field("catalog_number", "text", "Its catalogue number"),
                Field("lot", "text", "Its lot"),
@@ -1878,13 +1880,36 @@ def _used(s, item, v) -> tuple[float, str, str]:
     if not want or want == have:
         return amount, f"{isvc.number_text(amount)} {item.unit or ''}".strip(), ""
     given = f"{isvc.number_text(amount)} {unit}"
+    if _same_family(want, have):
+        converted = round(amount * _factor(want, have), 9)
+        return converted, given, f"{isvc.number_text(converted)} {item.unit}"
+    # Kept in packs (ampoules, vials, bottles) of a known size: 2 mL used of
+    # 10 mL ampoules is 0.2 of one.
+    pack = isvc.pack_size(item.pack_size)
+    if pack is not None:
+        size, pack_unit = pack[0], _unit_key(pack[1])
+        if want == pack_unit or _same_family(want, pack_unit):
+            factor = 1.0 if want == pack_unit else _factor(want, pack_unit)
+            converted = round(amount * factor / size, 9)
+            return converted, given, f"{isvc.number_text(converted)} {item.unit}".strip()
+        raise ActionError(gettext("%(item)s comes in packs of %(pack)s, and %(amount)s can't be turned into that.",
+                                  item=_item_label(s, item), pack=item.pack_size, amount=given))
     if not have:
         raise ActionError(gettext("%(item)s has no unit, so %(amount)s can't be taken off it: give the amount alone, as its quantity is kept.", item=_item_label(s, item), amount=given))  # noqa: E501
-    if want not in UNITS or have not in UNITS or UNITS[want][0] != UNITS[have][0]:
-        raise ActionError(gettext("%(item)s is kept in %(unit)s, and %(amount)s can't be turned into that.",
-                                  item=_item_label(s, item), unit=item.unit, amount=given))
-    converted = round(amount * 10.0 ** (UNITS[want][1] - UNITS[have][1]), 9)
-    return converted, given, f"{isvc.number_text(converted)} {item.unit}"
+    if have not in UNITS:
+        raise ActionError(gettext("%(item)s is kept in %(unit)s, and %(amount)s can't be turned into that: give it a pack size (what one of its %(unit)s holds, 10 mL) or the amount in %(unit)s.", item=_item_label(s, item), unit=item.unit, amount=given))  # noqa: E501
+    raise ActionError(gettext("%(item)s is kept in %(unit)s, and %(amount)s can't be turned into that.",
+                              item=_item_label(s, item), unit=item.unit, amount=given))
+
+
+def _same_family(a: str, b: str) -> bool:
+    """Both units of mass, or both of volume (UNITS)."""
+    return a in UNITS and b in UNITS and UNITS[a][0] == UNITS[b][0]
+
+
+def _factor(have: str, want: str) -> float:
+    """What one `have` is in `want` (both of a family): mL → L is 0.001."""
+    return 10.0 ** (UNITS[have][1] - UNITS[want][1])
 
 
 def _used_said(s, item, v) -> str:
@@ -1899,8 +1924,9 @@ def _used_said(s, item, v) -> str:
 
 @action(name="inventory_quantity_used", area="inventory", title="Some of an item used",
         help="Take an amount off an item's quantity. Give it in the item's unit, or in another of mass (kg, g, mg, "
-             "µg, ng) or volume (L, mL, µL, nL) and BioManager converts it; other units (vials, tubes) only as "
-             "themselves. Where the inventory keeps Low at, its status follows as on the page: low at or below "
+             "µg, ng) or volume (L, mL, µL, nL) and BioManager converts it; an item kept in ampoules, vials, tubes "
+             "or bottles takes mL or mg once it has a pack size (what one holds: 2 mL of 10 mL ampoules is 0.2), "
+             "and otherwise only its own unit. Where the inventory keeps Low at, its status follows as on the page: low at or below "
              "Low at, empty (or used up) at 0.", target="inventory_item",
         fields=(Field("amount", "amount", "How much was used: a number in the item's unit, or with its own unit "
                       "(\"40 mg\")", required=True),

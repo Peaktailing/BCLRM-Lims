@@ -373,6 +373,11 @@ database has a name of its own (one another database has is refused), so
   **Expiring & low stock** with what is left. Topped up above it, it is
   *in stock* again. A quantity in words
   ("half a bottle") is left as it is, and so is a status set by hand.
+- **Kept in ampoules, used in mL** — an item counted in ampoules, vials,
+  tubes or bottles can have a **Pack size**, what one of them holds
+  (`10 mL`), in the dialog and as a column you can show in the sheet.
+  An AI assistant told "2 mL used" then takes 0.2 of an ampoule off its
+  quantity; without one it says what is missing rather than guess.
 - **Nothing half-filled** — an order can't be placed without its item,
   vendor, catalogue number and quantity. Configure chooses what any
   inventory requires.
@@ -1339,7 +1344,10 @@ track.
   plasmids, fly and worm vials, every inventory and every experiment can be
   read; a mouse's weights and fields, vials, inventory items and an
   experiment's readout can be written. A list refuses a filter it doesn't
-  take, and names the ones it does. For tools that start from your
+  take, and names the ones it does. A plasmid comes with its box, position
+  and the glycerol stocks that carry it, and its DNA sequence and map only
+  when asked (`?sequence=1`); a litter names the cage its pups are in, and
+  `/api/v1/litters?cage=88` lists a cage's litters. For tools that start from your
   own words, such as an AI assistant, it also finds the records a phrase
   means (`/api/v1/resolve`), lists what the lab calls things
   (`/api/v1/vocabulary`) and what is due (`/api/v1/due`), searches

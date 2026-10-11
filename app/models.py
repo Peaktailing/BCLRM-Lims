@@ -1715,6 +1715,10 @@ class InventoryItem(Base, _JsonAttrs):
     # unit), the item turns low (inventory_service.follow_stock_level).
     # Empty: no level, the status is only what people set.
     low_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # "Pack size": what one of its unit holds ("10 mL" when it is kept in
+    # ampoules), so an amount used in mL or mg comes off as part of one
+    # (inventory_service.pack_size, actions._used). Empty: none said.
+    pack_size: Mapped[str] = mapped_column(String(40), default="", server_default="")
     vendor: Mapped[str] = mapped_column(String(120), default="")
     catalog_number: Mapped[str] = mapped_column(String(120), default="")
     lot: Mapped[str] = mapped_column(String(120), default="")

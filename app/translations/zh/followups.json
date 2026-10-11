@@ -1,0 +1,10 @@
+{
+  "Pack size": "包装规格",
+  "Litters, with the cage their pups are in": "窝，附幼崽所在的笼",
+  "One plasmid, with its glycerol stocks (its sequence and annotations with sequence=1)": "一个质粒及其甘油菌（加 sequence=1 时附序列和注释）",
+  "e.g. 10 mL": "例如 10 mL",
+  "What one of its unit holds (10 mL in an ampoule), so an amount used in mL or mg comes off as part of one": "一个单位装多少（如一支安瓿 10 mL），这样按 mL 或 mg 记的用量会折算成几分之几个单位扣除",
+  "Pack size is what one of its unit holds, a number and a unit (10 mL): “%(value)s” isn't one.": "包装规格是一个单位装多少，即数字加单位（如 10 mL）：“%(value)s”不是。",
+  "%(item)s comes in packs of %(pack)s, and %(amount)s can't be turned into that.": "%(item)s 每个包装为 %(pack)s，%(amount)s 无法换算成这个单位。",
+  "%(item)s is kept in %(unit)s, and %(amount)s can't be turned into that: give it a pack size (what one of its %(unit)s holds, 10 mL) or the amount in %(unit)s.": "%(item)s 以 %(unit)s 记录，%(amount)s 无法换算成这个单位：请给它设包装规格（每个 %(unit)s 装多少，如 10 mL），或按 %(unit)s 给出用量。"
+}

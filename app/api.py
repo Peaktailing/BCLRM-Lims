@@ -33,7 +33,7 @@ import re
 import secrets
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
@@ -550,7 +550,13 @@ def cage(cage_id: str):
 
 
 def litter_json(lt: LitterRecord) -> dict:
+    # A litter is in a cage through its pups (made in the cage at genotyping,
+    # moved out at weaning; services.weaning_due reads it the same way):
+    # `cage` is where most of its living pups are, `cages` every one.
+    held = Counter(m.cage.cage_id for m in lt.mice if m.date_of_death is None and m.cage is not None)
+    cages = sorted(held, key=lambda code: (-held[code], code))
     return {"litter_id": lt.litter_id, "date_of_birth": _day(lt.date_of_birth), "weaned_on": _day(lt.weaned_on),
+            "cage": cages[0] if cages else None, "cages": sorted(held),
             "cohort": lt.cohort_name or "", "father": lt.father_info or "", "mother": lt.mother_info or "",
             "total_pups": lt.total_pups, "notes": lt.notes or "", "mice": sorted(m.mouse_id for m in lt.mice)}
 
@@ -559,12 +565,17 @@ def litter_json(lt: LitterRecord) -> dict:
 def litters():
     _feature("colony")
     with SessionLocal() as s:
-        stmt = select(LitterRecord).options(selectinload(LitterRecord.mice))
+        stmt = select(LitterRecord).options(selectinload(LitterRecord.mice).selectinload(MouseRecord.cage))
         if request.args.get("born_since"):
             try:
                 stmt = stmt.where(LitterRecord.date_of_birth >= date.fromisoformat(request.args["born_since"][:10]))
             except ValueError:
                 abort(400, "born_since is a date, 2026-09-01.")
+        if request.args.get("cage"):
+            # Litters with a living pup in that cage.
+            stmt = stmt.where(LitterRecord.id.in_(select(MouseRecord.litter_id_fk).where(
+                MouseRecord.date_of_death.is_(None),
+                MouseRecord.cage_id_fk.in_(select(CageRecord.id).where(CageRecord.cage_id == request.args["cage"].strip())))))
         return _page(s, stmt, LitterRecord, litter_json)
 
 
@@ -626,7 +637,7 @@ def plasmid_json(p: PlasmidRecord, sequence: bool = False, box=None) -> dict:
            "concentration": p.concentration or "", "a260_280": p.a260_280 or "", "shared": bool(p.is_shared),
            "shared_with": (groups.name_of(p.share_group_id) or None) if p.is_shared and p.share_group_id else None,
            "box": p.storage_box or "", "position": plasmid_service.label(p, box) or None,
-           "notes": p.notes or "", "has_sequence": bool(p.full_sequence),
+           "notes": p.notes or "", "has_sequence": bool(p.full_sequence), "length": len(p.full_sequence or ""),
            "updated_at": _stamp(p.updated_at)}
     if sequence:
         try:
@@ -654,12 +665,33 @@ def plasmids():
 @bp.get("/plasmids/<int:plasmid_id>")
 def plasmid(plasmid_id: int):
     _feature("plasmids")
+    _only_filters()
+    # The bases and the map's annotations run to kilobytes: only when asked
+    # (?sequence=1); has_sequence and length say whether there is one.
+    sequence = bool(_bool_arg("sequence"))
     with SessionLocal() as s:
         p = s.scalar(select(PlasmidRecord).where(PlasmidRecord.plasmid_id == plasmid_id))
         if p is None:
             abort(404, f"There is no plasmid {plasmid_id}.")
         box = s.get(PlasmidBox, p.box_id_fk) if p.box_id_fk else None
-        return jsonify(plasmid_json(p, sequence=True, box=box))
+        return jsonify({**plasmid_json(p, sequence=sequence, box=box),
+                        "glycerol_stocks": _glycerol_stocks(s, p)})
+
+
+def _glycerol_stocks(session, p: PlasmidRecord) -> list[dict]:
+    """The glycerol stocks that carry it, as its page's Glycerol stocks card
+    lists them: from the Glycerol stocks inventories this person can see."""
+    from . import inventory_service as isvc
+    out = []
+    for m in isvc.made_from_plasmid(session, p.plasmid_id, kinds=("glycerol_stocks",)):
+        if not lab.can_see(m["module"]):
+            continue
+        i, key = m["item"], m["module"].key
+        out.append({"number": i.number, "name": i.name or "", "box": i.rack.name if i.rack else None,
+                    "position": (isvc.rack_label(i) or None) if i.rack else None, "status": i.status or "",
+                    "frozen_on": i.attrs_dict.get("frozen_on") or None,
+                    "url": url_for("inventory.module", key=key, open=i.id, _external=True)})
+    return out
 
 
 # ---------------------------------------------------------------- fly and worm stocks
@@ -760,6 +792,7 @@ def item_json(mv, i: InventoryItem) -> dict:
             "owner": i.owner or "", "shared": bool(i.is_shared),
             "shared_with": (groups.name_of(i.share_group_id) or None) if i.is_shared and i.share_group_id else None,
             "quantity": i.quantity or "", "unit": i.unit or "", "low_at": i.low_at,
+            "pack_size": i.pack_size or "",
             "vendor": i.vendor or "", "catalog_number": i.catalog_number or "", "lot": i.lot or "",
             "box": i.rack.name if i.rack else None, "position": (isvc.rack_label(i) or None) if i.rack else None,
             "kept_in": (i.rack.place or None) if i.rack else None,
@@ -814,8 +847,8 @@ def inventory_item(key: str, number: int):
         return jsonify(item_json(mv, _item(s, module, mv, number)))
 
 
-ITEM_FIELDS = ("name", "category", "status", "owner", "shared", "quantity", "unit", "low_at", "vendor", "catalog_number",
-               "lot", "box", "position", "location_note", "received_on", "expires_on", "notes", "fields")
+ITEM_FIELDS = ("name", "category", "status", "owner", "shared", "quantity", "unit", "low_at", "pack_size", "vendor",
+               "catalog_number", "lot", "box", "position", "location_note", "received_on", "expires_on", "notes", "fields")
 
 
 def _item_form(session, module, mv, data: dict, item: InventoryItem | None) -> MultiDict:
@@ -1404,12 +1437,13 @@ ENDPOINTS = [
     ("POST", "/api/v1/mice/{mouse_id}/weights", "write", "Record a weight: {grams, date, notes}", ()),
     ("GET", "/api/v1/cages", "read", "Cages, with their living mice", ("occupied", "owner", "purpose", "room")),
     ("GET", "/api/v1/cages/{cage_id}", "read", "One cage", ()),
-    ("GET", "/api/v1/litters", "read", "Litters", ("born_since",)),
+    ("GET", "/api/v1/litters", "read", "Litters, with the cage their pups are in", ("born_since", "cage")),
     ("GET", "/api/v1/strains", "read", "Strains", ()),
     ("GET", "/api/v1/tanks", "read", "Zebrafish tanks", ("active", "owner")),
     ("GET", "/api/v1/fish", "read", "Zebrafish rows", ("tank", "status")),
     ("GET", "/api/v1/plasmids", "read", "Plasmids", ("q",)),
-    ("GET", "/api/v1/plasmids/{plasmid_id}", "read", "One plasmid, with its sequence and annotations", ()),
+    ("GET", "/api/v1/plasmids/{plasmid_id}", "read",
+     "One plasmid, with its glycerol stocks (its sequence and annotations with sequence=1)", ("sequence",)),
     ("GET", "/api/v1/stocks", "read", "Fly and worm stock databases", ()),
     ("GET", "/api/v1/stocks/{key}/units", "read", "Vials or plates", ("active", "purpose", "owner", "genotype")),
     ("PATCH", "/api/v1/stocks/{key}/units/{number}", "write", "Change a vial: " + ", ".join(UNIT_FIELDS), ()),
@@ -1472,6 +1506,8 @@ PARAM_HELP = {
     "alive": "true or false", "occupied": "true: cages with a living mouse", "active": "true or false",
     "updated_since": "Changed on or after this date or time",
     "born_since": "Born on or after this date",
+    "cage": "The cage's code, as the lab writes it (88); for litters, those with a living pup in it",
+    "sequence": "true: with its DNA sequence and map annotations (left out otherwise)",
     "q": "Part of the name", "genotype": "Part of the genotype",
     "kinds": "Only these kinds, comma-separated (cage,mouse; see /actions)",
     "days": "How many days ahead (default 7, at most 60)",
