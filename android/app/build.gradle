@@ -8,6 +8,16 @@ plugins {
 // later properly signed version will not install over it.
 def keystore = System.getenv("ANDROID_KEYSTORE")
 
+// The offline screens, shared with the desktop's relay (app/relay.py), and
+// their words: copied into the assets at each build (OfflineStore.java).
+def offlineAssets = layout.buildDirectory.dir("generated/offline-assets").get().asFile
+tasks.register("offlineScreens", Copy) {
+    from("../../app/static/offline") { into "offline" }
+    from("../../app/translations/zh/js-offline.json")
+    into offlineAssets
+}
+preBuild.dependsOn("offlineScreens")
+
 android {
     namespace "org.biomanager.app"
     compileSdk 35
@@ -36,6 +46,10 @@ android {
             minifyEnabled false
             signingConfig keystore ? signingConfigs.release : signingConfigs.debug
         }
+    }
+
+    sourceSets {
+        main.assets.srcDirs += [offlineAssets]
     }
 
     compileOptions {

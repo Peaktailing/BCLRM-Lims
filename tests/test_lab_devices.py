@@ -131,3 +131,26 @@ class Copies(AppTestCase):
         self.assertEqual(c.get("/api/lab-copy/snapshot", headers=auth).status_code, 429)   # one every two minutes
         self.assertIsNotNone(one("select last_copy_at from lab_devices where public_id=?", body["device"]))
         self.assertEqual(c.get("/api/lab-copy/files", headers=auth).status_code, 200)
+
+
+class ThePhoneApp(AppTestCase):
+    def test_the_app_signed_in_through_its_page_gets_a_token_of_its_own(self):
+        app_agent = {"User-Agent": "Mozilla/5.0 (iPhone) AppleWebKit BioManagerIOS/0.2.0"}
+        r = self.m.post("/api/devices/this-app", json={"name": "Bench iPhone", "platform": "ios"}, headers=app_agent)
+        self.assertEqual(r.status_code, 200, r.get_json())
+        first = r.get_json()
+        self.assertTrue(first["token"].startswith("bmd_"))
+        self.assertNotIn("lab_key", first)
+        token = {"Authorization": f"Bearer {first['token']}"}
+        self.assertEqual(app.test_client().get("/api/sync/snapshot", headers=token).status_code, 200)
+        # Lost its token: the one it was is signed out.
+        again = self.m.post("/api/devices/this-app", json={"name": "Bench iPhone", "platform": "ios",
+                                                           "replaces": first["device"]}, headers=app_agent).get_json()
+        self.assertIsNotNone(one("select revoked_at from lab_devices where public_id=?", first["device"]))
+        self.assertNotEqual(app.test_client().get("/api/sync/snapshot", headers=token).status_code, 200)
+        self.assertTrue(again["token"].startswith("bmd_"))
+
+    def test_only_the_app_s_own_window_asks(self):
+        self.assertEqual(self.m.post("/api/devices/this-app", json={}).status_code, 403)
+        self.assertEqual(app.test_client().post("/api/devices/this-app", json={},
+                                                headers={"User-Agent": "BioManagerIOS/1"}).status_code, 401)

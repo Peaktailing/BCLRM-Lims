@@ -21,6 +21,8 @@ SKIP = {"/logout", "/calendar/google/connect", "/calendar/google/callback",
         # A device waiting for its code to be approved asks with its pairing secret,
         # and the desktop's joining page asks for it (tests/test_lab_devices.py).
         "/api/devices/pair", "/open-lab/pair",
+        # A device's changes since its cursor (tests/test_sync.py).
+        "/api/sync/changes",
         # The desktop app's only (tests/test_server_setup.py, tests/test_start_new_lab.py).
         "/server-setup/", "/start-new-lab",
         # Before any account, in the desktop app (tests/test_door.py), and the desktop's

@@ -223,6 +223,11 @@
                     <a class="menu-item" href="{{ url_for('lab.notifications') }}" role="menuitem">
                       {{ icon('bell') }} {{ _('Notifications') }}
                     </a>
+                    {% if held_pending %}
+                      <a class="menu-item" href="{{ url_for('sync.page') }}" role="menuitem">
+                        {{ icon('error') }} {{ _('Needs your decision') }} <span class="badge">{{ held_pending }}</span>
+                      </a>
+                    {% endif %}
                     {% if proposals_pending is not none %}
                       <a class="menu-item" href="{{ url_for('proposals.page') }}" role="menuitem">
                         {{ icon('list-check') }} {{ _('Proposed changes') }}{% if proposals_pending %} <span class="badge">{{ proposals_pending }}</span>{% endif %}

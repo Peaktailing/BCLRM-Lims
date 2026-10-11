@@ -223,6 +223,35 @@ def join():
         return jsonify(_joined(s, user, body))
 
 
+APP_AGENTS = ("BioManagerIOS/", "BioManagerAndroid/")
+
+
+@bp.route("/api/devices/this-app", methods=["POST"])
+def this_app():
+    """The phone app, signed in through its own page, becomes one of its
+    person's devices: the token it syncs with offline (app/sync.py). The
+    page asks for it (same-origin, the cross-site check applies), and only
+    the app's own window says it is the app. `replaces` is the device it
+    was before, if it lost its token: that one is signed out."""
+    user = g.get("user")
+    if user is None or g.get("device") is not None:
+        return jsonify({"ok": False, "error": gettext("Not signed in")}), 401
+    if not any(a in request.headers.get("User-Agent", "") for a in APP_AGENTS):
+        return jsonify({"ok": False, "error": gettext("Only the BioManager phone app asks for this.")}), 403
+    problem = _may_join(user)
+    if problem:
+        return jsonify({"ok": False, "error": problem}), 403
+    body = request.get_json(silent=True) or {}
+    with SessionLocal() as s:
+        old = s.scalar(select(LabDevice).where(LabDevice.public_id == str(body.get("replaces") or ""),
+                                               LabDevice.user_id_fk == user.id, LabDevice.revoked_at.is_(None)))
+        if old is not None:
+            old.revoked_at, old.revoked_by = datetime.utcnow(), user.username
+        answer = _joined(s, user, body)
+    answer.pop("lab_key", None)                 # a phone keeps no backups
+    return jsonify(answer)
+
+
 @bp.route("/api/devices/pair", methods=["POST", "GET"])
 def pair():
     """An app joins with a code (accounts without a password). POST starts:
@@ -401,4 +430,6 @@ def forget_old(s) -> None:
         s.delete(d)
     for p in s.scalars(select(DevicePairing).where(DevicePairing.expires_at < datetime.utcnow() - timedelta(days=1))):
         s.delete(p)
+    from . import sync
+    sync.forget_old(s)
     s.commit()

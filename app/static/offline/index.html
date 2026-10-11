@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>BioManager · Offline</title>
+<link rel="stylesheet" href="offline.css">
+</head>
+<body>
+<!-- The offline screens (app/static/offline/): the facility from this
+     device's copy, while the lab's server can't be reached. The desktop's
+     relay serves them at /_offline/; the phone apps carry them. -->
+<header class="bar">
+  <div class="bar-row">
+    <span class="mark" aria-hidden="true">B</span>
+    <div class="bar-title">
+      <strong data-t>Offline</strong>
+      <span id="freshness" class="muted"></span>
+    </div>
+    <span id="waiting" class="pill" hidden></span>
+    <button id="retry" class="btn" type="button" data-t>Try again</button>
+  </div>
+  <p id="online-note" class="note" hidden></p>
+  <label class="search">
+    <span class="sr" data-t>Find</span>
+    <input id="find" type="search" autocomplete="off" data-t-placeholder="Cage, card or mouse number">
+  </label>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-tab="cages" data-t>Cages</button>
+    <button type="button" data-tab="todos" data-t>To-dos</button>
+    <button type="button" data-tab="vials" data-t hidden>Flies and worms</button>
+    <button type="button" data-tab="tanks" data-t hidden>Tanks</button>
+    <button type="button" data-tab="sent" data-t>Sent</button>
+  </nav>
+</header>
+<main id="main" class="main" aria-live="polite"></main>
+<dialog id="ask" class="ask">
+  <form method="dialog" id="ask-form">
+    <h2 id="ask-title"></h2>
+    <div id="ask-fields"></div>
+    <p id="ask-error" class="error" hidden></p>
+    <div class="row end">
+      <button type="button" class="btn" id="ask-cancel" data-t>Cancel</button>
+      <button type="submit" class="btn primary" id="ask-ok" data-t>Save</button>
+    </div>
+  </form>
+</dialog>
+<script src="offline.js"></script>
+</body>
+</html>

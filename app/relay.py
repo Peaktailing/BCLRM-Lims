@@ -14,20 +14,25 @@ come from its own pages (the browser's Sec-Fetch-Site, else Origin or
 Referer), the same check the server makes, since the relay adds the token
 to whatever reaches it.
 
-When the server can't be reached, a page answers instead (offline_page,
-which the offline screens replace once a copy of the lab is on this
-computer: app/sync.py). Sign out in the window becomes "Sign this computer
-out of the lab?", which revokes the device.
+When the server can't be reached, the window gets the offline screens
+(app/static/offline/, at /_offline/) working on this computer's copy of the
+facility and queueing what is done (app/offline_store.py); before there is a
+copy, a page that says the server can't be reached (offline_page). Sign out
+in the window becomes "Sign this computer out of the lab?", which revokes
+the device.
 """
 from __future__ import annotations
 
 import http.client
+import json
+import mimetypes
 import socket
 import ssl
 import threading
 import urllib.request
 from http.cookiejar import CookieJar
-from urllib.parse import urlsplit
+from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 from werkzeug.serving import make_server
 from werkzeug.wrappers import Request, Response
@@ -38,6 +43,9 @@ DROPPED_UP = HOP | {"host", "cookie", "authorization", "content-length"}
 DROPPED_DOWN = HOP | {"set-cookie", "strict-transport-security", "content-length"}
 CHUNK = 64 * 1024
 LOCAL = "/_relay/"
+OFFLINE = "/_offline/"
+BUNDLE = Path(__file__).resolve().parent / "static" / "offline"
+STRINGS_ZH = Path(__file__).resolve().parent / "translations" / "zh" / "js-offline.json"
 
 
 class _Headers:
@@ -51,7 +59,7 @@ class _Headers:
 
 
 class Relay:
-    def __init__(self, server: str, token, version: str = "", on_leave=None, offline=None):
+    def __init__(self, server: str, token, version: str = "", on_leave=None, offline=None, store=None):
         self.server = server.rstrip("/")
         split = urlsplit(self.server)
         self.https, self.netloc = split.scheme == "https", split.netloc
@@ -59,6 +67,7 @@ class Relay:
         self.version = version
         self.on_leave = on_leave            # called after the device signs out of the lab
         self.offline = offline              # a WSGI app for when the server is out of reach
+        self.store = store                  # this computer's copy of the facility (app/offline_store.py)
         self.jar = CookieJar()
         self.base = ""                      # http://127.0.0.1:<port>, once serving
 
@@ -89,6 +98,8 @@ class Relay:
             return Response("This change came from another website, so it was refused.", 403)(environ, start_response)
         if req.path.startswith(LOCAL):
             return self._local(req)(environ, start_response)
+        if req.path == OFFLINE[:-1] or req.path.startswith(OFFLINE):
+            return self._bundle(req)(environ, start_response)
         if req.path == "/logout":
             return Response(status=303, headers={"Location": LOCAL + "leave"})(environ, start_response)
         try:
@@ -96,6 +107,11 @@ class Relay:
         except (OSError, http.client.HTTPException, ssl.SSLError):
             if self.offline is not None:
                 return self.offline(environ, start_response)
+            if self.store is not None and self.store.snapshot() is not None and req.method == "GET" \
+                    and "text/html" in req.headers.get("Accept", ""):
+                # The offline screens, on this computer's copy; they open what was asked for.
+                return Response(status=303, headers={
+                    "Location": OFFLINE + "?from=" + quote(req.full_path.rstrip("?"), safe="")})(environ, start_response)
             return offline_page(self, req)(environ, start_response)
 
     def _cookie_request(self, req: Request) -> urllib.request.Request:
@@ -169,8 +185,38 @@ class Relay:
                 ok = status == 200
             except (OSError, http.client.HTTPException):
                 ok = False
-            return Response('{"online": %s}' % ("true" if ok else "false"), 200, mimetype="application/json")
+            body = {"online": ok, **({"store": self.store.status()} if self.store is not None else {})}
+            return _json(body)
+        if self.store is None:
+            return Response("Not found.", 404)
+        if name == "store" and req.method == "GET":
+            return _json({"snapshot": self.store.snapshot(), "queue": self.store.queue(),
+                          "status": self.store.status()})
+        if name == "store/queue" and req.method == "POST":
+            try:
+                waiting = self.store.add(json.loads(req.get_data(as_text=True) or "{}"))
+            except ValueError as error:
+                return _json({"ok": False, "error": str(error)}, 400)
+            return _json({"ok": True, "waiting": waiting})
+        if name == "sync" and req.method == "POST":
+            return _json({"ok": True, "status": self.store.sync()})
         return Response("Not found.", 404)
+
+    def _bundle(self, req: Request) -> Response:
+        """The offline screens (app/static/offline/) and their words."""
+        name = req.path[len(OFFLINE):] or "index.html"
+        if name == "strings.json":
+            from . import i18n
+            zh = i18n.from_header(req.headers.get("Accept-Language")) == "zh"
+            words = json.loads(STRINGS_ZH.read_text(encoding="utf-8")) if zh and STRINGS_ZH.is_file() else {}
+            return _json({"lang": "zh" if zh else "en", "words": words})
+        path = (BUNDLE / name).resolve()
+        if BUNDLE not in path.parents or not path.is_file():
+            return Response("Not found.", 404)
+        kind = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        out = Response(path.read_bytes(), 200, mimetype=kind)
+        out.headers["Cache-Control"] = "no-store"
+        return out
 
     def _call(self, method: str, path: str) -> tuple[int, bytes]:
         if self.https:
@@ -187,6 +233,10 @@ class Relay:
 
 
 # ---------------------------------------------------------------- pages of its own
+
+def _json(body, status: int = 200) -> Response:
+    return Response(json.dumps(body), status, mimetype="application/json")
+
 
 _PAGE = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

@@ -409,6 +409,8 @@ from . import lab_move  # noqa: E402
 app.register_blueprint(lab_move.bp)
 # Devices that joined the lab, each signed in on its own (app/lab_devices.py).
 app.register_blueprint(lab_devices.bp)
+from . import sync as lab_sync  # noqa: E402
+app.register_blueprint(lab_sync.bp)
 # Whether this request is the desktop app's own window (not a network visitor).
 app.jinja_env.globals["this_computer"] = lambda: devices.on_this_computer()
 

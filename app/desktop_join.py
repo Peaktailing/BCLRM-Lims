@@ -10,7 +10,7 @@ never the server's pages themselves.
 
   joined()          the lab this computer joined, or None
   join(...)         sign in and join; pair_start / pair_poll for a code
-  start_relay()     the relay for the joined lab; its address
+  start_relay()     the relay for the joined lab, and its copy for working offline; its address
   leave()           sign this computer out of the lab (the relay's Sign out)
 """
 from __future__ import annotations
@@ -142,8 +142,12 @@ def start_relay() -> str:
         return ""
     if relay.address() and relay._running.get("relay") and relay._running["relay"].server == lab["server"]:
         return relay.address()
-    instance = relay.Relay(lab["server"], token=lambda: (joined() or {}).get("token", ""),
-                           version=devices.version(), on_leave=_left)
+    from . import offline_store
+    token = lambda: (joined() or {}).get("token", "")      # noqa: E731
+    # This computer's copy of the facility, for the offline screens (app/offline_store.py).
+    store = offline_store.Store(lab["server"], token, version=devices.version())
+    offline_store.start_background(store)
+    instance = relay.Relay(lab["server"], token=token, version=devices.version(), on_leave=_left, store=store)
     base = relay.start(instance, int(devices._prefs().get(RELAY_PORT) or 0))
     devices._save_prefs(**{RELAY_PORT: int(base.rsplit(":", 1)[-1])})
     return base
@@ -160,7 +164,11 @@ def _left() -> str:
 
 
 def forget() -> None:
-    from . import lab_copy, relay
+    from . import lab_copy, offline_store, relay
+    lab = joined()
+    if lab is not None:
+        offline_store.Store(lab["server"], lambda: "").forget()
+    offline_store.stop_background()
     devices._save_prefs(**{PREF: {}, "window_url": ""})
     with SessionLocal() as s:
         set_setting = lab_copy._settings()[1]

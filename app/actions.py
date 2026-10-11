@@ -39,7 +39,7 @@ from .models import (FISH_SEX_OPTIONS, FISH_STATUS_OPTIONS, TANK_PURPOSE_OPTIONS
                      ClutchRecord, FishLine, FishRack, FishRecord, LitterRecord, MouseRack, MouseRecord, TankRecord,
                      Experiment, ExperimentStep, Organism, OrganismModule, OrgCohort, OrgCross, OrgDue, OrgHousing,
                      OrgLine, OrgLocation,
-                     StockFrozen, StockModule, StockRack, StockUnit, UserAccount, WaterSystem)
+                     StockFrozen, StockModule, StockRack, StockUnit, TaskItem, UserAccount, WaterSystem)
 
 MAX_CHANGES = 200
 MAX_REPEAT = 40          # new mice in one change, like a litter's most pups
@@ -1232,6 +1232,19 @@ def _due_said(s, due) -> str:
 def _org_due_done(s, due, v):
     module = s.get(OrganismModule, due.module_id_fk)
     return [Call("POST", f"/organisms/{module.key}/due/{due.id}/done", form=[("done_on", v.get("done_on", ""))])]
+
+
+# ---------------------------------------------------------------- to-dos
+
+KINDS["task"] = (TaskItem, None, None)
+
+
+@action(name="task_done", area="calendar", title="To-do done",
+        help="Tick a to-do done. One already done stays done.", target="task", fields=(),
+        describe=lambda _s, t, _v: gettext("Done: %(task)s", task=t.title))
+def _task_done(_s, task, _v):
+    # The calendar's toggle flips: send it only to tick, never to untick.
+    return [] if task.done_at is not None else [Call("POST", f"/calendar/items/task-{task.id}/toggle", form=[])]
 
 
 # ---------------------------------------------------------------- experiments

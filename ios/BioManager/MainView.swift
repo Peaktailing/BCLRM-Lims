@@ -37,8 +37,18 @@ struct MainView: View {
                         .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
                 }
                 .accessibilityLabel("Scan a cage card")
+                // Before walking into a facility with no signal: a fresh copy, or its screens now.
+                .contextMenu {
+                    Button { getReady() } label: { Label("Get ready for the facility", systemImage: "arrow.down.circle") }
+                    Button { if !page.openOffline() { notice = noCopy } } label: {
+                        Label("Work offline", systemImage: "wifi.slash")
+                    }
+                }
                 .padding(20)
             }
+        }
+        .onReceive(Timer.publish(every: 15 * 60, on: .main, in: .common).autoconnect()) { _ in
+            Task { await OfflineStore.shared.sync() }
         }
         .sheet(isPresented: $scanning) {
             NavigationStack {
@@ -81,7 +91,24 @@ struct MainView: View {
         }
     }
 
+    private let noCopy = "This phone has no copy of the lab yet. Open BioManager once with a signal, signed in, and it keeps one."
+
+    private func getReady() {
+        Task {
+            let status = await OfflineStore.shared.sync()
+            if (status["has_copy"] as? Bool) == true && (status["online"] as? Bool) == true {
+                notice = "Ready: this phone has a fresh copy of the lab to work on without a signal."
+            } else {
+                notice = (status["error"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? noCopy
+            }
+        }
+    }
+
     private func open(scanned value: String) {
+        if page.usingOffline {         // the offline screens open the card themselves
+            page.deliverScan(value)
+            return
+        }
         guard let url = URL(string: value.trimmingCharacters(in: .whitespacesAndNewlines)), url.host != nil else {
             notice = "That code isn't a BioManager link."
             return

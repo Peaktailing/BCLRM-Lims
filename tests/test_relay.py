@@ -109,7 +109,8 @@ class Relay(AppTestCase):
         self.assertEqual(status, 503)
         self.assertIn("The lab's server can't be reached", page)
         status, _, body = ask(base, "GET", "/_relay/status")
-        self.assertEqual((status, body), (200, '{"online": false}'))
+        import json
+        self.assertEqual((status, json.loads(body)["online"], json.loads(body)["store"]["has_copy"]), (200, False, False))
 
     def test_a_wrong_password_joins_nothing(self):
         from app import desktop_join
@@ -141,3 +142,66 @@ class OpenYourLab(AppTestCase):
             relay = desktop_join.start_relay()
             self.assertIn(relay, html)                         # the window goes to the relay, not the server
             self.assertNotIn(lab.url + "/", html)
+
+
+class Offline(AppTestCase):
+    """With the server out of reach, the window works on this computer's copy
+    (app/offline_store.py) and what is done reaches the lab once it answers."""
+
+    def setUp(self):
+        super().setUp()
+        from app import desktop_join
+        self.addCleanup(desktop_join.forget)
+        self.who = make_user(uniq("tech"))
+        execute("update users set password_hash=? where username=?", generate_password_hash(PASSWORD), self.who)
+
+    def test_offline_the_window_records_on_the_copy_and_sends_it_later(self):
+        import json
+        from app import desktop_join, relay
+        lab = LabServer().__enter__()
+        port = lab.server.server_port
+        desktop_join.join(lab.url, self.who, PASSWORD)
+        me = app.test_client()
+        me.post("/login", data={"username": self.who, "password": PASSWORD})
+        me.post("/colony/cages/create", data={"cage_id": uniq("C"), "purpose": "Breeding"})
+        cage = one("select id from mouse_cages where owner=? order by id desc limit 1", self.who)
+        base = desktop_join.start_relay()
+        store = relay._running["relay"].store
+        status = store.sync()
+        self.assertTrue(status["has_copy"], status)
+        self.assertIn(cage, [c["id"] for c in store.snapshot()["cages"]])
+        lab.__exit__()                                                # the facility: no signal
+        status_, headers, _ = ask(base, "GET", "/colony?view=cages", {"Accept": "text/html"})
+        self.assertEqual(status_, 303)
+        self.assertTrue(headers["Location"].startswith("/_offline/?from="))
+        status_, _, page = ask(base, "GET", "/_offline/", {"Accept": "text/html"})
+        self.assertIn('<script src="offline.js">', page)
+        status_, _, words = ask(base, "GET", "/_offline/strings.json", {"Accept-Language": "zh-CN"})
+        self.assertEqual(json.loads(words)["words"]["Offline"], "离线")
+        op = {"op": "offline-1", "made_at": "2026-10-11T09:14:05Z", "action": "litter_born",
+              "target": {"kind": "cage", "id": cage}, "fields": {"date": "2026-10-10"}}
+        status_, _, body = ask(base, "POST", "/_relay/store/queue",
+                               {"Content-Type": "application/json", "Sec-Fetch-Site": "same-origin"},
+                               json.dumps(op).encode())
+        self.assertEqual(json.loads(body), {"ok": True, "waiting": 1})
+        self.assertEqual(json.loads(ask(base, "GET", "/_relay/store")[2])["queue"][0]["op"], "offline-1")
+        self.assertFalse(store.sync()["online"])                      # still out of reach: it waits
+        self.assertEqual(len(store.queue()), 1)
+        # Back in signal: the same address answers again.
+        back = make_server("127.0.0.1", port, app, threaded=True)
+        threading.Thread(target=back.serve_forever, daemon=True).start()
+        self.addCleanup(back.shutdown)
+        status = store.sync()
+        self.assertTrue(status["online"], status)
+        self.assertEqual(status["waiting"], 0)
+        self.assertEqual(str(one("select date_give_birth from mouse_cages where id=?", cage))[:10], "2026-10-10")
+        self.assertEqual([c["date_give_birth"] for c in store.snapshot()["cages"] if c["id"] == cage], ["2026-10-10"])
+
+    def test_the_copy_is_unreadable_without_this_computer(self):
+        from app import offline_store
+        store = offline_store.Store("https://lab.example.org", lambda: "")
+        store._write("snapshot", {"cages": [{"cage_id": "secret-cage"}]})
+        self.assertNotIn("secret-cage", store._path("snapshot").read_text(encoding="utf-8"))
+        self.assertEqual(store.snapshot()["cages"][0]["cage_id"], "secret-cage")
+        store.forget()
+        self.assertIsNone(store.snapshot())

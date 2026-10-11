@@ -7,7 +7,8 @@ name: ios
 
 on:
   push:
-    paths: ["ios/**", ".github/workflows/ios.yml", "app/static/experiment-bench.js"]
+    paths: ["ios/**", ".github/workflows/ios.yml", "app/static/experiment-bench.js", "app/static/offline/**",
+            "app/translations/zh/js-offline.json"]
   workflow_dispatch:
 
 jobs:

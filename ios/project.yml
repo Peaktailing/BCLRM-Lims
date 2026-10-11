@@ -20,7 +20,14 @@ targets:
   BioManager:
     type: application
     platform: iOS
-    sources: [BioManager]
+    sources:
+      - BioManager
+      # The offline screens, shared with the desktop's relay (app/relay.py), and their words.
+      - path: ../app/static/offline
+        type: folder
+        buildPhase: resources
+      - path: ../app/translations/zh/js-offline.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.biomanager.app
@@ -42,3 +49,6 @@ targets:
         # anything else must be https, which the setup screen explains.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # Keeping the copy for working offline fresh (OfflineStore.swift).
+        BGTaskSchedulerPermittedIdentifiers: [org.biomanager.app.refresh]
+        UIBackgroundModes: [fetch]
