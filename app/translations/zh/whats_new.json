@@ -103,5 +103,6 @@
   "Searching a sheet no longer matches rows whose dropdowns merely offer the word.": "在表格里搜索时，不会再因为下拉选项里有这个词就匹配到每一行。",
   "The BioManager plugin for Claude and for ChatGPT is a download on every release and on the Download page.": "Claude 和 ChatGPT 用的 BioManager 插件，现在每个版本和下载页面都可以直接下载。",
   "**Allow** on an assistant app's sign-in page now goes back to the app and connects it.": "在 AI 助手应用的登录页上点 **允许**，现在会回到那个应用并完成连接。",
-  "**Help → What's new** shows the newest notes on a lab server built from its source code.": "从源代码搭建的实验室服务器上，**帮助 → 新功能** 会显示最新的新功能说明。"
+  "**Help → What's new** shows the newest notes on a lab server built from its source code.": "从源代码搭建的实验室服务器上，**帮助 → 新功能** 会显示最新的新功能说明。",
+  "**Settings → Version** is a pane of its own: which BioManager this is, What's new, and on a lab server **Update now**, which moved here from Devices & copies.": "**设置 → 版本** 成了单独的一页：这是哪个版本、新功能，以及实验室服务器上的 **立即更新**（从“设备与副本”搬到了这里）。"
 }
