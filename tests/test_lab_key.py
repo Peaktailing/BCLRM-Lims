@@ -146,3 +146,21 @@ class TheBackupScriptsAreWired(unittest.TestCase):
         compose = (ROOT / "deploy/compose.yaml").read_text(encoding="utf-8")
         self.assertEqual(compose.count("labkey:/labkey"), 3)
         self.assertIn("BIOMANAGER_LABKEY_DIR: /labkey", compose)
+
+
+class ForTheBackups(unittest.TestCase):
+    def test_a_folder_it_cant_write_doesnt_stop_the_server(self):
+        import os
+        import tempfile
+        from unittest import mock
+        from app import lab_key
+        with tempfile.TemporaryDirectory() as tmp:
+            locked = os.path.join(tmp, "labkey")
+            os.mkdir(locked, 0o500)
+            try:
+                with mock.patch.dict(os.environ, {"BIOMANAGER_LABKEY_DIR": locked}), \
+                        self.assertLogs("app.lab_key", "ERROR") as said:
+                    lab_key.export_if_asked()
+            finally:
+                os.chmod(locked, 0o700)
+            self.assertIn("backups are not locked", said.output[0])

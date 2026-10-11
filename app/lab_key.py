@@ -27,6 +27,7 @@ it, so the files made before still open there. A lab may hold older keys
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +38,8 @@ from sqlalchemy import select
 
 from .i18n import gettext
 from .models import LabKey
+
+log = logging.getLogger(__name__)
 
 MAGIC = b"age-encryption.org/v1\n"
 RECOVERY_PREFIX = "AGE-SECRET-KEY-1"
@@ -175,8 +178,14 @@ def export_if_asked() -> None:
     if not folder:
         return
     from .db import SessionLocal
-    with SessionLocal() as s:
-        export_for_backups(s, Path(folder))
+    try:
+        with SessionLocal() as s:
+            export_for_backups(s, Path(folder))
+    except OSError as error:
+        # The server still starts; its backups are then taken unlocked until
+        # the folder can be written (labkey.sh), and every start says so.
+        log.error("The lab's key couldn't be written to %s for the backups (%s): backups are not locked. "
+                  "Make the folder writable by the app's user.", folder, error)
 
 
 def export_for_backups(session, folder: Path) -> None:
