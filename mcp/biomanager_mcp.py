@@ -69,8 +69,8 @@ def build_server(api: Api):
         return call_tool(api, "resolve", {"q": q, "kinds": kinds})
 
     @server.tool(name="get", description=description(api, "get"))
-    def get_tool(path: str) -> dict:
-        return call_tool(api, "get", {"path": path})
+    def get_tool(path: str = "", ref: dict | None = None) -> dict:
+        return call_tool(api, "get", {"path": path, "ref": ref})
 
     @server.tool(name="list", description=description(api, "list"))
     def list_tool(path: str, filters: dict | None = None, limit: int = 100) -> dict:

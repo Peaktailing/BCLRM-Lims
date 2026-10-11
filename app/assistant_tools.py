@@ -45,6 +45,8 @@ with a reason, fix it and propose again with replaces set to the earlier proposa
 5. End by telling the person what you proposed and giving them the review link: nothing has \
 changed until they press Approve there.
 Dates are YYYY-MM-DD; "today" is in lab_overview. Never invent animals, numbers or results.
+A question that only reads ("what's in cage 88?") needs no proposal: just answer it, reading each record \
+with get at the path resolve gives it.
 
 BioManager computes; you talk. Never work out a number yourself that a BioManager tool can: how many \
 animals fit (availability), breeding odds and matings (breeding_plan), group allocation (randomize), \
@@ -99,7 +101,8 @@ def _readable(path: str) -> str:
     if path.startswith("api/v1/"):
         path = path[len("api/v1/"):]
     if ".." in path or not path or path.split("/")[0] not in READABLE:
-        raise ApiError(f"Read one of: {', '.join(READABLE)} (e.g. mice/1043, cages, experiments/12).")
+        raise ApiError(f"Read one of: {', '.join(READABLE)} (e.g. mice/1043, cages/88, experiments/12, "
+                       "inventories/reagents/items/1), or give ref from resolve.")
     return path
 
 
@@ -113,9 +116,13 @@ def lab_overview(api: Api) -> dict:
     as not every app passes on the server's instructions."""
     me = api.request("GET", "me")
     try:
-        due = [i for i in whats_due(api, 0) if i.get("status") in ("overdue", "today")]
+        due = [{**i, "mine": i.get("owner") == me.get("username")} for i in whats_due(api, 0)
+               if i.get("status") in ("overdue", "today")]
     except ApiError:
         due = []
+    # The person's own jobs first (an admin's list is the whole lab's), each
+    # half overdue first.
+    due.sort(key=lambda i: (not i["mine"], i.get("status") != "overdue"))
     return {"you": me, "lab": api.request("GET", "vocabulary"), "due_today": due[:DUE_TODAY],
             "due_today_more": max(0, len(due) - DUE_TODAY), "how_to_work": INSTRUCTIONS}
 
@@ -124,7 +131,14 @@ def resolve(api: Api, q: str, kinds: str = "") -> list:
     return api.request("GET", "resolve", {"q": q, "kinds": kinds})["data"]
 
 
-def get(api: Api, path: str):
+def get(api: Api, path: str = "", ref: dict | None = None):
+    """A record or list by its path, or the record a reference ({"kind",
+    "id"}, from resolve or search) names, read at the path BioManager gives
+    for it (a cage's path has its code, not the reference's id)."""
+    if ref and not path:
+        if not isinstance(ref, dict) or not ref.get("kind") or ref.get("id") in (None, ""):
+            raise ValueError("ref is {\"kind\", \"id\"}, as resolve gives it")
+        path = api.request("GET", "path", {"kind": ref["kind"], "id": ref["id"]})["path"]
     return api.request("GET", _readable(path))
 
 
@@ -216,23 +230,34 @@ TOOLS = {
         "vials, plates, experiments or notebook, or wants to record, log, update, change or look up anything there, "
         "even if they only say \"I want to change something in BioManager\". Returns how to work with BioManager, "
         "this lab's databases and its own words (strains, statuses, purposes, racks, people, each database's "
-        "fields), today's date, what is due today, and who you are acting for.",
+        "fields), today's date, what is due today (the person's own first, each marked mine), and who you are "
+        "acting for.",
         _obj({}), lambda api, a: lab_overview(api)),
     "resolve": (
         "Find the records a phrase means (\"cage 88\", \"#1043\", \"FV12\", a line or experiment's name), each with "
-        "the reference to use in a proposal. kinds narrows it (comma-separated: cage, mouse, litter, tank, "
-        "stock_unit, experiment, notebook_page…). Several matches: ask the person which.",
+        "the reference to use in a proposal, and (for a mouse, cage, plasmid, inventory item or experiment) the "
+        "path to read it with get. kinds narrows it (comma-separated: cage, mouse, litter, tank, stock_unit, "
+        "experiment, notebook_page…). Several matches: ask the person which.",
         _obj({"q": {"type": "string", "description": "What the person called it"},
               "kinds": {"type": "string", "description": "Only these kinds, comma-separated"}}, ("q",)),
         lambda api, a: {"matches": resolve(api, a["q"], a.get("kinds", ""))}),
     "get": (
-        "Read one record or list from BioManager's API, e.g. mice/1043, cages/88, experiments/12 (with its steps, "
-        "animals and readouts), stocks.",
-        _obj({"path": {"type": "string", "description": "e.g. mice/1043"}}, ("path",)),
-        lambda api, a: get(api, a["path"])),
+        "Read one record or list from BioManager's API. Paths take what the lab writes on the record, not a "
+        "reference's id: mice/1043 (the mouse number; with its weights and experiments), cages/88 (the cage's code), "
+        "plasmids/14 (its number), inventories/reagents/items/1 (the inventory's key, then the item's number), "
+        "experiments/12 (its id; with its plan, steps, animals and groups, and readouts); lists such as stocks, "
+        "inventories, inventories/reagents/items. Easiest: the path resolve gives, or ref instead of path.",
+        _obj({"path": {"type": "string", "description": "e.g. mice/1043, cages/88, inventories/reagents/items/1"},
+              "ref": {"type": "object", "description": "Instead of path: a reference {\"kind\", \"id\"} from resolve "
+                                                       "or search"}}),
+        lambda api, a: get(api, a.get("path") or "", a.get("ref"))),
     "list": (
-        "List records with filters, e.g. path=mice, filters={\"alive\": \"true\", \"cage\": \"88\"}; path=experiments, "
-        "filters={\"status\": \"active\"}.",
+        "List records with filters (anything else is refused, naming the ones the path takes). mice: alive, cage, "
+        "litter, owner, status, sex, genotype, updated_since; cages: occupied, owner, purpose, room; litters: "
+        "born_since; experiments: status (planned, active, paused, done, cancelled or all), owner, database; tanks: "
+        "active, owner; fish: tank, status; plasmids: q; stocks/<key>/units: active, purpose, owner, genotype; "
+        "inventories/<key>/items (e.g. inventories/reagents/items): status, category, owner, q, updated_since. "
+        "E.g. path=mice, filters={\"alive\": \"true\", \"cage\": \"88\"}.",
         _obj({"path": {"type": "string"}, "filters": {"type": "object", "description": "Query filters"},
               "limit": {"type": "integer", "description": "At most this many (default 100)"}}, ("path",)),
         lambda api, a: list_records(api, a["path"], a.get("filters"), a.get("limit", 100))),
@@ -358,8 +383,10 @@ TOOLS.update({
               "limit": {"type": "integer", "description": "At most this many of each kind (default 5)"}}, ("q",)),
         lambda api, a: {"matches": search(api, a["q"], a.get("limit", 5))}),
     "history": (
-        "A record's change history, newest first: who changed what and when (field: before → after). An admin "
-        "sees everyone's changes; anyone else only their own (the full history is for admins).",
+        "A record's change history, newest first: who changed what and when (field: before → after). It lists "
+        "changes to that record's own fields only: a cage's history has its purpose, rack and notes, not mice "
+        "moving in or out (each mouse's own history has its cage changing). An admin sees everyone's changes; "
+        "anyone else only their own (the full history is for admins).",
         _obj({"ref": _REF, "kind": _KIND, "code": _CODE,
               "limit": {"type": "integer", "description": "At most this many (default 50)"}}),
         lambda api, a: history(api, _record(a), a.get("limit", 50))),
@@ -425,7 +452,8 @@ TOOLS.update({
         lambda api, a: power_analysis(api, a)),
     "reorder_forecast": (
         "Inventory kept as a number that runs out within `days`: how much is used a week (from the changes to its "
-        "quantity), days left, when it runs out and the date to reorder by, given how long an order takes.",
+        "quantity), days left, when it runs out and the date to reorder by, given how long an order takes. "
+        "without_enough_history names the items it can't forecast yet.",
         _obj({"days": {"type": "integer", "description": "Running out within this many days (default 30)"},
               "lead_days": {"type": "integer", "description": "Days an order takes to arrive (default 14)"}}),
         lambda api, a: reorder_forecast(api, a.get("days", 30), a.get("lead_days", 14))),
@@ -434,7 +462,8 @@ TOOLS.update({
         "in an active experiment, empty cages still set up, breeders 30 weeks or older, your notebook pages unsigned "
         "for 14 days (once you sign pages), reagents expired, expiring or low, and your proposals waiting. Each check "
         "has a severity, a count and items with links; an item's propose is the change that fixes it, where one "
-        "exists. scope mine: only your own records.",
+        "exists. summary counts each record once per severity, though it may be in two checks. scope mine: only "
+        "your own records. It finds problems, not the week ahead: for what is coming, call whats_due too.",
         _obj({"scope": {"type": "string", "enum": ["lab", "mine"]},
               "weight_loss_pct": {"type": "number"}, "breeder_weeks": {"type": "integer"},
               "unsigned_days": {"type": "integer"}, "expiring_days": {"type": "integer"}}),

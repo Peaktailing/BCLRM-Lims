@@ -1638,6 +1638,15 @@ from `ENDPOINTS`, so a new endpoint goes there too.
   past `PER_MINUTE` (600) per token per worker (`_Rate`, in memory).
 - **Lists** page by row id: `?limit` (100, at most 1000) and `?after`;
   the reply's `next` is the URL of the following page. Filters are in SQL.
+  `_page` calls `_only_filters()`: a query parameter that isn't in the
+  list's `ENDPOINTS` row (or `limit`, `after`) is a 400 naming the ones it
+  takes, rather than a filter quietly ignored. `/experiments?status=` is
+  one of `experiments.STATUSES` or `all`.
+- **One record**: `/mice/<number>` has its weights and `experiments` (id,
+  name, group, status, and `left_out` when set); `/plasmids/<number>` its
+  box `position` (`plasmid_service.label`); `/experiments/<id>` is
+  `experiments.payload` without `PAGE_ONLY` (the step kinds, regimens,
+  reagents, sample inventories and tests the page offers as choices).
 - **Writes reuse the pages' code**, so their rules hold: `PATCH /mice/<id>`
   fills a form from `mouse_display_row`, overlays the fields sent, and calls
   `populate_mouse_from_form` (flashed refusals come back as `warnings`);
@@ -1650,10 +1659,17 @@ from `ENDPOINTS`, so a new endpoint goes there too.
 - **For assistants** (`app/lookup.py`): `/resolve?q=` finds the records a
   phrase means across every database the person can open ("cage 88" looks
   only at cages; a mouse by its number, a vial by its prefix and number),
-  each with a reference `{"kind", "id"}` (the kinds are `actions.KINDS`);
-  `/vocabulary` is the lab's own words; `/due` is Home's agenda
-  (`home_layouts.build_agenda`), whose items carry `ref` and `propose`, the
-  change that records each done; `/actions` is `actions.catalogue()`.
+  each with a reference `{"kind", "id"}` (the kinds are `actions.KINDS`)
+  and, for a kind read one at a time, the `path` GET reads it at
+  (`lookup.path_of`: `cages/<code>`, `mice/<number>`, `plasmids/<number>`,
+  `inventories/<key>/items/<number>`, `experiments/<id>`); `/path?kind=&id=`
+  gives that path for a reference, which is how the `get` tool reads a
+  `ref`. `/vocabulary` is the lab's own words (a mouse's statuses as the
+  sheet offers them: built-in, the lab's dropdown, then any in use);
+  `/due` is Home's agenda (`home_layouts.build_agenda`), whose items carry
+  `ref` and `propose`, the change that records each done (an inventory
+  item's `ref` and its inventory as `database`; the colony's age and
+  genotyping items also `mice`); `/actions` is `actions.catalogue()`.
 
 ## Proposed changes: running the pages on someone's behalf
 
@@ -1769,7 +1785,8 @@ it: `INSTRUCTIONS` (resolve every record, ask rather than guess, send one
 proposal, give the review link), `PROMPTS`, and `TOOLS`, each a
 description, an input JSON Schema and a function over `Api` (a small
 urllib client of `/api/v1`): `lab_overview` → `/me`, `/vocabulary` and
-today's part of `/due` (`DUE_TODAY` at most), with `INSTRUCTIONS` as
+today's part of `/due` (`DUE_TODAY` at most; the person's own first, each
+marked `mine`, as an admin's list is the whole lab's), with `INSTRUCTIONS` as
 `how_to_work`: a tool result reaches the model in every app, while not
 every app passes on a server's `instructions`, and its description is
 written to be picked for a vague start ("I want to change something in
@@ -1820,7 +1837,12 @@ noncentral F distribution over `exp_stats.inc_beta` (two groups are the t² =
 F case), and matches G*Power. The pure parts (genotype model, binomial
 matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
 builder) take plain values and are tested in
-`tests/test_assistant_compute.py`; the endpoints in `tests/test_api_compute.py`.
+`tests/test_assistant_compute.py`. `lab_checks`' `summary` counts each record
+once per severity (`_distinct`: by reference, as often as the check that has
+it most), though an expired reagent is also an overdue job; `reorder_forecast`
+names what it can't forecast (`without_enough_history`). The endpoints are
+tested in `tests/test_api_compute.py`, and what an end-to-end run of the tools
+found wanting in the reads in `tests/test_assistant_fixes_read.py`.
 The prompts `weekly_review`, `design_experiment` and `write_methods` drive
 them.
 

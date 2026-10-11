@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 
 import hashlib
+import re
 import secrets
 import threading
 import time
@@ -47,8 +48,8 @@ from . import access, groups, lab
 from .db import SessionLocal
 from .i18n import gettext
 from .models import (ApiToken, CageRecord, Experiment, FishRecord, InventoryItem, InventoryRack, LitterRecord,
-                     MouseRecord, MouseWeight, PlasmidRecord, StockRack, StockUnit, StrainRecord, TankRecord,
-                     UserAccount)
+                     MouseRecord, MouseWeight, PlasmidBox, PlasmidRecord, StockRack, StockUnit, StrainRecord,
+                     TankRecord, UserAccount)
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
 pages = Blueprint("api_pages", __name__)
@@ -247,6 +248,7 @@ def _feature(key: str) -> None:
 
 def _page(session, stmt, model, serialize):
     """One page of a list, by row id: {"data": [...], "next": url | null}."""
+    _only_filters()
     limit = _int_arg("limit", 100, 1, MAX_LIMIT)
     after = _int_arg("after", 0, 0)
     rows = session.scalars(stmt.where(model.id > after).order_by(model.id).limit(limit + 1)).all()
@@ -257,6 +259,18 @@ def _page(session, stmt, model, serialize):
         args = {**request.args.to_dict(), "after": rows[-1].id}
         following = url_for(request.endpoint, **(request.view_args or {}), **args, _external=True)
     return jsonify({"data": [serialize(r) for r in rows], "next": following})
+
+
+def _only_filters() -> None:
+    """A list takes the filters its ENDPOINTS row names (and limit, after):
+    any other is a 400 that names them, not a filter quietly ignored."""
+    rule = re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", request.url_rule.rule)
+    accepted = next((params for method, path, _scope, _summary, params in ENDPOINTS
+                     if method == "GET" and path == rule), ())
+    unknown = sorted(set(request.args) - set(accepted) - {"limit", "after"})
+    if unknown:
+        abort(400, f"{rule[len('/api/v1/'):]} has no filter {', '.join(unknown)}; its filters are "
+                   f"{', '.join(accepted) or 'none'} (and limit).")
 
 
 def _where(rack, row, col) -> str:
@@ -355,7 +369,24 @@ def mouse(mouse_id: int):
     with SessionLocal() as s:
         m = _mouse(s, mouse_id)
         weights = s.scalars(select(MouseWeight).where(MouseWeight.mouse_id_fk == m.id).order_by(MouseWeight.weigh_date))
-        return jsonify({**mouse_json(m), "weights": [weight_json(w) for w in weights]})
+        return jsonify({**mouse_json(m), "weights": [weight_json(w) for w in weights],
+                        "experiments": _mouse_experiments(s, m)})
+
+
+def _mouse_experiments(session, m: MouseRecord) -> list[dict]:
+    """The experiments a mouse is in, with its group (and why it is left
+    out of the analysis, if it is)."""
+    from .experiments import place_for
+    from .models import ExperimentMouse
+    if place_for(session, "colony") is None:
+        return []
+    out = []
+    for em in session.scalars(select(ExperimentMouse).options(selectinload(ExperimentMouse.experiment))
+                              .where(ExperimentMouse.mouse_id_fk == m.id).order_by(ExperimentMouse.id)):
+        e = em.experiment
+        out.append({"id": e.id, "name": e.name or "", "group": em.treatment_group or "", "status": e.status or "",
+                    **({"left_out": em.left_out} if em.left_out else {})})
+    return out
 
 
 MOUSE_FIELDS = ("sex", "genotype", "transgenes", "status", "owner", "note", "cage", "litter", "date_of_death")
@@ -574,12 +605,14 @@ def fish():
 
 # ---------------------------------------------------------------- plasmids
 
-def plasmid_json(p: PlasmidRecord, sequence: bool = False) -> dict:
+def plasmid_json(p: PlasmidRecord, sequence: bool = False, box=None) -> dict:
+    from . import plasmid_service
     out = {"plasmid_id": p.plasmid_id, "name": p.name or "", "backbone": p.backbone or "", "insert": p.insert_seq or "",
            "resistance": p.resistance or "", "owner": p.owner or "", "location": p.location or "",
            "concentration": p.concentration or "", "a260_280": p.a260_280 or "", "shared": bool(p.is_shared),
            "shared_with": (groups.name_of(p.share_group_id) or None) if p.is_shared and p.share_group_id else None,
-           "box": p.storage_box or "", "notes": p.notes or "", "has_sequence": bool(p.full_sequence),
+           "box": p.storage_box or "", "position": plasmid_service.label(p, box) or None,
+           "notes": p.notes or "", "has_sequence": bool(p.full_sequence),
            "updated_at": _stamp(p.updated_at)}
     if sequence:
         try:
@@ -600,7 +633,8 @@ def plasmids():
             q = like_pattern(request.args['q'].strip())
             stmt = stmt.where(or_(PlasmidRecord.name.ilike(q, escape="\\"), PlasmidRecord.insert_seq.ilike(q, escape="\\"),
                                   PlasmidRecord.backbone.ilike(q, escape="\\")))
-        return _page(s, stmt, PlasmidRecord, plasmid_json)
+        boxes = {b.id: b for b in s.scalars(select(PlasmidBox))}
+        return _page(s, stmt, PlasmidRecord, lambda p: plasmid_json(p, box=boxes.get(p.box_id_fk)))
 
 
 @bp.get("/plasmids/<int:plasmid_id>")
@@ -610,7 +644,8 @@ def plasmid(plasmid_id: int):
         p = s.scalar(select(PlasmidRecord).where(PlasmidRecord.plasmid_id == plasmid_id))
         if p is None:
             abort(404, f"There is no plasmid {plasmid_id}.")
-        return jsonify(plasmid_json(p, sequence=True))
+        box = s.get(PlasmidBox, p.box_id_fk) if p.box_id_fk else None
+        return jsonify(plasmid_json(p, sequence=True, box=box))
 
 
 # ---------------------------------------------------------------- fly and worm stocks
@@ -857,13 +892,23 @@ def experiment_json(e: Experiment) -> dict:
 
 @bp.get("/experiments")
 def experiments():
+    from .experiments import STATUSES
+    status = (request.args.get("status") or "").strip().lower()
+    if status and status != "all" and status not in STATUSES:
+        abort(400, f"status is one of {', '.join(STATUSES)}, or all.")
     with SessionLocal() as s:
         stmt = select(Experiment)
         for name, column in (("status", Experiment.status), ("owner", Experiment.owner_username),
                              ("database", Experiment.db)):
-            if request.args.get(name):
-                stmt = stmt.where(column == request.args[name])
+            if request.args.get(name) and not (name == "status" and status == "all"):
+                stmt = stmt.where(column == (status if name == "status" else request.args[name]))
         return _page(s, stmt, Experiment, experiment_json)
+
+
+# What the experiment's page needs to offer choices, not facts about the
+# experiment: the kinds of step, the lab's regimens, reagents and sample
+# inventories, and the statistical tests. The API leaves them out.
+PAGE_ONLY = ("kinds", "regimens", "reagents", "sample_inventories", "tests")
 
 
 @bp.get("/experiments/<int:experiment_id>")
@@ -879,7 +924,8 @@ def experiment(experiment_id: int):
         # The design kept at Start and the changes from it, with their
         # reasons (app/experiment_plan.py): for ARRIVE-style reporting.
         from . import experiment_plan
-        return jsonify({**experiment_json(exp), "page": xp.payload(s, exp, place),
+        page = {k: v for k, v in xp.payload(s, exp, place).items() if k not in PAGE_ONLY}
+        return jsonify({**experiment_json(exp), "page": page,
                         "plan": experiment_plan.plan_of(exp) or None, "planned_test": exp.planned_test or "",
                         "readout_day": exp.readout_day,
                         "deviations": [{"what": d.what, "before": d.before, "after": d.after, "reason": d.reason,
@@ -1074,6 +1120,24 @@ def lineage():
         if kind == "mouse":
             return jsonify(lookup.mouse_lineage(s, row, _int_arg("generations", 2, 1, 4)))
         return jsonify(lookup.plasmid_lineage(s, row))
+
+
+@bp.get("/path")
+def record_path():
+    """Where GET reads one record a reference names (cages/88 for the cage
+    with id 113): for assistants that hold a {kind, id} from resolve."""
+    from . import lookup
+    kind, ref = _ref_arg()
+    with SessionLocal() as s:
+        try:
+            row = lookup.record(s, kind, ref)
+        except LookupError as e:
+            abort(404, str(e))
+        path = lookup.path_of(s, kind, row)
+        if path is None:
+            abort(400, f"A {kind.replace('_', ' ')} isn't read on its own: list it (litters, tanks, fish, "
+                       "stocks/<key>/units) or ask history about it.")
+        return jsonify({"kind": kind, "ref": {"kind": kind, "id": row.id}, "path": path})
 
 
 @bp.get("/availability")
@@ -1325,6 +1389,8 @@ ENDPOINTS = [
      ("kind", "id", "code", "limit")),
     ("GET", "/api/v1/lineage", "read", "A plasmid's family tree, or a mouse's parents, litter and offspring",
      ("kind", "id", "code", "generations")),
+    ("GET", "/api/v1/path", "read", "Where GET reads the record a reference names (cages/88, mice/1043)",
+     ("kind", "id", "code")),
     ("GET", "/api/v1/availability", "read", "Living animals that fit a genotype, sex and age on a day",
      ("species", "genotype", "sex", "age_min_days", "age_max_days", "on", "include_in_experiments",
       "include_breeders", "limit")),
@@ -1353,7 +1419,7 @@ ENDPOINTS = [
     ("POST", "/api/v1/mcp", "propose", "MCP (streamable HTTP) for assistant apps: the tools of mcp/biomanager_mcp.py", ()),
 ]
 NOT_PAGED = {"/", "/me", "/resolve", "/vocabulary", "/due", "/actions", "/proposals", "/mcp", "/captures", "/search",
-             "/history", "/lineage", "/availability", "/reorder-forecast", "/lab-checks", "/regimens"}
+             "/history", "/lineage", "/path", "/availability", "/reorder-forecast", "/lab-checks", "/regimens"}
 PARAM_HELP = {
     "limit": "How many a page (default 100, at most 1000)",
     "after": "Continue after this row (from `next`)",

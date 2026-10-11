@@ -1,0 +1,4 @@
+{
+  "%(module)s · expired and low": "%(module)s · 已过期，且库存不足",
+  "%(module)s · expiring and low": "%(module)s · 即将过期，且库存不足"
+}

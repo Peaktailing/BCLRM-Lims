@@ -1301,7 +1301,8 @@ track.
   admin can revoke it). Mice, cages, litters, strains, tanks and fish,
   plasmids, fly and worm vials, every inventory and every experiment can be
   read; a mouse's weights and fields, vials, inventory items and an
-  experiment's readout can be written. For tools that start from your
+  experiment's readout can be written. A list refuses a filter it doesn't
+  take, and names the ones it does. For tools that start from your
   own words, such as an AI assistant, it also finds the records a phrase
   means (`/api/v1/resolve`), lists what the lab calls things
   (`/api/v1/vocabulary`) and what is due (`/api/v1/due`), searches
