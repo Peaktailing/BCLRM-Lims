@@ -35,7 +35,7 @@ from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool
                                  describe_actions, discard_proposal, get, get_capture, lab_overview, list_actions,
                                  list_captures, list_records, proposal_status, propose_changes, resolve, whats_due)
 from app.assistant_tools import (availability, breeding_plan, experiment_summary, history, lab_checks,  # noqa: E402,F401
-                                 lineage, power_analysis, randomize, reorder_forecast, search)
+                                 lineage, power_analysis, randomize, reorder_forecast, search, verify_sequencing)
 
 
 def with_content(out: dict):
@@ -161,6 +161,11 @@ def build_server(api: Api):
     @server.tool(name="experiment_summary", description=description(api, "experiment_summary"))
     def experiment_summary_tool(experiment_id: int) -> dict:
         return call_tool(api, "experiment_summary", {"experiment_id": experiment_id})
+
+    @server.tool(name="verify_sequencing", description=description(api, "verify_sequencing"))
+    def verify_sequencing_tool(plasmid: str | None = None, ref: dict | None = None, captures: list[int] | None = None,
+                               reads: list | None = None) -> dict:
+        return call_tool(api, "verify_sequencing", given(plasmid=plasmid, ref=ref, captures=captures, reads=reads))
 
     @server.tool(name="list_captures", description=description(api, "list_captures"))
     def list_captures_tool(status: str = "waiting") -> dict:

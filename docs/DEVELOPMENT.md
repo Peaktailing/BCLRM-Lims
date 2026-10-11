@@ -1031,6 +1031,36 @@ crossing the origin keeps `start > end`.
   file itself stays in uploads, as the notebook's do. Export my data
   carries them under `plasmids/<n>-<name>-files/`. Row ids without foreign
   keys, as for versions.
+- **Verify sequencing** (`app/seqverify.py`, pure; `static/seq-verify.js`
+  draws it): Sanger reads checked against the map. `read_file` takes an
+  ABI chromatogram (ABIF: the 128-byte header's root entry points at a
+  directory of 28-byte entries, data of 4 bytes or less sitting in the
+  offset field; PBAS2/PCON2, else PBAS1/PCON1; a MacBinary header is
+  skipped) or FASTA/plain text, and refuses any other binary in words
+  (`ReadError`). `trim` is Mott's algorithm on the quality (cutoff 0.05), or
+  the Ns at a text read's ends. `Target` indexes every 12-base word of the
+  plasmid once per call (the start repeated after the end when circular, so
+  a read across the origin is one stretch); each strand of the read votes
+  for diagonals with its own words (a word seen more than `MAX_HITS` times
+  doesn't), the densest `SPAN` (60) window wins, and `_banded_local` is
+  Smith–Waterman with affine gaps only in that band ± `BAND_PAD`: a 1 kb
+  read on 15 kb takes about 20 ms. Each difference gets the plasmid
+  position (1-based; an insertion is "after"), the read's quality there
+  (`confident` at Q20 or more), the map's features (not primers or parts)
+  and, in a CDS (`codon_start` honoured, joins followed, either strand),
+  `_substitution_effect` with the mismatches of one codon taken together
+  (the standard code, `CODE`) or a frameshift / in-frame indel. `verify`
+  adds the clone: coverage runs, features covered whole or in part, the
+  differences merged across reads (`reads`, `strands`, `reads_covering`)
+  and one `verdict` sentence, in the page's language. Three ways in, none
+  changing anything: `POST /plasmids/<id>/verify` (the page: chosen files,
+  `reads_text`, or `kept` file ids; with `keep` and edit rights the chosen
+  files become `plasmid_files` rows whose `notes` hold the verdict),
+  `POST /api/v1/plasmids/<n>/verify` (in `COMPUTING`, so any token:
+  multipart files, or JSON `reads` and `captures`), and the assistant's
+  `verify_sequencing`, which sends capture ids (an `.ab1` capture is
+  `application/x-abi`, kept as it is; `get_capture` only says what it is)
+  or text reads.
 - **One area, four tabs:** `PLASMID_TAB_KINDS` (primers, glycerol_stocks,
   viruses) are left out of the sidebar rail by `_inventory_module_links`
   and put in `g.plasmid_tabs`; `_plasmid_tab_strip` adds Plasmids itself,

@@ -369,6 +369,26 @@ def experiment_summary(api: Api, experiment_id: int) -> dict:
     return api.request("GET", f"experiments/{int(experiment_id)}/summary")
 
 
+def verify_sequencing(api: Api, a: dict) -> dict:
+    """Sanger reads (capture ids, or text) against a plasmid's map: the
+    plasmid by its number, or a reference from resolve."""
+    ref, number = a.get("ref"), a.get("plasmid")
+    if ref and number in (None, ""):
+        if not isinstance(ref, dict) or ref.get("id") in (None, ""):
+            raise ValueError("ref is {\"kind\": \"plasmid\", \"id\"}, as resolve gives it")
+        path = api.request("GET", "path", {"kind": ref.get("kind") or "plasmid", "id": ref["id"]})["path"]
+        if not path.startswith("plasmids/"):
+            raise ValueError("ref is not a plasmid")
+        number = path.split("/")[1]
+    number = str(number or "").strip().lstrip("#")
+    if not number.isdigit():
+        raise ValueError("give plasmid (its number, e.g. 14) or ref (from resolve)")
+    body = {"captures": a.get("captures") or [], "reads": a.get("reads") or []}
+    if not body["captures"] and not body["reads"]:
+        raise ValueError("give captures (ids of reads uploaded as captures) or reads (the bases, FASTA or plain)")
+    return api.request("POST", f"plasmids/{int(number)}/verify", body=body)
+
+
 _REF = {"type": "object", "description": "The record's reference, {\"kind\", \"id\"}, from resolve or search"}
 _KIND = {"type": "string", "description": "Instead of ref: what it is (mouse, cage, plasmid, stock_unit…)"}
 _CODE = {"type": "string", "description": "With kind: what the lab writes on it (1043, 88, FV12)"}
@@ -484,6 +504,21 @@ TOOLS.update({
         _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"}},
              ("experiment_id",)),
         lambda api, a: experiment_summary(api, a["experiment_id"])),
+    "verify_sequencing": (
+        "Check Sanger sequencing reads of a miniprep or clone against a plasmid's map, as BioManager does it: each "
+        "read placed on the plasmid (either strand, across the origin), its ends trimmed by quality, and every "
+        "mismatch, insertion and deletion with its position, the read's quality there, the map features it falls "
+        "in and what it does to a coding sequence's amino acid; then a verdict for each read and for the clone. "
+        "Give the reads as captures (ids from list_captures: an .ab1 chromatogram or a FASTA the person uploaded) "
+        "or as reads (their bases, FASTA or plain). Changes nothing. Give its verdict and differences as they are; "
+        "a difference marked not confident is at low quality and likely the read's error.",
+        _obj({"plasmid": {"type": "string", "description": "The plasmid's number, e.g. 14"},
+              "ref": {"type": "object", "description": "Instead of plasmid: its reference from resolve"},
+              "captures": {"type": "array", "items": {"type": "integer"},
+                           "description": "Ids of captures holding the reads (.ab1 or FASTA)"},
+              "reads": {"type": "array", "items": {},
+                        "description": "Reads as text: each its bases (FASTA or plain) or {name, sequence}"}}),
+        lambda api, a: verify_sequencing(api, a)),
 })
 
 

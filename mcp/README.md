@@ -122,6 +122,7 @@ this week*, *Design an experiment* and *Write the methods for an experiment*.
 | `search`, `history`, `lineage` | Search records and notebook text; a record's change history; a plasmid's or mouse's family tree |
 | `availability`, `breeding_plan`, `randomize`, `power_analysis` | Animals free by genotype, sex and age; matings to set up and by when; balanced random groups; animals per group. Worked out by BioManager, with their assumptions |
 | `reorder_forecast`, `lab_checks`, `experiment_summary` | When stock runs out; the week's checks; an experiment's facts for its methods and its ARRIVE checklist |
+| `verify_sequencing` | Sanger reads (an `.ab1` or FASTA uploaded as a capture, or the bases as text) checked against a plasmid's map: where each read lies, every mismatch, insertion and deletion with its quality, the features it falls in and the amino acid it changes, and a verdict for the clone |
 
 What may be proposed comes from your BioManager (`/api/v1/actions`), so an
 update to BioManager reaches the assistant without changing this program.

@@ -5,7 +5,8 @@ Capture first, structure later: writing something down at the rack must
 never wait for an AI. On Capture (`/captures/new`, from Bench mode, the
 account menu or Captures) a person types or dictates a few lines and/or
 takes a photo (the cage card, the whiteboard, their notebook) or picks a
-small file (a balance's CSV), and saves it, with the record it was taken
+small file (a balance's CSV, or a Sanger read: an .ab1, which only
+verify_sequencing reads), and saves it, with the record it was taken
 at when they came from one (Bench mode's experiment, or a card scanned on
 the page). Later an assistant reads their waiting captures (`list_captures`,
 `get_capture` in app/assistant_tools.py, over `GET /api/v1/captures`) and
@@ -44,7 +45,11 @@ TEXT_FILE_CHARS = 20_000             # how much of a CSV or text file an assista
 SENDABLE = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 SHOWN_INLINE = SENDABLE | {"image/heic", "image/heif"}
 TEXT_FILES = {".csv": "text/csv", ".tsv": "text/tab-separated-values", ".txt": "text/plain",
-              ".md": "text/markdown", ".json": "application/json"}
+              ".md": "text/markdown", ".json": "application/json",
+              # Sanger reads as text, for verify_sequencing (app/seqverify.py)
+              ".fa": "text/x-fasta", ".fasta": "text/x-fasta", ".seq": "text/plain"}
+# A Sanger chromatogram: kept as it is, read only by verify_sequencing.
+TRACE_FILES = {".ab1": "application/x-abi", ".abi": "application/x-abi"}
 
 
 class CaptureError(ValueError):
@@ -135,6 +140,8 @@ def _kind_of(filename: str, mimetype: str) -> str:
     suffix = Path(filename or "").suffix.lower()
     if suffix in TEXT_FILES:
         return TEXT_FILES[suffix]
+    if suffix in TRACE_FILES:
+        return TRACE_FILES[suffix]
     guessed = mimetypes.guess_type(filename or "")[0] or ""
     for candidate in (guessed, (mimetype or "").split(";")[0].strip().lower()):
         if candidate.startswith("image/") and candidate != "image/svg+xml":
@@ -204,8 +211,12 @@ def is_image(c: Capture) -> bool:
     return (c.file_type or "").startswith("image/")
 
 
+def is_trace(c: Capture) -> bool:
+    return (c.file_type or "") in TRACE_FILES.values()
+
+
 def is_text(c: Capture) -> bool:
-    return bool(c.file_path) and not is_image(c)
+    return bool(c.file_path) and not is_image(c) and not is_trace(c)
 
 
 def file_on_disk(c: Capture) -> Path | None:
@@ -283,6 +294,9 @@ def for_assistant(c: Capture) -> dict:
     path = file_on_disk(c)
     if c.file_path and path is None:
         out["file_note"] = "The file of this capture is missing."
+    elif path is not None and is_trace(c):
+        out["file_note"] = ("A Sanger sequencing read (an ABI chromatogram): check it against a plasmid's map with "
+                            f"verify_sequencing, captures [{c.id}].")
     elif path is not None and is_image(c):
         data, mimetype, why = _fit_image(path.read_bytes(), c.file_type)
         if data is None:
