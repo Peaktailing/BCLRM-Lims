@@ -142,6 +142,12 @@ class Colony(Base):
         self.assertIn("[API: Balance in B12]", one(
             "select details from audit_log where table_name='mice' and changed_by=? order by id desc limit 1", self.member))
         self.assertEqual(self.call("patch", f"/mice/{mine}", tok, json={"colour": "black"}).status_code, 400)
+        # With the version it read, a change made meanwhile is not overwritten.
+        read = body["version"]
+        self.assertEqual(self.call("patch", f"/mice/{mine}", tok, json={"note": "fed", "version": read}).status_code, 200)
+        r = self.call("patch", f"/mice/{mine}", tok, json={"note": "stale", "version": read})
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("changed since you read it", r.get_json()["error"])
         theirs = self.mouse_id(self.make_mouse(self.a, self.admin, cage=uniq("C")))
         r = self.call("patch", f"/mice/{theirs}", tok, json={"note": "mine now"})
         self.assertEqual(r.status_code, 403)                                      # not the member's to change

@@ -187,6 +187,11 @@ def _missing(e):
     return _error(404, getattr(e, "description", "") or "Not found.")
 
 
+@bp.errorhandler(409)
+def _conflict(e):
+    return _error(409, getattr(e, "description", "") or "That clashes with a change made meanwhile.")
+
+
 @bp.errorhandler(405)
 def _method(_e):
     return _error(405, "That method isn't allowed here.")
@@ -322,6 +327,9 @@ def mouse_json(m: MouseRecord) -> dict:
         "created_at": _stamp(m.created_at),
         "updated_at": _stamp(m.updated_at),
         "updated_by": m.updated_by or "",
+        # Raised by every change (app/sync_clock.py): send it back with a change
+        # (PATCH "version") and a mouse changed meanwhile is not overwritten.
+        "version": m.sync_version,
     }
 
 
@@ -394,11 +402,14 @@ MOUSE_FIELDS = ("sex", "genotype", "transgenes", "status", "owner", "note", "cag
 
 @bp.patch("/mice/<int:mouse_id>")
 def mouse_update(mouse_id: int):
-    """Change a mouse: any of MOUSE_FIELDS, the rest left as they are."""
+    """Change a mouse: any of MOUSE_FIELDS, the rest left as they are. With
+    "version" (as the mouse was read), a mouse changed since is refused (409)
+    instead of overwritten."""
     from .app import (can_edit_mouse, create_transfer_copy, current_lab_usernames, populate_mouse_from_form,
                       stamp_updated)
     from .services import mouse_display_row, split_genotype
-    data = _json()
+    data = dict(_json())
+    seen = data.pop("version", None)
     unknown = sorted(set(data) - set(MOUSE_FIELDS))
     if unknown:
         abort(400, f"A mouse has no {', '.join(unknown)} to change; it has {', '.join(MOUSE_FIELDS)}.")
@@ -406,6 +417,9 @@ def mouse_update(mouse_id: int):
         m = _mouse(s, mouse_id)
         if not can_edit_mouse(m):
             abort(403, access.reason_denied(m))
+        if seen is not None and seen != m.sync_version:
+            abort(409, f"Mouse {m.mouse_id} was changed since you read it (by {m.updated_by or 'someone'}). "
+                       "Read it again, then make the change.")
         row = mouse_display_row(m)
         form = MultiDict({"gender": row["gender"] or "", "status": row["status"] or "", "owner": row["owner"] or "",
                           "note": row["note"] or "",
