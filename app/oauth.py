@@ -239,6 +239,11 @@ def authorize():
             # On the lab's network: sign in as usual, then come back here.
             return redirect(url_for("login", next=request.full_path))
         back_to = urlparse(args["redirect_uri"])
+        # Allow sends the browser on to the app's own address (registered,
+        # checked above): this page's form may lead there.
+        if back_to.scheme in ("http", "https") and re.fullmatch(r"[A-Za-z0-9.\-]+(:\d{1,5})?|\[[0-9A-Fa-f:.]+\](:\d{1,5})?",
+                                                               back_to.netloc or ""):
+            g.csp_form_extra = f"{back_to.scheme}://{back_to.netloc}"
         context = {"client": client, "args": args, "host": back_to.hostname or "",
                    "loopback": (back_to.hostname or "") in {"localhost", "127.0.0.1", "::1"},
                    "need_code": user is None, "problem": ""}

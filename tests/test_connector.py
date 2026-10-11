@@ -214,8 +214,13 @@ class SigningIn(Base):
         client = self.register(uris=["http://localhost/callback", "http://127.0.0.1/callback"])
         verifier, challenge = pkce()
         params = self.authorize_params(client["client_id"], challenge, redirect="http://localhost:43117/callback")
-        page = self.m.get("/oauth/authorize", query_string=params).get_data(as_text=True)
+        r = self.m.get("/oauth/authorize", query_string=params)
+        page = r.get_data(as_text=True)
         self.assertTrue("a program on your own computer" in page)
+        # Allow's answer goes on to the program: the page's policy lets its form lead there
+        # (browsers apply form-action to a form's redirect), and nowhere else.
+        policy = r.headers.get("Content-Security-Policy") or r.headers.get("Content-Security-Policy-Report-Only", "")
+        self.assertIn("form-action 'self' http://localhost:43117;", policy)
         code = parse_qs(urlparse(self.allow(self.m, params)).query)["code"][0]
         self.assertEqual(self.exchange(client["client_id"], code, verifier,
                                        redirect="http://localhost:43117/callback").status_code, 200)

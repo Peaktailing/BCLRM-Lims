@@ -372,6 +372,10 @@ def content_security_policy() -> str:
     # its own response only: g.csp_script_extra = "'unsafe-eval'".
     if g.get("csp_script_extra"):
         script += " " + g.csp_script_extra
+    # A form whose answer goes on to another address (an assistant app's
+    # sign-in, app/oauth.py) names that one address: browsers apply
+    # form-action to where a form's redirect goes too.
+    form = "'self'" + (" " + g.csp_form_extra if g.get("csp_form_extra") else "")
     return "; ".join([
         "default-src 'self'",
         f"script-src {script}",
@@ -385,7 +389,7 @@ def content_security_policy() -> str:
         "frame-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",
-        "form-action 'self'",
+        f"form-action {form}",
         "frame-ancestors 'self'",
         f"report-uri {CSP_REPORT_PATH}",
     ])
