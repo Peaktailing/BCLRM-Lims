@@ -16,7 +16,8 @@ arithmetic. Everything here only reads, and says in words what it assumed:
   ANOVA), with the SD from the lab's own readouts if asked.
 * reorder_forecast(): when stock kept as a number runs out, from how fast
   its quantity went down in the change history.
-* lab_checks(): the weekly review's checks, each with what would fix it.
+* lab_checks(): the weekly review's checks, each with what would fix it
+  (the animals' own from app/welfare.py).
 * experiment_summary(): an experiment's facts for a methods paragraph,
   and the ARRIVE 2.0 Essential 10 with what the records say and lack.
 
@@ -1206,11 +1207,12 @@ def reorder_forecast(session, within_days: int = 30, lead_days: int = 14, window
 SEVERITY = ("high", "medium", "low", "info")
 
 
-def lab_checks(session, weight_loss_pct: float = 15, breeder_weeks: int | None = None, unsigned_days: int = 14,
+def lab_checks(session, weight_loss_pct: float | None = None, breeder_weeks: int | None = None, unsigned_days: int = 14,
                expiring_days: int = 30, empty_days: int = 7, scope: str = "lab", today: date | None = None) -> dict:
     """The weekly review's checks: each its id, severity, count and items
     (with links, and `propose`, the change that would fix one, where the
-    action catalogue has it)."""
+    action catalogue has it). `weight_loss_pct` left out: the lab's own
+    (Settings → General)."""
     from . import access, lookup
     from .services import SAC_THRESHOLD_WEEKS
     today = today or date.today()
@@ -1230,10 +1232,15 @@ def lab_checks(session, weight_loss_pct: float = 15, breeder_weeks: int | None =
                and (not mine or i.get("owner") in ("", me))]
     check("overdue_jobs", "Overdue jobs", "high", overdue,
           "Each item's propose records it done; send the ones the person did as one proposal.")
+    # The animals that may need a look (app/welfare.py): what the records show, never a diagnosis.
+    from . import welfare
+    for c in welfare.checks(session, today, me if mine else None, weight_loss_pct, features):
+        for item in c["items"]:
+            for key in ("url", "experiment_url"):
+                if item.get(key):
+                    item[key] = _base() + item[key]
+        check(c["id"], c["title"], c["severity"], c["items"], c["fix"])
     if features.get("colony", True):
-        check("weight_loss", f"Mice down {weight_loss_pct:g}% or more from their peak weight in an active experiment",
-              "high", _weight_loss(session, weight_loss_pct, me if mine else None),
-              "Check them against the protocol's humane endpoints; nothing is proposed for this.")
         check("empty_cages", "Empty cages still set up (a purpose or a rack place)", "low",
               _empty_cages(session, today, empty_days, me if mine else None),
               "Retire them: each item's propose clears the purpose and takes the cage out of its rack, as Retire does.")
@@ -1287,39 +1294,6 @@ def _distinct(checks) -> int:
         for key, times in seen.items():
             most[key] = max(most.get(key, 0), times)
     return sum(most.values())
-
-
-def _weight_loss(session, pct: float, owner: str | None) -> list[dict]:
-    from .models import Experiment, MouseWeight
-    out = []
-    stmt = select(Experiment).where(Experiment.status == "active",
-                                    func.coalesce(func.nullif(Experiment.db, ""), "colony") == "colony")
-    if owner:
-        stmt = stmt.where(Experiment.owner_username == owner)
-    for exp in session.scalars(stmt):
-        for em in exp.memberships:
-            m = em.mouse
-            if m is None or m.date_of_death is not None:
-                continue
-            start = exp.start_date or (em.assigned_at.date() if em.assigned_at else None)
-            stmt_w = select(MouseWeight).where(MouseWeight.mouse_id_fk == m.id)
-            if start:
-                stmt_w = stmt_w.where(MouseWeight.weigh_date >= start)
-            weights = session.scalars(stmt_w.order_by(MouseWeight.weigh_date)).all()
-            if len(weights) < 2:
-                continue
-            peak = max(weights, key=lambda w: (w.grams, w.weigh_date))
-            last = weights[-1]
-            loss = (peak.grams - last.grams) / peak.grams * 100 if peak.grams else 0
-            if loss >= pct:
-                out.append({"mouse": m.mouse_id, "ref": {"kind": "mouse", "id": m.id}, "experiment": exp.name,
-                            "experiment_ref": {"kind": "experiment", "id": exp.id}, "group": em.treatment_group or "",
-                            "peak_g": peak.grams, "peak_on": peak.weigh_date.isoformat(), "latest_g": last.grams,
-                            "latest_on": last.weigh_date.isoformat(), "loss_pct": round(loss, 1),
-                            "owner": exp.owner_username or "",
-                            "url": _base() + url_for("experiment_detail", experiment_id=exp.id)})
-    out.sort(key=lambda x: -x["loss_pct"])
-    return out
 
 
 def _empty_cages(session, today: date, days: int, owner: str | None) -> list[dict]:

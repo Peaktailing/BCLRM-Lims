@@ -1997,9 +1997,15 @@ def home_dashboard():
     with SessionLocal() as db_session:
         home_cards = home_layouts.get_cards(db_session, g.user.username, lab_cards)
         offered = home_layouts.offered_cards(features, {
-            "has_orders": has_orders, "has_restock": has_restock}, lab_cards)
+            "has_orders": has_orders, "has_restock": has_restock,
+            "has_animals": features.get("colony", True) or features.get("zebrafish", True)}, lab_cards)
         shown = {c["key"] for c in offered} - set(home_cards["hidden"])
         extra = _home_extra_cards(db_session, shown, today)
+        # Animals that may need a look (app/welfare.py): a member's own by
+        # default, the lab's for animal care; ?animals= switches.
+        from . import welfare
+        welfare_view =(welfare.home_view(db_session, g.user, request.args.get("animals"), today, features)
+                        if "welfare" in shown else None)
         home_layout = home_layouts.get_layout(db_session, g.user.username)
         layout_view = None
         if home_layout != "classic":
@@ -2041,6 +2047,7 @@ def home_dashboard():
             "notebook_pages": notebook_pages,
         },
         sac_candidates=sac_candidates,
+        welfare_view=welfare_view,
         weanings=weanings,
         geno_queue=geno_queue,
         orders_list=orders_list,
@@ -2261,7 +2268,7 @@ def settings():
                 flash(gettext("Language saved."), "success")
             elif action == "notifications":
                 for category in notify.CATEGORIES:
-                    setattr(user, f"notify_{category}", request.form.get(f"notify_{category}") == "1")
+                    notify.set_wants(db_session, user, category, request.form.get(f"notify_{category}") == "1")
                 db_session.commit()
                 if request.headers.get("X-Autosave") == "1":
                     return jsonify({"ok": True})
@@ -2308,7 +2315,7 @@ def settings():
             "notify_transfer": user.notify_transfer,
             "notify_picked": user.notify_picked,
             "notify_breeder_aging": user.notify_breeder_aging,
-            **{f"notify_{c}": getattr(user, f"notify_{c}", True) for c in notify.CATEGORIES},
+            **{f"notify_{c}": notify.wants(db_session, user, c) for c in notify.CATEGORIES},
             "has_password": security.has_password(user),
         }
         linked = db_session.scalars(select(UserIdentity).where(UserIdentity.user_id_fk == user.id)

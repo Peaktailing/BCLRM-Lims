@@ -1343,7 +1343,7 @@ def lab_checks():
     """The weekly review's checks, each with its items and their fixes."""
     from . import assistant_compute as ac
     with SessionLocal() as s:
-        out = _answer(ac.lab_checks, s, weight_loss_pct=_number_arg("weight_loss_pct", 15),
+        out = _answer(ac.lab_checks, s, weight_loss_pct=_number_arg("weight_loss_pct"),
                       breeder_weeks=_int_arg("breeder_weeks", 0, 0, 200) or None,
                       unsigned_days=_int_arg("unsigned_days", 14, 1, 365),
                       expiring_days=_int_arg("expiring_days", 30, 1, 365),

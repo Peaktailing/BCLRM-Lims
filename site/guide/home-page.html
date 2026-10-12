@@ -145,7 +145,7 @@
         <dt>Classic</dt>
         <dd>Cards, built from the databases your lab keeps and laid out in the sidebar's order: your databases as tiles, then
           <i>Counts</i>, a number for each database (mice, tanks, plasmids, vials or plates, open orders, items running low), and
-          each database's own cards. The mouse colony brings <i>Mice older than 30 weeks</i>, <i>Upcoming weanings</i> and the
+          each database's own cards. The mouse colony brings <i>Animals that may need a look</i> (below), <i>Mice older than 30 weeks</i>, <i>Upcoming weanings</i> and the
           <i>Genotyping queue</i>; zebrafish the mating tanks to return; Molecular biology <i>Recent plasmids</i> (yours first, marked
           <i>No sequence</i> until one is added); and each fly, worm or other animal database a card of its own with what is due in
           the next two days, so Drosophila and C. elegans are never mixed. <i>Expiring &amp; low stock</i>, the <i>Next 14 days</i>
@@ -174,6 +174,34 @@
         <dt>Upcoming weanings</dt>
         <dd>The same list the calendar shows; each row opens its cage.</dd>
       </dl>
+      <h2 id="animals">Animals that may need a look</h2>
+      <p>The first card of the mouse colony (or of zebrafish, in a lab without mice) lists the animals whose records suggest
+        someone should look at them. It says what the records show, with the numbers, and never a diagnosis: what to do is
+        yours and your protocol's to decide. Each row opens the animal (or its experiment, or its tank).</p>
+      <dl class="gdl">
+        <dt>Losing weight</dt>
+        <dd>A living mouse whose latest weight is 15% or more below its heaviest of the last 30 days (with two weights or more
+          in them), or below its first weight in an experiment that has started: both weights and their days, and the loss.
+          An admin sets the percentage in <b>Settings → General → Weight loss to flag</b>.</dd>
+        <dt>Notes that may need a look</dt>
+        <dd>A mouse, tank or fish whose notes changed in the last 14 days (the change history says when), or a weight taken
+          in that time with a note, that uses one of these words, in any case: hunched, hunching, lethargic, lethargy,
+          moribund, not eating, off food, dehydrated, dehydration, wound, wounds, wounded, ulcer, ulcers, ulcerated, ulceration, weight loss,
+          losing weight, thin, emaciated, labored (laboured) breathing, piloerection, hypothermic, prolapse; 弓背, 消瘦,
+          精神差, 精神萎靡, 萎靡, 不进食, 拒食, 脱水, 伤口, 溃疡, 呼吸困难, 体重下降, 体重减轻, 濒死, 竖毛, 低体温, 脱垂. The line
+          it is in is shown. A word just after <i>no</i>, <i>not</i> or <i>without</i> (无, 没有, 未, 未见) isn't counted, so
+          <i>no wound</i> and 未见溃疡 stay off. It is a word in a note, not a finding.</dd>
+        <dt>Not weighed in their experiment</dt>
+        <dd>A mouse in an active experiment measuring body weight, not weighed for longer than its regimen's weighing days
+          allow, or 7 days when it plans none (<a href="experiments.html#welfare">Experiments</a>).</dd>
+        <dt>Status and experiment disagree</dt>
+        <dd>A mouse whose status is <i>experiment</i> while it is in no experiment (once the lab keeps its mouse experiments
+          here), or something else, such as <i>geno</i>, while it is in an active one.</dd>
+      </dl>
+      <p>A member sees their own animals and the mice of their experiments; <b>Show the lab’s</b> shows everyone's. Animal
+        care, facility managers and admins see the lab's, and <b>Show only yours</b> narrows it. Each morning the bell also
+        says how many animals may need a look (not the status ones); turn that off in <b>Settings → Notifications → Animals
+        that may need a look</b>. Like any card, <b>Customize</b> can put it away.</p>
       <figure class="gshot"><a href="../assets/screenshots/home.webp" target="_blank" rel="noopener" title="Open full size"><img src="../assets/screenshots/home.webp" alt="The Home page" loading="lazy" width="2000" height="1250"></a><figcaption>The Home page</figcaption></figure>
     <!-- /page -->
       <nav class="pager" aria-label="Previous / Next"><a class="prev" href="import-from-excel.html"><small>Previous</small>Import from Excel</a><a class="next" href="sheets.html"><small>Next</small>Working in a sheet</a></nav>

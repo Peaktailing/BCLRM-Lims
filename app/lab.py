@@ -460,12 +460,18 @@ def genotyping_day(session) -> int:
     return int(raw) if raw.isdigit() and 1 <= int(raw) <= 120 else DEFAULT_GENOTYPING_DAY
 
 
+def _welfare():
+    from . import welfare
+    return welfare
+
+
 def survey_state(session) -> dict:
     """What the survey form should show as chosen right now."""
     return {
         "lab_timezone": lab_timezone(session),
         "date_style": date_style(session),
         "genotyping_day": genotyping_day(session),
+        "weight_loss_pct": _welfare().loss_pct(session),
         "features": features_on(session),
         "stocks": {kind: any(m.enabled for m in _stock_by_kind(session, kind)) for kind in STOCK_CHOICES},
         "inventories": {kind: any(m.enabled for m in _inventory_by_kind(session, kind)) for kind in INVENTORY_CHOICES},
@@ -543,7 +549,7 @@ def apply_survey(session, form, actor: str, sections=("general", "databases", "p
 
 def _apply_rest(session, form, sections) -> list[str]:
     """The survey's other parts: what members may do, and the lab's name,
-    time zone, dates and genotyping day."""
+    time zone, dates, genotyping day and the weight loss Home flags."""
     _, set_setting = _settings()
     if "permissions" in sections:
         for key in MEMBER_PERMISSIONS:
@@ -562,6 +568,8 @@ def _apply_rest(session, form, sections) -> list[str]:
     raw_day = (form.get("genotyping_day") or "").strip()
     if raw_day.isdigit() and 1 <= int(raw_day) <= 120:
         set_setting(session, "genotyping_day", raw_day)
+    if "weight_loss_pct" in form:
+        _welfare().set_loss_pct(session, form.get("weight_loss_pct"))
     mark_setup_done(session)
     return []
 

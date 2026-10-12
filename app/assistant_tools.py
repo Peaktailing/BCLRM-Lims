@@ -507,9 +507,14 @@ TOOLS.update({
               "lead_days": {"type": "integer", "description": "Days an order takes to arrive (default 14)"}}),
         lambda api, a: reorder_forecast(api, a.get("days", 30), a.get("lead_days", 14))),
     "lab_checks": (
-        "The weekly review's checks, done by BioManager: overdue jobs, mice down 15% or more from their peak weight "
-        "in an active experiment, empty cages still set up, breeders 30 weeks or older, your notebook pages unsigned "
-        "for 14 days (once you sign pages), reagents expired, expiring or low, and your proposals waiting. Each check "
+        "The weekly review's checks, done by BioManager: overdue jobs; the animals that may need a look (living mice "
+        "down the lab's threshold, 15% unless set, from their peak weight of the last 30 days or their first weight "
+        "in an experiment; mice, tanks and fish whose notes changed in the last 14 days use a welfare word such as "
+        "hunched, lethargic, wound or 弓背; mice in an active experiment measuring body weight not weighed for "
+        "longer than its regimen allows, 7 days if it plans none; mice whose status and experiments disagree); "
+        "empty cages still set up, breeders 30 weeks or older, your notebook pages unsigned "
+        "for 14 days (once you sign pages), reagents expired, expiring or low, and your proposals waiting. Say what "
+        "the records show, with their numbers and the note's own line: never a diagnosis. Each check "
         "has a severity, a count and items with links; an item's propose is the change that fixes it, where one "
         "exists. summary counts each record once per severity, though it may be in two checks. scope mine: only "
         "your own records. It finds problems, not the week ahead: for what is coming, call whats_due too.",

@@ -71,6 +71,7 @@ CARDS = [
     ("databases", "Your databases", "database", True, None),
     ("stats", "Counts", "chart", True, None),
     ("todos", "Your to-dos", "list-check", False, "calendar"),
+    ("welfare", "Animals that may need a look", "heart-pulse", False, "has_animals"),
     ("sac", "Mice older than 30 weeks", "warning", False, "colony"),
     ("weanings", "Upcoming weanings", "baby", False, "colony"),
     ("geno", "Genotyping queue", "microscope", False, "colony"),
@@ -89,7 +90,9 @@ CARD_KEYS = [c[0] for c in CARDS]
 TOP_CARDS = ("for_you", "databases", "stats", "todos")
 # The cards a built-in database brings, and the kind of inventory whose
 # first database in the sidebar places the others.
-BUILTIN_CARDS = {"colony": ("sac", "weanings", "geno"), "zebrafish": ("zebrafish",), "plasmids": ("plasmids",)}
+# Animals that may need a look (app/welfare.py) leads the first animal database's cards.
+BUILTIN_CARDS = {"colony": ("welfare", "sac", "weanings", "geno"), "zebrafish": ("welfare", "zebrafish"),
+                 "plasmids": ("plasmids",)}
 INVENTORY_CARDS = {"orders": "orders", **{kind: "restock" for kind in inventory_service.RESTOCK_KINDS}}
 # The cards there were before each database had its own, and the prefix of
 # the cards that took their place (a saved arrangement keeps their spot).
@@ -135,7 +138,7 @@ def lab_cards(databases: list[dict]) -> list[tuple]:
     placed = list(TOP_CARDS)
     for db in databases:
         if db["kind"] in BUILTIN_CARDS:
-            placed += BUILTIN_CARDS[db["kind"]]
+            placed += [key for key in BUILTIN_CARDS[db["kind"]] if key not in placed]
         elif db["kind"] == "stock":
             mv = stock_service.view(db["module"])
             by_key[f"stock:{mv.key}"] = (f"stock:{mv.key}", mv.label, resolve_icon(mv.icon), False, None)

@@ -276,6 +276,34 @@ off at first (to-dos, bookings, recent pages, calculators) and Recent
 plasmids. The calculators card puts the ones Utilities opened
 last first (`biomanager:util:recent` in `localStorage`, up to eight).
 
+**Animals that may need a look** (`app/welfare.py`, no schema change) is the
+card `welfare`, first of the colony's (or zebrafish's) cards, offered when
+the lab keeps either (`has_animals`). `welfare.checks()` is four
+deterministic checks, each `{id, title, severity, count, items, fix}` as
+`lab_checks` lists its own: `weight_loss` (a living mouse's latest weight at
+least `loss_pct()` below its peak in the last `WINDOW_DAYS` = 30 days, two
+weights at least, or below its first weight on or after the start of an
+active or paused experiment; the app setting `welfare_weight_loss_pct`,
+**Settings → General → Weight loss to flag**, 15 unless set, saved by
+`lab._apply_rest`); `welfare_notes` (mice, tanks and fish whose `audit_log`
+has a `create`, or an update touching `note`/`notes`, since `NOTES_DAYS` =
+14 days ago, and mouse weights of those days with a note, read by
+`welfare_words()`: `WORDS_EN` as whole words and `WORDS_ZH` as substrings,
+any case, skipping a word right after no/not/without/non or 无/没有/未见/未,
+with the first matching line); `not_weighed` (active colony experiments
+whose readout is body weight: a mouse not left out, not weighed since
+`max(last weight, start)` for more than `weigh_every()`, the longest gap
+between the regimen's reading days while they last, else 7); and
+`status_experiment` (`no_experiment`: status "experiment" in no
+planned/active/paused experiment, checked once the lab has any colony
+experiment; `other_status`: a non-blank other status in an active one,
+with `propose` setting it to "experiment"). Items carry `ref`, the numbers
+and a path `url`. `owner` narrows to a person's mice and the mice of their
+experiments; `home_view()` uses it for a member and the lab's for
+`access.is_care` (care, facility, admin), `?animals=mine|lab` switching,
+`HOME_LIMIT` rows per check. UTC stamps (`changed_at`) go through
+`day_start()`/`day_of()`; `weigh_date` is already the lab's day.
+
 ### Utilities
 
 `static/bench-calcs.js` is the arithmetic and its data (molecular weights,
@@ -1390,7 +1418,14 @@ The header bell (`base.html`, `static/shell.js`) polls
 `/notifications/count` every minute while the tab is visible and fetches
 `/notifications/panel` when opened; `/notifications/<id>/open` marks one read
 and redirects only to a path in this app. The daily "waiting for genotyping"
-reminder is made on a user's first page of the day.
+reminder is made on a user's first page of the day, with
+`daily_experiment_reminder` and `daily_welfare_reminder` (category
+`welfare`: the counts of `welfare.checks()` losing weight, not weighed and
+notes, in Home's scope for that person; the status check isn't told).
+`notify.wants()`/`set_wants()` read and save each category's switch: a
+`users.notify_<category>` column, or for those in `SETTING_SWITCHES`
+(`welfare`) the app setting `notify_<category>:<username>`, `off` when
+silenced, so a new category needs no column.
 
 ## The lab notebook
 
@@ -2077,7 +2112,10 @@ and `males_short`, counting a male with up to two females.
 them and the `seed` (kept in the description) as they are. The pure parts (genotype model, binomial
 matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
 builder) take plain values and are tested in
-`tests/test_assistant_compute.py`. `lab_checks`' `summary` counts each record
+`tests/test_assistant_compute.py`. `lab_checks` takes its animal checks
+(`weight_loss`, `welfare_notes`, `not_weighed`, `status_experiment`) from
+`welfare.checks()` (Home's card, tested in `tests/test_welfare.py`), making
+their `url`s whole; `weight_loss_pct` left out is the lab's setting. Its `summary` counts each record
 once per severity (`_distinct`: by reference, as often as the check that has
 it most), though an expired reagent is also an overdue job; `reorder_forecast`
 names what it can't forecast (`without_enough_history`). The endpoints are
