@@ -30,6 +30,15 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.9.0": {
+        "new": [
+            "A Breeding cage can have more than one litter: **Litter born** asks **Another litter** or **Correct the date**, and **Genotyping** and **Wean** ask which litter.",
+            "**Animals that may need a look** on **Home**: weight loss, welfare words in notes, missed weighing and status that disagrees with the experiment. Set the threshold in **Settings → General → Weight loss to flag**.",
+        ],
+        "fixed": [
+            "Uploaded files open only for people who may see a record they belong to.",
+        ],
+    },
     "1.8.3": {
         "changed": [
             "The calendar follows light and dark as you switch, without reloading.",
