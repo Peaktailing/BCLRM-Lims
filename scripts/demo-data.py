@@ -154,13 +154,14 @@ for code, c, owner, rack, pos, purpose, born in CAGES:
         c.post(f"/colony/cages/{cage_row}/update", data={"date_give_birth": ago(born)},
                headers={"X-Autosave": "1"})
 
-# cage, sex, transgenes, dob (days ago), litter, status, note
+# cage, sex, transgenes, dob (days ago), litter, status, note. Every mouse
+# is on a C57BL/6J background (its Strain); the wild-type ones carry no transgene.
 MICE = [
     ("101", "M", ["DAT-IRES-Cre/+"], 210, "L-1", "breeding", "Proven breeder"),
     ("101", "F", ["Ai14/Ai14"], 190, "L-2", "breeding", ""),
     ("101", "F", ["Ai14/Ai14"], 190, "L-2", "breeding", ""),
     ("102", "M", ["Vglut2-Cre/+"], 240, "L-3", "breeding", "Retire after this litter"),
-    ("102", "F", ["C57BL/6J"], 230, "L-4", "breeding", ""),
+    ("102", "F", [], 230, "L-4", "breeding", ""),
     ("103", "M", ["DAT-IRES-Cre/+", "Ai14/+"], 70, "L-10", "experiment", "Fiber implanted"),
     ("103", "M", ["DAT-IRES-Cre/+", "Ai14/+"], 70, "L-10", "experiment", "Fiber implanted"),
     ("103", "M", ["DAT-IRES-Cre/+"], 70, "L-10", "experiment", ""),
@@ -180,13 +181,13 @@ MICE = [
     ("109", "F", ["Vglut2-Cre/+"], 60, "L-15", "experiment", "AAV injected"),
     ("109", "F", ["Vglut2-Cre/+"], 60, "L-15", "experiment", "AAV injected"),
     ("109", "F", ["Vglut2-Cre/+"], 60, "L-15", "experiment", "AAV injected"),
-    ("110", "M", ["C57BL/6J"], 230, "L-7", "breeding", ""),
+    ("110", "M", [], 230, "L-7", "breeding", ""),
     ("110", "F", ["Vglut2-Cre/+"], 180, "L-8", "breeding", ""),
-    ("111", "M", ["C57BL/6J"], 56, "L-16", "stock", ""),
-    ("111", "M", ["C57BL/6J"], 56, "L-16", "stock", ""),
-    ("111", "M", ["C57BL/6J"], 56, "L-16", "stock", ""),
-    ("112", "F", ["C57BL/6J"], 56, "L-17", "stock", ""),
-    ("112", "F", ["C57BL/6J"], 56, "L-17", "stock", ""),
+    ("111", "M", [], 56, "L-16", "stock", ""),
+    ("111", "M", [], 56, "L-16", "stock", ""),
+    ("111", "M", [], 56, "L-16", "stock", ""),
+    ("112", "F", [], 56, "L-17", "stock", ""),
+    ("112", "F", [], 56, "L-17", "stock", ""),
     ("113", "M", ["DAT-IRES-Cre/+"], 110, "L-18", "experiment", "Behaviour cohort 2"),
     ("113", "M", ["DAT-IRES-Cre/+"], 110, "L-18", "experiment", "Behaviour cohort 2"),
     ("114", "F", ["PV-Cre/+"], 100, "L-19", "experiment", ""),
@@ -195,7 +196,7 @@ owners = {code: (c, owner) for code, c, owner, *_ in CAGES}
 for cage, sex, tg, dob, litter, status, note in MICE:
     c, owner = owners[cage]
     data = {"cage_id": cage, "litter_id": litter, "date_of_birth": ago(dob), "gender": sex,
-            "status": status, "owner": owner, "note": note}
+            "strain": "C57BL/6J", "status": status, "owner": owner, "note": note}
     data.update({f"transgene_{i + 1}": v for i, v in enumerate(tg)})
     c.post("/colony/mice/create", data=data)
 
@@ -203,7 +204,7 @@ for cage, sex, tg, dob, litter, status, note in MICE:
 for cage, dob in (("113", 110), ("114", 100)):
     c, owner = owners[cage]
     c.post("/colony/mice/create", data={"cage_id": cage, "date_of_birth": ago(dob), "gender": "M" if cage == "113" else "F",
-                                         "status": "sacrificed", "owner": owner, "date_of_death": ago(3),
+                                         "strain": "C57BL/6J", "status": "sacrificed", "owner": owner, "date_of_death": ago(3),
                                          "transgene_1": "DAT-IRES-Cre/+" if cage == "113" else "PV-Cre/+",
                                          "note": "Perfused, brain to histology"})
 
@@ -216,7 +217,7 @@ for c, code, born, pups, cohort in ((sam, "L-20", 17, "7", "DAT-Cre x Ai14"),
                                             "cohort_name": cohort})
 for sex in ("M", "M", "F"):
     sam.post("/colony/mice/create", data={"cage_id": "113", "litter_id": "L-9", "date_of_birth": ago(30),
-                                           "gender": sex, "status": "geno", "owner": "sam",
+                                           "gender": sex, "strain": "C57BL/6J", "status": "geno", "owner": "sam",
                                            "note": "Tail clipped, PCR pending"})
 
 sam.post("/colony/experiments/create", data={"name": "Fiber photometry: reward", "start_date": ago(14),

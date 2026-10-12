@@ -201,7 +201,7 @@ class Importing(AppTestCase):
 
     def test_mice_from_excel(self):
         tag = uniq("TG")
-        data = xlsx([["Ear tag", "Sex", "DOB", "Strain", "Cage #", "Room", "Status", "Cage colour"],
+        data = xlsx([["Ear tag", "Sex", "DOB", "Genotype", "Cage #", "Room", "Status", "Cage colour"],
                      ["", "Male", "14/03/2026", tag, "", "B12", "Breeding", "blue"],
                      ["", "f", "03/04/2026", tag, "", "B12", "sacrificed", "red"]])
         token, html = self.upload(self.a, "mice", "colony.xlsx", data)
@@ -231,7 +231,7 @@ class Importing(AppTestCase):
         """It used to be read as the Mouse ID, for want of anywhere else to
         put it; mice have a column for what is written on them now."""
         tag = uniq("TG")
-        data = xlsx([["Ear tag", "Sex", "Strain"], ["RF", "M", tag], ["142", "F", tag]])
+        data = xlsx([["Ear tag", "Sex", "Genotype"], ["RF", "M", tag], ["142", "F", tag]])
         token, html = self.upload(self.a, "mice", "colony.xlsx", data)
         form = {**self.chosen(html), "sheet": "Sheet1", "fill-owner": "me"}
         self.post(self.a, f"/import-sheet/file/{token}/run", data=form)
@@ -242,16 +242,27 @@ class Importing(AppTestCase):
         """However the lab marks its mice, the column goes to Custom tag."""
         for header in ("Tail tattoo", "Custom tag"):
             tag = uniq("TG")
-            data = xlsx([[header, "Sex", "Strain"], ["T-12", "M", tag]])
+            data = xlsx([[header, "Sex", "Genotype"], ["T-12", "M", tag]])
             token, html = self.upload(self.a, "mice", "colony.xlsx", data)
             form = {**self.chosen(html), "sheet": "Sheet1", "fill-owner": "me"}
             self.post(self.a, f"/import-sheet/file/{token}/run", data=form)
             self.assertEqual(one("select ear_tag from mice where transgene_1=?", tag), "T-12", header)
 
+    def test_a_strain_or_background_column_goes_to_the_strain(self):
+        """It used to come in as the genotype, for want of anywhere else to
+        put it; mice have a Strain column now."""
+        for header in ("Strain", "Background"):
+            tag = uniq("TG")
+            data = xlsx([[header, "Sex", "Genotype"], ["C57BL/6J", "M", tag]])
+            token, html = self.upload(self.a, "mice", "colony.xlsx", data)
+            form = {**self.chosen(html), "sheet": "Sheet1", "fill-owner": "me"}
+            self.post(self.a, f"/import-sheet/file/{token}/run", data=form)
+            self.assertEqual(one("select strain from mice where transgene_1=?", tag), "C57BL/6J", header)
+
     def test_a_taken_mouse_id_and_a_total_line_are_named(self):
         n = (one("select max(mouse_id) from mice") or 0) + 1000
         tag = uniq("TG")
-        data = xlsx([["Mouse ID", "Sex", "Strain"], [str(n), "M", tag], [str(n), "F", tag], ["TOTAL", "", "2 mice"]])
+        data = xlsx([["Mouse ID", "Sex", "Genotype"], [str(n), "M", tag], [str(n), "F", tag], ["TOTAL", "", "2 mice"]])
         token, html = self.upload(self.a, "mice", "colony.xlsx", data)
         form = {**self.chosen(html), "sheet": "Sheet1", "fill-owner": "me"}
         preview = self.a.post(f"/import-sheet/file/{token}/preview", data=form).get_data(as_text=True)
@@ -273,7 +284,7 @@ class Importing(AppTestCase):
 
     def test_a_cage_merged_down_over_its_mice_holds_each_of_them(self):
         tag, first, second = uniq("TG"), uniq("M"), uniq("M")
-        data = xlsx([["Cage #", "Sex", "Strain"], [first, "F", tag], [None, "F", tag], [None, "M", tag],
+        data = xlsx([["Cage #", "Sex", "Genotype"], [first, "F", tag], [None, "F", tag], [None, "M", tag],
                      [second, "M", tag], [None, "F", tag]], merge=("A2:A4", "A5:A6"))
         self.import_mice(data, **{"fill-owner": "me"})
         cages = [c for (c,) in rows(
@@ -287,7 +298,7 @@ class Importing(AppTestCase):
         with SessionLocal() as s:
             upcoming = reserve_cage_ids(s, 1)[0]
         tag = uniq("TG")
-        data = xlsx([["Cage #", "Rack", "Position", "Sex", "Strain", "Owner"],
+        data = xlsx([["Cage #", "Rack", "Position", "Sex", "Genotype", "Owner"],
                      ["", "Rack A", "A1", "F", tag, self.member], [upcoming, "", "", "M", tag, self.member]])
         self.import_mice(data)
         placed, typed = [tuple(r) for r in rows(
@@ -307,7 +318,7 @@ class Importing(AppTestCase):
         style("day")
         self.addCleanup(style, "month")
         tag = uniq("TG")
-        data = (f"Sex,Strain,DOB\nF,{tag},03/04/2026\nM,{tag},12-May-26\nF,{tag},05/06/2099\n").encode()
+        data = (f"Sex,Genotype,DOB\nF,{tag},03/04/2026\nM,{tag},12-May-26\nF,{tag},05/06/2099\n").encode()
         preview = self.import_mice(data, "colony.csv", **{"fill-owner": "me"})
         self.assertIn("read day first", preview)
         got = [r for r in rows(
@@ -318,7 +329,7 @@ class Importing(AppTestCase):
 
     def test_one_litter_keeps_one_date_of_birth(self):
         tag, litter = uniq("TG"), uniq("L")
-        data = (f"Sex,Strain,Litter,DOB\nF,{tag},{litter},2026-03-01\nM,{tag},{litter},2026-03-09\n").encode()
+        data = (f"Sex,Genotype,Litter,DOB\nF,{tag},{litter},2026-03-01\nM,{tag},{litter},2026-03-09\n").encode()
         preview = self.import_mice(data, "colony.csv", **{"fill-owner": "me"})
         self.assertIn("in an earlier row", preview)
         self.assertEqual(str(one("select date_of_birth from litters where litter_id=?", litter)), "2026-03-01")
@@ -478,7 +489,7 @@ class Importing(AppTestCase):
         """A sheet filled in by eye writes the cage on its first mouse only;
         the blanks below are that cage, as merged cells are."""
         tag = uniq("TG")
-        data = xlsx([["Cage", "Sex", "Strain"], ["C1" + tag, "M", tag], ["", "F", tag], ["", "F", tag],
+        data = xlsx([["Cage", "Sex", "Genotype"], ["C1" + tag, "M", tag], ["", "F", tag], ["", "F", tag],
                      ["C2" + tag, "M", tag], ["", "M", tag]])
         token, html = self.upload(self.a, "mice", "colony.xlsx", data)
         self.assertIn("Its 3 blank cells take the value above them", html)
@@ -493,7 +504,7 @@ class Importing(AppTestCase):
 
     def test_unticked_the_blanks_stay_blank(self):
         tag = uniq("TG")
-        data = xlsx([["Cage", "Strain"], ["C1" + tag, tag], ["", tag], ["", tag]])
+        data = xlsx([["Cage", "Genotype"], ["C1" + tag, tag], ["", tag], ["", tag]])
         token, html = self.upload(self.a, "mice", "colony.xlsx", data)
         form = {**self.chosen(html), "sheet": "Sheet1", "fill-owner": "me", "down-seen": "1"}   # no down-0
         self.post(self.a, f"/import-sheet/file/{token}/run", data=form)
@@ -512,7 +523,7 @@ class Importing(AppTestCase):
         self.assertEqual(si.filled_down(["101", "102", "103"]), 0)
         self.assertEqual(si.fill_down(["a", "", "b", " ", ""]), (["a", "a", "b", "b", "b"], 3))
         tag = uniq("TG")
-        html = self.upload(self.a, "mice", "c.xlsx", xlsx([["Notes", "Strain"], ["x", tag], ["", tag]]))[1]
+        html = self.upload(self.a, "mice", "c.xlsx", xlsx([["Notes", "Genotype"], ["x", tag], ["", tag]]))[1]
         # Notes don't group mice: no fill-down box (What's new may quote its words).
         self.assertNotRegex(html, r'name="down-\d')
 

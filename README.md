@@ -89,12 +89,15 @@ never what you may edit.
   <img src="docs/screenshots/mice.webp" alt="The mouse sheet: one row per mouse with sex, age, status, transgenes, cage, rack, position and owner" width="100%">
 </p>
 
-- **Mice** — a spreadsheet of every animal: ID, custom tag, sex, age, status,
+- **Mice** — a spreadsheet of every animal: ID, custom tag, strain, sex, age, status,
   transgenes, cage, rack, owner and notes. IDs are assigned in order and
   never reused; the **Custom tag** beside the ID is however the animal itself
   is marked — an ear tag number, an ear punch such as RF or LB, a tail tattoo
   — so you can find the mouse in your hand, and search finds it by that too.
-  A lab that doesn't mark its mice unticks it under **Columns**. A mouse is alive until it has a date of death. The dot
+  A lab that doesn't mark its mice unticks it under **Columns**. **Strain**,
+  after it, is the mouse's background — C57BL/6J, BALB/cJ, 129S1/SvImJ… —
+  picked from the colony's strain choices (the **Dropdowns** tab, which starts
+  with the common ones) or typed. A mouse is alive until it has a date of death. The dot
   before its ID shows its age at a glance: blue under 8 weeks, green from
   8 to 30 weeks, red past 30 weeks, and grey once it is not alive.
 - **Cages** — every cage with its **Card ID** (the number on the animal
@@ -1017,8 +1020,9 @@ see them), refreshed when they open, when the network comes back and every
 fresh one. When the server can't be reached, the app shows offline screens
 instead of an error: find a cage by its ID or card, or scan it, and **Record
 a weight**, **Died**, **Move**, **Note**, **Litter born**, **Genotyping**,
-**Wean**, tick a to-do, flip or discard a vial. Each shows at once, marked
-*waiting*. Back in signal the changes reach the lab in the order you made
+**Wean**, tick a to-do, flip or discard a vial. A Breeding cage lists each
+litter not yet weaned, and Litter born, Genotyping and Wean ask which, as the
+pages do. Each shows at once, marked *waiting*. Back in signal the changes reach the lab in the order you made
 them, through the pages' own rules, as you. One that clashes with a change
 made meanwhile (the same field, set to something else) waits under **Needs
 your decision** (**Keep mine**, **Keep theirs**, **Edit**); a different

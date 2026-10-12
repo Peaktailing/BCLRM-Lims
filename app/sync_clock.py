@@ -20,7 +20,7 @@ from __future__ import annotations
 from sqlalchemy import event, inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
-from .models import SyncDeletion
+from .models import CageRecord, SyncDeletion
 
 # Off while the start-up steps before Alembic save records (services.init_database).
 enabled = True
@@ -58,6 +58,18 @@ def _stamp(session, flush_context, instances):
     changed += [o for o in session.dirty
                 if _table(o) and session.is_modified(o, include_collections=False)]
     deleted = [o for o in session.deleted if _table(o) and sa_inspect(o).identity is not None]
+    # A cage's litters travel in its row (sync.cage_row), so a litter born,
+    # corrected or weaned is a change to its cage.
+    for o in list(session.new) + list(session.dirty) + list(session.deleted):
+        if getattr(getattr(o, "__table__", None), "name", None) != "cage_litters":
+            continue
+        if o in session.dirty and not session.is_modified(o, include_collections=False):
+            continue
+        cage = o.__dict__.get("cage")
+        if cage is None and o.cage_id_fk is not None:
+            cage = session.get(CageRecord, o.cage_id_fk)
+        if cage is not None and cage not in changed and cage not in session.deleted and cage not in session.new:
+            changed.append(cage)
     if not changed and not deleted:
         return
     last = advance(session, len(changed) + len(deleted))

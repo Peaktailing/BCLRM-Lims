@@ -1430,7 +1430,12 @@ pages' own routes. Nothing is merged; the lab keeps one master copy.
   last five weights, their to-dos for 14 days, vials of the stock databases
   they may open, tanks, dropdowns, weaning due) and `GET /api/sync/changes?since=`
   (rows above the cursor, rows they may no longer see as `gone`; `reset`
-  past 20 000).
+  past 20 000). A cage's row carries its litters not yet weaned
+  (`sync.cage_litters`: `born`, `pups`, `dam`, `litter`, `wean_due`,
+  `genotyping_due`), and `sync_clock` counts a change to a `cage_litters`
+  row as one to its cage, so a litter born, corrected or weaned elsewhere
+  reaches the devices. The offline screens ask which litter as the pages
+  do, sending `litter` (a birth date).
 - **The queue.** `POST /api/sync/push`: ops in order, each `{op, made_at,
   cursor, action, target, fields, base, creates}`. A `sync_ops` row claims
   the op id first, so a resend answers the stored result. `_check` compares
@@ -2551,6 +2556,16 @@ importer read such a column as the Mouse ID. Pointing at the number shows
 the tag as well (`_sheet.html`'s `id_cell(aside=…)`), so hiding the column
 under **Columns** loses nothing; the column stays because a tooltip cannot
 be scanned down a sheet, sorted, printed or read on a phone at the rack.
+
+**Strain** is `mice.strain` (revision 0039, 120 characters, free text): the
+mouse's background, the column after the Custom tag. Its cell, the dialog
+and Add many offer `datalist#options-strain`, the colony's dropdown choices
+for the field `strain` (`MOUSE_PRESET_FIELDS`), which a new lab starts with
+as `models.DEFAULT_MOUSE_STRAINS` and an older one gains in 0039 when it has
+none. It is in the export, search, the phone sync row (`sync.mouse_row`) and
+the importer, where a "Strain" or "Background" column now maps to it (one
+called "Strain" went to the genotype before). The column moved the
+transgenes along, so the sheet's id is `mice-v5` (`_mouse_sheet.html`).
 
 **Numbers are handed out once.** `services.reserve_mouse_ids()` counts
 above the highest mouse and above `app_settings.mouse_id_high`, the highest

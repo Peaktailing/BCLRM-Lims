@@ -191,6 +191,14 @@ class TheTranslations(unittest.TestCase):
                               f"{path.name} says {translated!r}")
                 seen[english] = (path.name, translated)
 
+    def test_every_word_on_the_phone_s_offline_screens_has_its_chinese(self):
+        """app/static/offline/ is carried by the phone apps and the desktop's
+        relay, with its words in js-offline.json (not the app's catalog)."""
+        source = (ROOT / "app" / "static" / "offline" / "offline.js").read_text(encoding="utf-8")
+        words = json.loads((ROOT / "app" / "translations" / "zh" / "js-offline.json").read_text(encoding="utf-8"))
+        missing = sorted(set(re.findall(r'\bt\("((?:[^"\\]|\\.)*)"', source)) - set(words))
+        self.assertEqual(missing, [], "\n".join(missing))
+
     def test_every_wrapped_text_in_a_translated_template_has_its_chinese(self):
         """A template that uses _() is translated whole: each of its texts has
         an entry (a template not yet translated has no _() and stays English)."""

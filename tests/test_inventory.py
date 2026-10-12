@@ -1194,7 +1194,7 @@ class SampleSourceTests(InventoryCase):
         head = html.split('data-sort-key="attr_source"', 1)[1]
         self.assertLess(head.index("data-mouse-tag"), head.index("</tr>"))
         self.assertIn(f'<td class="ident" data-mouse-tag>{tag}</td>', html)
-        self.assertIn('localStorage.getItem("dt:mice-v4:hidden")', html)
+        self.assertIn('localStorage.getItem("dt:mice-v5:hidden")', html)
         self.assertIn("hidden.includes(2)", html)
         # A database with no source column has none.
         reagents = self.new_module(self.a, "reagents")

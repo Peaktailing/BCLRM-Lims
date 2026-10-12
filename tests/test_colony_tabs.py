@@ -1052,7 +1052,7 @@ class BatchMiceTests(AppTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("attachment", r.headers["Content-Disposition"])
         header = r.get_data(as_text=True).lstrip("\ufeff").splitlines()[0]
-        self.assertTrue(header.startswith("sex,transgene_1"))
+        self.assertTrue(header.startswith("sex,strain,transgene_1"))
         self.assertIn(header.replace(",", " · "), self.get_ok(self.m, "/colony/mice/batch"))
 
     def csv_preview(self, text):

@@ -16,7 +16,7 @@
 {% macro mouse_payload(row, locked) -%}
 {%- set payload = {
   "id": row.id, "mouse_id": row.mouse_id, "locked": locked,
-  "ear_tag": row.ear_tag, "gender": row.gender, "transgene_1": row.transgene_1, "transgene_2": row.transgene_2,
+  "ear_tag": row.ear_tag, "strain": row.strain, "gender": row.gender, "transgene_1": row.transgene_1, "transgene_2": row.transgene_2,
   "transgene_3": row.transgene_3, "transgene_4": row.transgene_4,
   "cage_id": row.cage_id, "cage_rack": row.cage_rack_id or "", "cage_position": row.cage_position,
   "cage_location": row.cage_location, "owner": row.owner,
@@ -171,6 +171,10 @@
                     title="{{ _('How the mouse itself is marked: an ear tag number, an ear punch such as RF or LB, a tail tattoo, or however your lab labels them. The Mouse number stays its identity; untick it under Columns if you don’t use it.') }}">
                   <span class="dt-col-head">{{ icon('tag', 'dt-col-icon') }}{{ _('Custom tag') }}<span class="dt-sort-indicator"></span></span>
                 </th>
+                <th class="dt-sortable" data-sort-key="strain" style="width: 104px;"
+                    title="{{ _('The mouse’s strain or background, such as C57BL/6J. Pick one or type your own; the choices are under Dropdowns.') }}">
+                  <span class="dt-col-head">{{ icon('sitemap', 'dt-col-icon') }}{{ _('Strain') }}<span class="dt-sort-indicator"></span></span>
+                </th>
                 <th class="dt-sortable" data-sort-key="gender" style="width: 56px;">
                   <span class="dt-col-head">{{ icon('sex', 'dt-col-icon') }}{{ _('Sex') }}<span class="dt-sort-indicator"></span></span>
                 </th>
@@ -249,6 +253,10 @@
                   <td>
                     <input class="ident" name="ear_tag" form="{{ f }}" value="{{ row.ear_tag }}" maxlength="40"
                            placeholder="–" data-autosave="1" aria-label="{{ _('Custom tag') }}" {% if locked %}disabled{% endif %}>
+                  </td>
+                  <td>
+                    <input name="strain" form="{{ f }}" value="{{ row.strain }}" maxlength="120" list="options-strain"
+                           placeholder="–" data-autosave="1" aria-label="{{ _('Strain') }}" {% if locked %}disabled{% endif %}>
                   </td>
                   <td>
                     <select class="sex-pill" name="gender" form="{{ f }}" data-sex="{{ row.gender }}" data-autosave="1"
@@ -1528,6 +1536,8 @@
               <label>{{ _('Custom tag') }} <input name="ear_tag" maxlength="40" autocomplete="off"
                      placeholder="{{ _('e.g. 142, or RF') }}"
                      title="{{ _('How the mouse itself is marked: an ear tag, an ear punch, a tail tattoo. The Mouse number stays its identity.') }}"></label>
+              <label>{{ _('Strain') }} <input name="strain" maxlength="120" autocomplete="off" list="options-strain"
+                     placeholder="{{ _('e.g. C57BL/6J') }}"></label>
               <label>{{ _('Sex') }}
                 <select name="gender">
                   <option value="">{{ _('Not set') }}</option>

@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash
 
 # tests.base first: it points the app at a throwaway database before anything
 # imports the app. Importing app first would open data/biomanager.db.
-from tests.base import AppTestCase, app, client_for, days_ago, execute, make_user, one, uniq  # isort: skip
+from tests.base import AppTestCase, app, client_for, days_ago, execute, make_user, one, rows, uniq  # isort: skip
 
 PASSWORD = "lab bench 42"
 
@@ -100,6 +100,75 @@ class Snapshot(SyncCase):
         phone = device_for(guest)
         execute("update users set expires_at='2999-01-01 00:00:00' where username=?", guest)
         self.assertNotEqual(self.c.get("/api/sync/snapshot", headers=phone).status_code, 200)
+
+
+class PhoneLitters(SyncCase):
+    """A Breeding cage with two litters, as the phone keeps it: each litter
+    in the cage's row, a litter born elsewhere reaching the phone, and the
+    phone's Litter born and Wean saying which (app/static/offline/)."""
+
+    def setUp(self):
+        super().setUp()
+        self.code = uniq("C")
+        self.cage = self.make_cage(self.t, self.code, purpose="Breeding")
+        self.assertNoErrors(self.post(self.t, f"/colony/cages/{self.cage}/give-birth",
+                                      {"date_give_birth": days_ago(24)}))
+
+    def tearDown(self):
+        # Wean what was left waiting, so other modules' due lists stay theirs.
+        execute("update cage_litters set weaned_on=? where weaned_on is null and cage_id_fk=?", days_ago(0), self.cage)
+        super().tearDown()
+
+    def row(self, cages: list[dict]) -> dict:
+        return next(c for c in cages if c["id"] == self.cage)
+
+    def test_the_cage_s_row_lists_each_litter_oldest_first(self):
+        self.assertNoErrors(self.post(self.t, f"/colony/cages/{self.cage}/give-birth",
+                                      {"date_give_birth": days_ago(10), "litter_choice": "another",
+                                       "pups": "6", "dam": "41"}))
+        mine = self.row(self.snapshot()["cages"])
+        self.assertEqual([l["born"] for l in mine["litters"]], [days_ago(24), days_ago(10)])
+        self.assertEqual((mine["litters"][1]["pups"], mine["litters"][1]["dam"]), (6, "41"))
+        self.assertEqual(mine["litters"][0]["wean_due"], days_ago(3))      # P21
+        self.assertEqual(mine["date_give_birth"], days_ago(24))
+
+    def test_a_second_litter_recorded_elsewhere_reaches_the_phone(self):
+        cursor = self.snapshot()["cursor"]
+        self.assertNoErrors(self.post(self.t, f"/colony/cages/{self.cage}/give-birth",
+                                      {"date_give_birth": days_ago(10), "litter_choice": "another"}))
+        r = self.c.get(f"/api/sync/changes?since={cursor}", headers=self.phone).get_json()
+        mine = self.row(r["changes"]["cages"])
+        self.assertEqual([l["born"] for l in mine["litters"]], [days_ago(24), days_ago(10)])
+        # Weaning one is a change to the cage too.
+        self.assertNoErrors(self.post(self.t, f"/colony/cages/{self.cage}/wean"))
+        later = self.c.get(f"/api/sync/changes?since={r['cursor']}", headers=self.phone).get_json()
+        self.assertEqual([l["born"] for l in self.row(later["changes"]["cages"])["litters"]], [days_ago(10)])
+
+    def test_another_litter_and_a_named_wean_from_the_phone(self):
+        snap = self.snapshot()
+        seen = {f"cage:{self.cage}": {"v": self.row(snap["cages"])["v"], "date_give_birth": days_ago(24)}}
+        born, = self.push(op("litter_born", cage(self.cage),
+                             {"date": days_ago(22), "another": True, "pups": 5, "mother": "41"}, seen))
+        self.assertEqual(born["result"], "applied", born)
+        self.assertEqual(rows("select born, pups, dam from cage_litters where cage_id_fk=? and weaned_on is null "
+                              "order by born", self.cage)[1][1:], (5, "41"))
+        weaned, = self.push(op("wean", cage(self.cage), {"litter": days_ago(22)}))
+        self.assertEqual(weaned["result"], "applied", weaned)
+        left = [str(b)[:10] for (b,) in rows("select born from cage_litters where cage_id_fk=? and weaned_on is null",
+                                             self.cage)]
+        self.assertEqual(left, [days_ago(24)])
+
+    def test_correcting_one_of_two_from_the_phone(self):
+        self.assertNoErrors(self.post(self.t, f"/colony/cages/{self.cage}/give-birth",
+                                      {"date_give_birth": days_ago(10), "litter_choice": "another"}))
+        mine = self.row(self.snapshot()["cages"])
+        fixed, = self.push(op("litter_born", cage(self.cage),
+                              {"date": days_ago(9), "another": False, "litter": days_ago(10)},
+                              {f"cage:{self.cage}": {"v": mine["v"], "date_give_birth": days_ago(24)}}))
+        self.assertEqual(fixed["result"], "applied", fixed)
+        left = sorted(str(b)[:10] for (b,) in rows("select born from cage_litters where cage_id_fk=? "
+                                                   "and weaned_on is null", self.cage))
+        self.assertEqual(left, [days_ago(24), days_ago(9)])
 
 
 class Push(SyncCase):

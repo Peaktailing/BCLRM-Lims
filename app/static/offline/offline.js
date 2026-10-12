@@ -117,6 +117,20 @@
 
   function mark(rec) { if (rec) rec._waiting = true; }
 
+  // A cage's litters not yet weaned, oldest first (sync.cage_litters). A copy
+  // taken before 1.9 has only the cage's one birth date.
+  function littersOf(c) {
+    if (c.litters) return c.litters;
+    return c.date_give_birth ? [{ born: c.date_give_birth }] : [];
+  }
+  function setLitters(c, list) {
+    list.sort(function (a, b) { return a.born < b.born ? -1 : a.born > b.born ? 1 : 0; });
+    c.litters = list;
+    c.date_give_birth = list.length ? list[0].born : null;   // the cage's date is its oldest
+    mark(c);
+  }
+  function litterBorn(list, born) { return list.find(function (l) { return l.born === born; }) || null; }
+
   function applyLocally(v, op) {
     var f = op.fields || {}, target = idOf(op.target);
     if (op.action === "mouse_weight") {
@@ -141,17 +155,37 @@
       }
     } else if (op.action === "litter_born") {
       var cage = byId(v.cages, target);
-      // Another litter keeps the earlier one: the cage's date is its oldest.
-      if (cage && !(f.another && cage.date_give_birth)) { cage.date_give_birth = f.date || today(); mark(cage); }
+      if (cage) {
+        var list = littersOf(cage).slice(), born = f.date || today();
+        var fixed = f.another === false && (litterBorn(list, f.litter) || list[0]);
+        if (litterBorn(list, born)) {
+          // that day's litter is there already
+        } else if (fixed) {
+          list[list.indexOf(fixed)] = Object.assign({}, fixed, { born: born, _waiting: true });
+        } else {
+          list.push({ born: born, pups: f.pups || null, dam: f.mother || "", _waiting: true });
+        }
+        setLitters(cage, list);
+      }
     } else if (op.action === "litter_genotyping") {
       var made = (op.creates || {}).mouse || [];
+      var gcage = byId(v.cages, target);
+      if (gcage) {
+        var glist = littersOf(gcage).slice();
+        var whose = litterBorn(glist, f.litter) || glist.find(function (l) { return !l.litter; });
+        if (whose) { glist[glist.indexOf(whose)] = Object.assign({}, whose, { litter: ((op.creates || {}).litter || [])[0] || true }); setLitters(gcage, glist); }
+      }
       made.forEach(function (id, i) {
         v.mice.push({ id: id, number: "", label: t("New pup %(n)s", { n: i + 1 }), sex: "", transgenes: [],
                       status: "geno", owner: "", note: "", cage: target, _waiting: true });
       });
     } else if (op.action === "wean") {
       var weaned = byId(v.cages, target);
-      if (weaned) { weaned.date_give_birth = null; mark(weaned); }
+      if (weaned) {
+        var wlist = littersOf(weaned).slice();
+        wlist.splice(Math.max(0, wlist.indexOf(litterBorn(wlist, f.litter))), 1);   // the one named, else the oldest
+        setLitters(weaned, wlist);
+      }
     } else if (op.action === "mouse_change") {
       var m = byId(v.mice, target);
       if (m) { Object.keys(f).forEach(function (k) { m[k] = f[k]; }); mark(m); }
@@ -294,7 +328,11 @@
       '<section class="card"><h2>' + esc(t("Cage %(cage)s", { cage: c.cage_id })) +
       (c._waiting ? ' <span class="tag wait">' + esc(t("waiting")) + "</span>" : "") + "</h2>" +
       '<p class="muted">' + esc(cageLine(c)) + "</p>" +
-      (c.date_give_birth ? '<p class="muted">' + esc(t("Litter born %(day)s", { day: c.date_give_birth })) + "</p>" : "") +
+      littersOf(c).map(function (l) {
+        return '<p class="muted">' + esc(t("Litter born %(day)s", { day: l.born })) +
+          (l.pups ? " · " + esc(t("%(n)s pups", { n: l.pups })) : "") +
+          (l._waiting ? ' <span class="tag wait">' + esc(t("waiting")) + "</span>" : "") + "</p>";
+      }).join("") +
       (c.notes ? "<p>" + esc(c.notes) + "</p>" : "") +
       (c.edit === false ? '<p class="muted">' + esc(t("Someone else's cage: the lab checks your changes when they arrive.")) + "</p>" : "") +
       '<div class="row">' + acts.join("") + "</div></section>" +
@@ -377,7 +415,7 @@
     var box = document.getElementById("ask-fields");
     box.innerHTML = fields.map(function (f, i) {
       var input = f.type === "select"
-        ? '<select name="f' + i + '">' + f.options.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + "</option>"; }).join("") + "</select>"
+        ? '<select name="f' + i + '">' + f.options.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === f.value ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>"
         : '<input name="f' + i + '" type="' + (f.type || "text") + '"' + (f.step ? ' step="' + f.step + '"' : "") +
           (f.list ? ' list="ask-list"' : "") + ' value="' + esc(f.value || "") + '"' + (f.required ? " required" : "") + ">";
       return "<label>" + esc(f.label) + input + "</label>";
@@ -400,6 +438,12 @@
 
   function cageNow() { var id = location.hash.slice(6); return byId(view.cages, /^\d+$/.test(id) ? Number(id) : id); }
   function mouseById(raw) { var id = /^\d+$/.test(raw) ? Number(raw) : raw; return byId(view.mice, id); }
+
+  // On a cage with two litters, Genotyping and Wean ask which (its birth date).
+  function whichLitter(list, chosen) {
+    return { label: t("Which litter"), type: "select", value: chosen && chosen.born,
+             options: list.map(function (l) { return [l.born, t("Litter born %(day)s", { day: l.born })]; }) };
+  }
 
   var ACTS = {
     weigh: function (id) {
@@ -443,40 +487,59 @@
       });
     },
     litter: function () {
-      var c = cageNow();
-      var fields = [{ label: t("Born on"), type: "date", value: today() }];
+      var c = cageNow(), list = littersOf(c);
+      var fields = [{ label: t("Born on"), type: "date", value: today() },
+                    { label: t("How many pups"), type: "number" }, { label: t("Mother") }];
       // A litter not yet weaned: a second female's, or a wrong date? The
-      // server refuses to guess, so the phone asks too.
-      if (c.date_give_birth) {
-        fields.push({ label: t("This cage has a litter born %(day)s, not yet weaned. This one is:", { day: c.date_give_birth }),
-                      type: "select", options: [["another", t("Another litter")], ["correct", t("Correct the date")]] });
+      // server refuses to guess, so the phone asks too, and which one to correct.
+      if (list.length) {
+        var options = [["another", t("Another litter")]].concat(list.map(function (l) {
+          return [l.born, list.length > 1 ? t("Correct the litter born %(day)s", { day: l.born }) : t("Correct the date")];
+        }));
+        fields.push({ label: list.length > 1
+                        ? t("This cage has litters born %(days)s, not yet weaned. This one is:", { days: list.map(function (l) { return l.born; }).join(LANG === "zh" ? "、" : ", ") })
+                        : t("This cage has a litter born %(day)s, not yet weaned. This one is:", { day: list[0].born }),
+                      type: "select", options: options });
       }
       ask(t("Litter born in cage %(cage)s", { cage: c.cage_id }), fields, function (v) {
         var f = { date: v[0] || today() };
-        if (c.date_give_birth && f.date !== c.date_give_birth) {
-          f.another = v[1] === "another";
-          if (!f.another) f.litter = c.date_give_birth;
+        if (v[1]) {
+          var n = parseInt(v[1], 10);
+          if (!(n >= 1 && n <= 40)) throw new Error(t("Between 1 and 40 pups."));
+          f.pups = n;
+        }
+        if (v[2]) f.mother = v[2];
+        if (list.length && !litterBorn(list, f.date)) {
+          f.another = v[3] === "another";
+          if (!f.another && list.length > 1) f.litter = v[3];
         }
         return record("litter_born", ref("cage", c.id), f, saw("cage", c, ["date_give_birth"]));
       });
     },
     genotyping: function () {
-      var c = cageNow();
-      ask(t("Genotyping: the pups in cage %(cage)s", { cage: c.cage_id }), [
-        { label: t("How many pups"), type: "number", required: true }, { label: t("Father") }, { label: t("Mother") }], function (v) {
+      var c = cageNow(), list = littersOf(c);
+      // Whose pups: the oldest litter not yet genotyped, unless chosen.
+      var first = list.find(function (l) { return !l.litter; }) || list[0];
+      // Its count and mother as recorded at Litter born, when there's no choosing.
+      var known = list.length === 1 ? first : null;
+      var fields = [{ label: t("How many pups"), type: "number", required: true, value: known && known.pups || "" },
+                    { label: t("Father") }, { label: t("Mother"), value: known && known.dam || "" }];
+      if (list.length > 1) fields.push(whichLitter(list, first));
+      ask(t("Genotyping: the pups in cage %(cage)s", { cage: c.cage_id }), fields, function (v) {
         var n = parseInt(v[0], 10);
         if (!(n >= 1 && n <= 40)) throw new Error(t("Between 1 and 40 pups."));
         var pups = []; for (var i = 0; i < n; i++) pups.push(tmp());
         var fields = { pups: n };
         if (v[1]) fields.father = v[1];
         if (v[2]) fields.mother = v[2];
+        if (list.length > 1) fields.litter = v[3];
         return record("litter_genotyping", ref("cage", c.id), fields, saw("cage", c, []), { litter: [tmp()], mouse: pups });
       });
     },
     wean: function () {
-      var c = cageNow();
-      ask(t("Wean cage %(cage)s", { cage: c.cage_id }), [], function () {
-        return record("wean", ref("cage", c.id), {}, saw("cage", c, []));
+      var c = cageNow(), list = littersOf(c);
+      ask(t("Wean cage %(cage)s", { cage: c.cage_id }), list.length > 1 ? [whichLitter(list, list[0])] : [], function (v) {
+        return record("wean", ref("cage", c.id), list.length > 1 ? { litter: v[0] } : {}, saw("cage", c, []));
       });
     },
     flip: function (id) {

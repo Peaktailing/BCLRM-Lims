@@ -172,33 +172,42 @@ def load_site_clips():
 
     def breeding_cage(api, base):
         # Only a Breeding cage has Litter born, and the demo admin's own cages
-        # are Breeders: make 111 a mating cage, as one would before a litter.
+        # are Breeders: make 111 a mating cage, as one would before a litter,
+        # with its first female's litter born ten days ago.
         import re
+        from datetime import date, timedelta
         html = api.get(f"{base}/colony?view=cages").text()
         row = re.search(r'/colony/cages/(\d+)/give-birth"\s+data-cage-label="111"', html).group(1)
         api.post(f"{base}/colony/cages/{row}/update", form={"purpose": "Breeding"}, headers={"X-Autosave": "1"})
+        api.post(f"{base}/colony/cages/{row}/give-birth",
+                 form={"date_give_birth": (date.today() - timedelta(days=10)).isoformat(), "pups": "7"})
 
     def litter(d):
-        # Pups are born: one date, and BioManager works out weaning and
-        # genotyping. The zoom is on the dialog, then on what it answers.
+        # The trio's second female has her pups while the first litter is
+        # still with its mother: one date, Another litter, and BioManager
+        # keeps both, each with its own weaning and genotyping days. The
+        # zoom is on the dialog, then on what it answers.
         d.goto("/colony?view=cages")
         d.start()
         d.wait(1.0)
-        born = d.page.locator("[data-litter-born] >> visible=true").first
+        born = d.page.locator("[data-litter-born][data-cage-label='111'] >> visible=true").first
         d.move(born, 0.9)
         d.wait(0.5)
         born.click()
         d.wait(1.0)
         dialog = d.page.locator("#litter-born-modal").first
-        d.zoom(dialog, scale=1.7)
-        d.wait(1.0)
+        d.zoom(dialog, scale=1.6)
+        d.wait(0.8)
         d.move("#litter-born-modal input[name=date_give_birth]", 0.7)
-        d.wait(1.0)
+        d.wait(0.6)
+        d.type("#litter-born-modal input[name=pups]", "6", after=0.6)
+        # The cage has a litter not yet weaned: this is a second female's.
+        d.click("#litter-born-choice input[value=another]", after=1.4)
         d.cover()
-        d.click("#litter-born-modal button:has-text('Record the litter')", after=2.0)
+        d.click("#litter-born-modal button[type=submit]:not(.ghost-button)", after=2.0)
         d.unzoom()
         d.wait(0.6)
-        # The answer: weaning is due three weeks out, worked out for you.
+        # The answer: both litters are kept.
         said = d.page.locator(".flash-message").first
         if said.count() and said.is_visible():
             d.zoom(said, scale=1.9)

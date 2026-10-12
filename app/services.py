@@ -39,6 +39,7 @@ from .models import (
     ChemicalReference,
     DropdownOption,
     LitterRecord,
+    DEFAULT_MOUSE_STRAINS,
     MOUSE_PRESET_FIELDS,
     MOUSE_STATUS_OPTIONS,
     MouseRecord,
@@ -69,6 +70,7 @@ DEFAULT_MOUSE_OPTIONS = {
     "purpose": ["Breeder", "Breeding", "Experiment"],
     "status": MOUSE_STATUS_OPTIONS,
     "genotype": ["WT"],
+    "strain": DEFAULT_MOUSE_STRAINS,
 }
 RETIRED_PRESET_FIELDS = ("cage_location",)
 UPLOAD_DIR = uploads_dir()
@@ -935,6 +937,7 @@ def mouse_display_row(mouse: MouseRecord, current_username: str | None = None, c
         "id": mouse.id,
         "mouse_id": mouse.mouse_id,
         "ear_tag": mouse.ear_tag or "",
+        "strain": mouse.strain or "",
         "attrs": custom_fields.values(mouse),
         "active": mouse_is_active(mouse),
         "active_label": "Y" if mouse_is_active(mouse) else "N",

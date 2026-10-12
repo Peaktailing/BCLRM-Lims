@@ -49,6 +49,9 @@
               <option value="M">M</option>
             </select>
           </label>
+          <label class="field-label">{{ _('Strain') }}
+            <input name="strain" list="options-strain" placeholder="{{ _('e.g. C57BL/6J') }}">
+          </label>
           <label class="field-label">{{ _('Status') }}
             <input name="status" value="{{ prototype.status }}" list="options-status">
           </label>
@@ -208,9 +211,9 @@
                 <td>
                   {% if key == 'date_of_birth' %}
                     <input type="date" name="rows-{{ r }}-{{ key }}" value="{{ row[key] }}" data-col="{{ key }}">
-                  {% elif key == 'gender' %}
+                  {% elif key in ('gender', 'strain') %}
                     <input name="rows-{{ r }}-{{ key }}" value="{{ row[key] }}"
-                           list="options-gender" data-col="{{ key }}">
+                           list="options-{{ key }}" data-col="{{ key }}">
                   {% elif key in ('transgene_1', 'transgene_2', 'transgene_3', 'transgene_4') %}
                     <input name="rows-{{ r }}-{{ key }}" value="{{ row[key] }}"
                            list="strain-name-options" data-col="{{ key }}">

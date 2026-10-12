@@ -29,7 +29,12 @@ MOUSE_PRESET_FIELDS = [
     "owner",
     "purpose",
     "status",
+    "strain",
 ]
+# The strains a lab's Strain column offers to begin with (Dropdowns), the
+# ones most mouse labs keep; a lab adds its own and removes the rest.
+DEFAULT_MOUSE_STRAINS = ["C57BL/6J", "C57BL/6N", "BALB/cJ", "129S1/SvImJ", "FVB/NJ", "DBA/2J",
+                         "C3H/HeJ", "NOD/ShiLtJ", "CD-1", "Mixed"]
 MOUSE_STATUS_OPTIONS = ["breeder", "experiment", "geno", "transfer", "sac"]
 
 
@@ -378,6 +383,9 @@ class MouseRecord(Base):
     # a tattoo. Free text, because every lab marks them differently, and not
     # unique — mouse_id is the identity everything else links by (0024).
     ear_tag: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # The mouse's strain or background (C57BL/6J, BALB/cJ, mixed), from the
+    # colony's strain choices or typed. Free text, as a lab writes it (0039).
+    strain: Mapped[str] = mapped_column(String(120), default="", server_default="")
     # Columns the lab added to this built-in database (app/custom_fields.py):
     # the same JSON an inventory item has carried from the start (0025).
     attrs: Mapped[str] = mapped_column(Text, default="", server_default="")
