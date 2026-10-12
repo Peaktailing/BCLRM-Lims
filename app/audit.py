@@ -43,6 +43,7 @@ TRACKED_TABLES |= {"plasmid_boxes"}
 TRACKED_TABLES |= {"experiment_steps", "experiment_step_records", "experiment_subjects", "experiment_readings", "experiment_regimens", "record_signatures"}   # an experiment's manipulations, planned and done
 TRACKED_TABLES |= {"experiment_deviations"}   # changes from an experiment's plan, with their reasons
 TRACKED_TABLES |= {"mouse_weights"}   # a weight is a record of the animal, kept and undone like one
+TRACKED_TABLES |= {"cage_litters"}   # each litter born in a cage: weaning one is undone with its cage
 TRACKED_TABLES |= {"user_identities"}   # who connected which Google/Microsoft account, and when   # so deleting a box (which unplaces its plasmids) can be undone
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
@@ -62,7 +63,7 @@ TABLE_LABELS = {
     "experiment_subjects": "Experiment subjects", "experiment_readings": "Readings",
     "experiment_regimens": "Regimens", "record_signatures": "Signatures", "user_identities": "Sign-in accounts",
     "experiment_deviations": "Changes from the plan",
-    "mouse_weights": "Weights",
+    "mouse_weights": "Weights", "cage_litters": "Litters born",
 }
 
 

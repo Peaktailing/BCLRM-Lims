@@ -603,9 +603,14 @@ def _check(s, user, op: dict, change: dict) -> tuple[str, list[dict], dict, str]
         seen = saw("cage", target)
         mine = fields.get("date") or date.today().isoformat()
         now = _d(target.date_give_birth)
-        if now == mine:
+        # A cage can have two litters (services.open_litters): any of them
+        # born that day is this one, recorded already.
+        if now == mine or any(_d(cl.born) == mine for cl in services.open_litters(target)):
             return "done", [], change, gettext("That birth date was recorded already.")
-        if seen is not None and "date_give_birth" in seen and now != seen["date_give_birth"]:
+        # Another litter keeps the earlier one, whatever it became meanwhile;
+        # a correction is of the date the phone saw.
+        if seen is not None and "date_give_birth" in seen and now != seen["date_give_birth"] \
+                and fields.get("another") is not True:
             clash("cage", target, {"date_give_birth": {"saw": seen["date_give_birth"], "now": now, "mine": mine}},
                   gettext("The cage got another birth date meanwhile."))
     elif name == "litter_genotyping" and target is not None:

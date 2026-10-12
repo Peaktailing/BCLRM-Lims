@@ -586,6 +586,31 @@ Who may change what lives in one place, `app/access.py`:
   (`cage_purpose_chips()`). Revision 0029 wrote "Exp" and "Experiments" as
   "Experiment", made Stock cages shared Breeder cages, cleared "Retired",
   and took Stock and Retired out of the choices.
+- **A cage's litters** (`cage_litters`, `models.CageLitter`, revision 0037).
+  A mating cage often holds two females, so a second litter comes before
+  the first is weaned. Each birth is a row: `born`, `pups` and `dam` if
+  given, `litter_id_fk` (the litter of mice Genotyping made of its pups),
+  `weaned_on`. `mouse_cages.date_give_birth` stays, as the cage's oldest
+  litter not yet weaned (`services.refresh_birth_date`, called wherever
+  litters change), so the sheet's *Litter born* cell, the sync view, the
+  exports and every other reader of one date read as before; typing in that
+  cell corrects the oldest (`set_birth_date`; the row's `date_give_birth_was`
+  keeps a stale row from writing it back). `open_litters()` are the ones
+  not weaned, `waiting_litters()` those whose pups aren't all recorded
+  dead. **Litter born** (`app._record_birth`) on a cage with one open and a
+  new date wants `litter_choice` *another* or *correct* (and `litter`, the
+  birth date corrected, when there are two) and changes nothing without it;
+  the same date again only adds the count or mother. **Genotyping** and
+  **Wean** take `litter` (a birth date; `app._which_litter`), defaulting to
+  the oldest waiting (Genotyping: the oldest not yet genotyped);
+  `mark_weaned(cage, cage_litter=…)` weans that one and the litters of mice
+  born that day, and moves the cage's date on. `weaning_due` lists each
+  open litter (an item's `cage_litter`, and `several` when its cage has
+  two, which `weaning_title` shows as "(born 29 Sep)"); the calendar's
+  genotyping items are one per open litter too, and Home's genotyping queue
+  is one item per cage and litter. The table is audited, so undoing a wean
+  undoes its litter. Revision 0037 made each cage's date its first litter,
+  linked to the litter of its pups born that day.
 - **Unowned records stay open**, so records predating ownership don't lock
   anyone out.
 - **Lab common** (`is_shared`) on inventory items and plasmids
@@ -1855,7 +1880,11 @@ from `ENDPOINTS`, so a new endpoint goes there too.
   plasmid has `has_sequence` and `length`); a litter's `cage` is where most
   of its living pups are and `cages` every one (a litter is in a cage only
   through its mice, as in `weaning_due`), and `/litters?cage=` lists those
-  with a living pup in it; `/experiments/<id>` is
+  with a living pup in it; a cage's `litters` are the litters born in it not
+  yet weaned (`services.cage_litter_json`: `born`, `pups`, `dam`, `litter`,
+  `age_days`, `wean_due`, `genotyping_due`), `litter_born` the oldest's date;
+  an item of `/due` about one carries it as `litter`, and its `propose` names
+  it when the cage has two; `/experiments/<id>` is
   `experiments.payload` without `PAGE_ONLY` (the step kinds, regimens,
   reagents, sample inventories and tests the page offers as choices).
 - **Writes reuse the pages' code**, so their rules hold: `PATCH /mice/<id>`
@@ -1937,9 +1966,14 @@ page itself.
   An `Action`'s optional `warn(s, target, values)` adds warnings of its own;
   `side_effects()` adds one for a record whose sharing changed though
   `shared` wasn't asked (a cage leaving Breeder is un-shared by
-  `models._breeder_cages_start_shared`). `litter_born` with `pups` adds
-  "<date>: litter born, N pups" to the cage's notes: the cage keeps a birth
-  date only, and the count is the litter's once genotyping makes it. `sample_from_animal` fills a sample's Source with the mouse, tank
+  `models._breeder_cages_start_shared`). `litter_born` keeps `pups` and
+  `mother` on the cage's litter (`cage_litters`, below); on a cage with a
+  litter not yet weaned and another date it needs `another` (true: a second
+  litter, both kept; false: a correction, with `litter`, the birth date of
+  the one corrected, when there are two) and is refused without it.
+  `litter_genotyping` and `wean` take `litter` (a birth date, or the litter
+  of mice its pups are) and otherwise act on the page's default, which their
+  summary names when the cage has two. `sample_from_animal` fills a sample's Source with the mouse, tank
   or animal. Plasmids go through `/plasmids` and `/plasmids/<id>/update`,
   with a pasted sequence through upload-sequence. Glycerol stocks and primers
   are items in those inventories, and a primer pair goes through

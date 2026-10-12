@@ -47,7 +47,7 @@ from .formutil import like_pattern
 from . import access, groups, lab
 from .db import SessionLocal
 from .i18n import gettext
-from .models import (ApiToken, CageRecord, Experiment, FishRecord, InventoryItem, InventoryRack, LitterRecord,
+from .models import (ApiToken, CageLitter, CageRecord, Experiment, FishRecord, InventoryItem, InventoryRack, LitterRecord,
                      MouseRecord, MouseWeight, PlasmidBox, PlasmidRecord, StockRack, StockUnit, StrainRecord,
                      TankRecord, UserAccount)
 
@@ -510,9 +510,16 @@ def weigh(mouse_id: int):
 
 # ---------------------------------------------------------------- cages, litters, strains
 
+_CAGE_LITTERS = selectinload(CageRecord.cage_litters).selectinload(CageLitter.litter)
+
+
 def cage_json(c: CageRecord) -> dict:
+    from .services import cage_litter_json, open_litters
     living = sorted(m.mouse_id for m in c.mice if m.date_of_death is None)
     return {
+        # Each litter born in it not yet weaned, oldest first (a trio's two
+        # females give two); litter_born is the oldest's date, as before.
+        "litters": [cage_litter_json(cl) for cl in open_litters(c)],
         "cage_id": c.cage_id, "purpose": c.purpose or "", "owner": c.owner or "", "shared": access.is_shared_cage(c),
         "shared_with": (groups.name_of(c.share_group_id) or None)
         if access.is_shared_cage(c) and c.share_group_id else None,
@@ -527,7 +534,7 @@ def cage_json(c: CageRecord) -> dict:
 def cages():
     _feature("colony")
     with SessionLocal() as s:
-        stmt = select(CageRecord).options(selectinload(CageRecord.mice), selectinload(CageRecord.rack))
+        stmt = select(CageRecord).options(selectinload(CageRecord.mice), selectinload(CageRecord.rack), _CAGE_LITTERS)
         occupied = _bool_arg("occupied")
         living = select(MouseRecord.cage_id_fk).where(MouseRecord.date_of_death.is_(None))
         if occupied is not None:
@@ -542,7 +549,7 @@ def cages():
 def cage(cage_id: str):
     _feature("colony")
     with SessionLocal() as s:
-        c = s.scalar(select(CageRecord).options(selectinload(CageRecord.mice), selectinload(CageRecord.rack))
+        c = s.scalar(select(CageRecord).options(selectinload(CageRecord.mice), selectinload(CageRecord.rack), _CAGE_LITTERS)
                      .where(CageRecord.cage_id == cage_id))
         if c is None:
             abort(404, f"There is no cage {cage_id}.")

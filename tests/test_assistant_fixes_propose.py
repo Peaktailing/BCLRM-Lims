@@ -150,7 +150,7 @@ class Fixes(Compute):
         self.assertIn("amount is a number", errors_of(out))
 
     # 5. a litter's pups
-    def test_a_litter_born_with_its_pup_count_and_a_birth_date_it_replaces(self):
+    def test_a_litter_born_with_its_pup_count_and_a_second_litter_said_which(self):
         cage = self.make_cage(self.m, purpose="Breeding", notes="pair set up")
         code = one("select cage_id from mouse_cages where id=?", cage)
         out = run(self.member, litter(cage, days_ago(1), pups=8))
@@ -158,14 +158,16 @@ class Fixes(Compute):
         self.assertIn(f"Litter of 8 pups born in cage {code}", out.changes[0].summary)
         self.assertEqual(out.changes[0].warnings, [])
         run(self.member, litter(cage, days_ago(1), pups=8), apply=True)
-        self.assertEqual(one("select notes from mouse_cages where id=?", cage),
-                         f"pair set up; {days_ago(1)}: litter born, 8 pups")
+        # The count is the litter's own now, not a line in the cage's notes.
+        self.assertEqual(one("select notes from mouse_cages where id=?", cage), "pair set up")
+        self.assertEqual(one("select pups from cage_litters where cage_id_fk=?", cage), 8)
         self.assertEqual(str(one("select date_give_birth from mouse_cages where id=?", cage))[:10], days_ago(1))
-        # A second birth while the first litter is still there: the page's own warning, once.
+        # A second birth while the first litter is still there: asked, not guessed.
         out = run(self.member, litter(cage, days_ago(0), pups=1))
+        self.assertIn("Say another: true", errors_of(out))
+        out = run(self.member, litter(cage, days_ago(0), pups=1, another=True))
+        self.assertTrue(out.ok, out.errors)
         self.assertIn("Litter of 1 pup born", out.changes[0].summary)
-        replaced = [w for w in out.changes[0].warnings if "replaces the litter born" in w]
-        self.assertEqual(len(replaced), 1, out.changes[0].warnings)
         out = run(self.member, litter(cage, days_ago(0), pups=0))
         self.assertIn("pups is a whole number from 1 to 40", errors_of(out))
 

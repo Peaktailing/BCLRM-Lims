@@ -141,7 +141,8 @@
       }
     } else if (op.action === "litter_born") {
       var cage = byId(v.cages, target);
-      if (cage) { cage.date_give_birth = f.date || today(); mark(cage); }
+      // Another litter keeps the earlier one: the cage's date is its oldest.
+      if (cage && !(f.another && cage.date_give_birth)) { cage.date_give_birth = f.date || today(); mark(cage); }
     } else if (op.action === "litter_genotyping") {
       var made = (op.creates || {}).mouse || [];
       made.forEach(function (id, i) {
@@ -443,8 +444,20 @@
     },
     litter: function () {
       var c = cageNow();
-      ask(t("Litter born in cage %(cage)s", { cage: c.cage_id }), [{ label: t("Born on"), type: "date", value: today() }], function (v) {
-        return record("litter_born", ref("cage", c.id), { date: v[0] || today() }, saw("cage", c, ["date_give_birth"]));
+      var fields = [{ label: t("Born on"), type: "date", value: today() }];
+      // A litter not yet weaned: a second female's, or a wrong date? The
+      // server refuses to guess, so the phone asks too.
+      if (c.date_give_birth) {
+        fields.push({ label: t("This cage has a litter born %(day)s, not yet weaned. This one is:", { day: c.date_give_birth }),
+                      type: "select", options: [["another", t("Another litter")], ["correct", t("Correct the date")]] });
+      }
+      ask(t("Litter born in cage %(cage)s", { cage: c.cage_id }), fields, function (v) {
+        var f = { date: v[0] || today() };
+        if (c.date_give_birth && f.date !== c.date_give_birth) {
+          f.another = v[1] === "another";
+          if (!f.another) f.litter = c.date_give_birth;
+        }
+        return record("litter_born", ref("cage", c.id), f, saw("cage", c, ["date_give_birth"]));
       });
     },
     genotyping: function () {

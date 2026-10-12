@@ -9,7 +9,7 @@ What goes in a person's digest:
 
   * overdue and imminent schedule items from the configurable organism
     modules (flip a vial, chunk a plate, re-freeze a strain)
-  * litters reaching weaning age
+  * litters reaching weaning age (each of a cage's litters on its own day)
   * breeder mice past the age the lab retires them
   * their own open tasks that are due
 
@@ -34,13 +34,13 @@ from sqlalchemy import select  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
 from app.models import (  # noqa: E402
-    CageRecord, LitterRecord, MouseRecord, OrgDue, OrganismModule, TaskItem, UserAccount,
+    CageRecord, MouseRecord, OrgDue, OrganismModule, TaskItem, UserAccount,
 )
 from app import i18n, mailer  # noqa: E402
+from app.services import weaning_due, weaning_title  # noqa: E402
 from app import organism_service as svc  # noqa: E402
 from app.i18n import gettext, ngettext, translate_value  # noqa: E402
 
-WEAN_AGE_DAYS = 21
 BREEDER_RETIRE_WEEKS = 30
 
 
@@ -116,20 +116,22 @@ def collect(session, horizon: int) -> dict[str, list[dict]]:
                 })
 
     # --- Mouse litters reaching weaning ----------------------------------
-    for litter in session.scalars(
-        select(LitterRecord).where(LitterRecord.date_of_birth.is_not(None))
-    ).all():
-        wean_on = litter.date_of_birth + timedelta(days=WEAN_AGE_DAYS)
-        days = (wean_on - today).days
-        if days > horizon or days < -30:
-            continue
-        owners = {(m.owner or "").strip() for m in litter.mice if (m.owner or "").strip()}
-        for owner in owners or {""}:
+    # The list Home and the calendar show (services.weaning_due): each
+    # litter born in a cage until it is weaned (a cage can have two, each
+    # with its own day), and litters of mice not yet weaned. The cage's
+    # owner hears of it, else the owners of the pups.
+    for wean in weaning_due(session, today - timedelta(days=30), cutoff):
+        days = (wean["due"] - today).days
+        cage, litter = wean["cage"], wean["litter"]
+        owners = ({cage.owner.strip()} if cage is not None and (cage.owner or "").strip()
+                  else {(m.owner or "").strip() for m in (litter.mice if litter is not None else [])
+                        if (m.owner or "").strip()})
+        for owner in owners:
             add(owner, lambda: gettext("Mouse colony"), lambda: {
-                "label": gettext("Wean litter %(litter)s", litter=litter.litter_id),
-                "detail": gettext("%(when)s (born %(date)s)", when=_when(days), date=litter.date_of_birth),
+                "label": gettext("Wean %(what)s", what=weaning_title(wean)),
+                "detail": gettext("%(when)s (born %(date)s)", when=_when(days), date=wean["born"]),
                 "urgency": _urgency(days),
-                "url": "/colony?view=litters",
+                "url": f"/colony?view=cages&scope=all#cage-{cage.id}" if cage is not None else "/colony?view=litters",
             })
 
     # --- Breeders past retirement age ------------------------------------

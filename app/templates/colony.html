@@ -717,7 +717,7 @@
                           <div class="cage-detail-tools">
                             <span class="cage-detail-title">{{ icon('cage') }} {% trans id=cage.cage_id %}Cage <span class="ident">{{ id }}</span>{% endtrans %}
                               <span class="text-muted">· {% if cage.total_count %}{{ _('%(live)s alive of %(total)s', live=cage.live_count, total=cage.total_count) }}{% else %}{{ _('%(live)s alive', live=cage.live_count) }}{% endif %}
-                              {%- if cage.genotyping_date %} · {{ _('genotype by %(date)s', date=cage.genotyping_date) }}{% endif %}</span></span>
+                              {%- if cage.genotyping_date and cage.litters|length < 2 %} · {{ _('genotype by %(date)s', date=cage.genotyping_date) }}{% endif %}</span></span>
                             {% if locked %}
                               <span class="cage-detail-lock">{{ icon('lock') }} {{ _('Read only: %(owner)s’s cage', owner=cage.owner or _('someone else')) }}</span>
                             {% else %}
@@ -728,12 +728,14 @@
                               <span class="breeding-actions {% if not cage.can_breed %}hidden-row{% endif %}" data-breeding-actions>
                                 <button type="button" class="btn btn-sm" data-litter-born
                                         data-action="{{ url_for('cage_give_birth', cage_row_id=cage.id) }}"
-                                        data-cage-label="{{ cage.cage_id }}" data-born="{{ cage.date_give_birth }}">
+                                        data-cage-label="{{ cage.cage_id }}" data-born="{{ cage.date_give_birth }}"
+                                        data-litters="{{ cage.open_litters | tojson | forceescape }}">
                                   {{ icon('baby') }} {{ _('Litter born') }}
                                 </button>
                                 <button type="button" class="btn btn-sm" data-genotyping
                                         data-action="{{ url_for('cage_genotyping', cage_row_id=cage.id) }}"
-                                        data-father="{{ cage.default_father }}" data-mother="{{ cage.default_mother }}">
+                                        data-father="{{ cage.default_father }}" data-mother="{{ cage.default_mother }}"
+                                        data-litters="{{ cage.litters | tojson | forceescape }}">
                                   {{ icon('dna') }} {{ _('Genotyping') }}
                                 </button>
                                 <button type="button" class="btn btn-sm" data-wean
@@ -741,7 +743,8 @@
                                         data-wean-action="{{ url_for('cage_wean', cage_row_id=cage.id) }}"
                                         data-target-label="{{ cage.cage_id }}"
                                         data-born="{{ cage.wean_born }}" data-age="{{ cage.wean_age }}"
-                                        data-pups="{{ cage.wean_pups | tojson | forceescape }}">
+                                        data-pups="{{ cage.wean_pups | tojson | forceescape }}"
+                                        data-litters="{{ cage.litters | tojson | forceescape }}">
                                   {{ icon('litter') }} {{ _('Wean') }}
                                 </button>
                               </span>
@@ -751,6 +754,18 @@
                               <a class="btn btn-sm btn-ghost" href="{{ url_for('colony', view='mice', scope='all', q=cage.cage_id) }}">{{ icon('table') }} {{ _('In the mouse sheet') }}</a>
                             {% endif %}
                           </div>
+                          {% if cage.litters|length > 1 %}
+                            {# Two litters waiting (a trio's two females): each with its age and its own days. #}
+                            <div class="flex flex-wrap gap-x-4 gap-1" data-cage-litters>
+                              {% for litter in cage.litters %}
+                                <span class="cage-wean" data-state="{{ litter.wean_state }}">{{ icon('baby') }}
+                                  {{ _('Litter born %(day)s', day=litter.label) }} · P{{ litter.age }}
+                                  {%- if litter.pups %} · {{ _('%(n)s pups', n=litter.pups) }}{% endif %}
+                                  {%- if litter.litter %} · {{ litter.litter }}{% endif %}
+                                  · {{ _('Wean %(date)s', date=litter.wean_due) }} · {{ _('genotype by %(date)s', date=litter.genotyping_due) }}</span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
                           {% if cage.mice %}
                             {# Its transgene columns are the ones the mouse sheet shows (the script below). #}
                             <table class="cage-mice-table" data-tg-table>
@@ -824,7 +839,8 @@
             {# One form per cage and per mouse, outside the table; cells join
                them through form="…". The _was copies are what the row showed:
                rack, position, location note and owner also change from the
-               mouse sheet, the rack grid and the dialog, and a stale row must
+               mouse sheet, the rack grid and the dialog (and the birth date,
+               the oldest litter, with Litter born and Wean), and a stale row must
                not write its old value back over them (app/formutil.py). A
                mouse form carries only the fields its sub-row shows, so it
                never moves the mouse or touches its dates. #}
@@ -836,6 +852,7 @@
                 <input type="hidden" name="position_was" value="{{ cage.position }}">
                 <input type="hidden" name="cage_location_was" value="{{ cage.cage_location }}">
                 <input type="hidden" name="owner_was" value="{{ cage.owner }}">
+                <input type="hidden" name="date_give_birth_was" value="{{ cage.date_give_birth }}">
               </form>
               {% for mouse in cage.mice %}
                 <form id="cage-mouse-update-{{ mouse.id }}" method="post" action="{{ url_for('update_mouse', mouse_row_id=mouse.id) }}"
@@ -1608,7 +1625,18 @@
   </form>
   <form method="post" id="litter-born-form" class="modal-grid">
     <label>{{ _('Date of birth') }} <input type="date" id="litter-born-date" name="date_give_birth" required></label>
-    <p class="muted-inline col-span-full" id="litter-born-replaces" hidden></p>
+    <label>{{ _('Pups') }} <input type="number" min="1" max="40" name="pups"></label>
+    <label>{{ _('Mother') }} <input name="dam"></label>
+    {# A cage with a litter not yet weaned: a second female's litter, or a
+       wrong date? Asked, never guessed (app.py _record_birth). #}
+    <fieldset class="col-span-full grid gap-1" id="litter-born-choice" hidden>
+      <legend class="muted-inline" id="litter-born-earlier"></legend>
+      <label class="inline-flex items-center gap-1.5"><input type="radio" name="litter_choice" value="another">
+        <span><strong>{{ _('Another litter') }}</strong> <span class="muted-inline">{{ _('A second female: both litters are kept, each with its own weaning and genotyping.') }}</span></span></label>
+      <label class="inline-flex items-center gap-1.5"><input type="radio" name="litter_choice" value="correct">
+        <span><strong>{{ _('Correct the date') }}</strong> <span class="muted-inline">{{ _('The earlier date was wrong: this one replaces it.') }}</span></span></label>
+      <label id="litter-born-which" hidden>{{ _('Which litter') }} <select name="litter" disabled></select></label>
+    </fieldset>
     <button type="submit">{{ _('Record the litter') }}</button>
   </form>
 </dialog>
@@ -1623,6 +1651,8 @@
     <label>{{ _('Father') }} <input id="genotyping-father" name="father_info"></label>
     <label>{{ _('Mother') }} <input id="genotyping-mother" name="mother_info"></label>
     <label>{{ _('Pups') }} <input type="number" min="1" max="40" value="1" name="total_pups" required></label>
+    {# A cage with two litters waiting: which one's pups (the oldest not yet genotyped first). #}
+    <label id="genotyping-which" hidden>{{ _('Litter') }} <select name="litter" disabled></select></label>
     <button type="submit">{{ _('Create litter') }}</button>
   </form>
 </dialog>
@@ -1636,6 +1666,8 @@
   <form method="post" id="wean-form">
     {# Set once the person has confirmed weaning pups younger than P{{ min_wean_age_days }}. #}
     <input type="hidden" name="early" value="">
+    {# A cage with two litters waiting: which one is weaned (the oldest first). #}
+    <label id="wean-which" hidden>{{ _('Litter') }} <select name="litter" disabled></select></label>
     <div class="table-wrap">
       <table class="dense-table fit-table" id="wean-rows-table">
         <thead>
@@ -1688,13 +1720,25 @@ document.addEventListener('click', (event) => {
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     document.getElementById('litter-born-form').action = born.dataset.action;
     document.getElementById('litter-born-cage').textContent = t('cage %(id)s', { id: born.dataset.cageLabel || '' });
+    const form = document.getElementById('litter-born-form');
     const day = document.getElementById('litter-born-date');
     day.value = today;
     day.max = today;
-    const note = document.getElementById('litter-born-replaces');
-    note.hidden = !born.dataset.born;
-    note.textContent = born.dataset.born
-      ? t('This cage already has a litter born %(date)s; the new date replaces it. Wean those pups first if they are still here.', { date: born.dataset.born }) : '';
+    form.elements.pups.value = '';
+    form.elements.dam.value = '';
+    // A litter not yet weaned: ask whether this is another one or a
+    // correction (the server refuses to guess). The same date again
+    // needs no answer: it is that litter.
+    let earlier = [];
+    try { earlier = JSON.parse(born.dataset.litters || '[]'); } catch (_) {}
+    litterBornEarlier = earlier;
+    document.getElementById('litter-born-earlier').textContent = earlier.length === 1
+      ? t('This cage has a litter born %(date)s that is not weaned yet. Is this one:', { date: earlier[0].label })
+      : t('This cage has litters born %(dates)s that are not weaned yet. Is this one:', { dates: earlier.map((l) => l.label).join(', ') });
+    const which = form.elements.litter;
+    which.replaceChildren(...earlier.map((l) => new Option(l.label, l.born)));
+    form.querySelectorAll('input[name="litter_choice"]').forEach((radio) => { radio.checked = false; });
+    showLitterBornChoice();
     document.getElementById('litter-born-modal').showModal();
     day.focus();
     return;
@@ -1705,12 +1749,85 @@ document.addEventListener('click', (event) => {
     form.action = geno.dataset.action;
     document.getElementById('genotyping-father').value = geno.dataset.father || '';
     document.getElementById('genotyping-mother').value = geno.dataset.mother || '';
+    form.elements.total_pups.value = '1';
+    // Which litter's pups, when the cage has two waiting: the oldest not
+    // yet genotyped first; its count and mother fill in when recorded.
+    let litters = [];
+    try { litters = JSON.parse(geno.dataset.litters || '[]'); } catch (_) {}
+    const pick = form.elements.litter;
+    pick.replaceChildren(...litters.map((l) => new Option(litterOptionLabel(l), l.born)));
+    pick.value = (litters.find((l) => !l.genotyped) || litters[0] || {}).born || '';
+    pick.disabled = litters.length < 2;
+    document.getElementById('genotyping-which').hidden = litters.length < 2;
+    const fill = () => {
+      const chosen = litters.find((l) => l.born === pick.value) || litters[0];
+      if (chosen && chosen.pups) form.elements.total_pups.value = chosen.pups;
+      document.getElementById('genotyping-mother').value = (chosen && chosen.dam) || geno.dataset.mother || '';
+    };
+    pick.onchange = fill;
+    fill();
     document.getElementById('genotyping-modal').showModal();
     return;
   }
   const wean = event.target.closest('[data-wean]');
   if (wean) openWeanModal(wean);
 });
+
+/* A cage's litter in a "which litter" list: its birth date, its age, and
+   the litter of mice its pups are once genotyped. */
+function litterOptionLabel(l) {
+  return `${l.label} · P${l.age}${l.litter ? ' · ' + l.litter : ''}`;
+}
+
+/* Litter born on a cage with a litter not yet weaned: Another litter or
+   Correct the date, asked unless the date is that litter's own. */
+let litterBornEarlier = [];
+function showLitterBornChoice() {
+  const form = document.getElementById('litter-born-form');
+  const date = form.elements.date_give_birth.value;
+  const ask = litterBornEarlier.length > 0 && !litterBornEarlier.some((l) => l.born === date);
+  document.getElementById('litter-born-choice').hidden = !ask;
+  form.querySelectorAll('input[name="litter_choice"]').forEach((radio) => { radio.required = ask; });
+  const correcting = ask && form.querySelector('input[name="litter_choice"][value="correct"]').checked;
+  const several = correcting && litterBornEarlier.length > 1;
+  document.getElementById('litter-born-which').hidden = !several;
+  form.elements.litter.disabled = !several;
+}
+document.getElementById('litter-born-form')?.addEventListener('change', showLitterBornChoice);
+document.getElementById('litter-born-form')?.addEventListener('input', showLitterBornChoice);
+
+/* Weaning pups under P{{ min_wean_age_days }} asks first (the server refuses without early=1). */
+function confirmYoungPups(cageLabel, age) {
+  return BioDialog.confirm(
+    (age < 0 ? t('The pups in cage %(cage)s are not born yet by their date.', { cage: cageLabel })
+      : t('The pups in cage %(cage)s are %(age)s days old.', { cage: cageLabel, age: age }))
+    + ' ' + t('Weaning is due at P%(days)s.', { days: {{ wean_offset_days | int }} }) + '\n\n' + t('Wean them early anyway?'),
+    { danger: true, okLabel: t('Wean early'), title: t('These pups are young') });
+}
+
+/* A cage with two litters waiting: the one picked in the Wean dialog is
+   checked for its age when the dialog is sent. */
+let weanLitters = [];
+document.getElementById('wean-form')?.addEventListener('submit', async (event) => {
+  const form = event.target;
+  const pick = form.elements.litter;
+  if (pick.disabled || form.elements.early.value === '1') return;
+  const chosen = weanLitters.find((l) => l.born === pick.value);
+  if (!chosen || chosen.age >= {{ min_wean_age_days | int }}) return;
+  event.preventDefault();
+  const submitter = event.submitter;
+  if (!(await confirmYoungPups(form.dataset.cageLabel || '', chosen.age))) return;
+  form.elements.early.value = '1';
+  form.requestSubmit(submitter);
+});
+
+function fillWeanRows(pups) {
+  const body = document.getElementById('wean-rows-body');
+  body.innerHTML = '';
+  addWeanRow({ gender: 'F', mice: pups.F || '' });
+  addWeanRow({ gender: 'M', mice: pups.M || '' });
+  if (pups['']) addWeanRow({ gender: '', mice: pups[''] });
+}
 
 function addWeanRow(prefill) {
   const body = document.getElementById('wean-rows-body');
@@ -1741,17 +1858,22 @@ async function openWeanModal(button) {
   const form = document.getElementById('wean-form');
   if (!dialog || !form) return;
   const cageLabel = button.dataset.targetLabel || '';
-  // Pups under P{{ min_wean_age_days }}: ask first (the server refuses without early=1).
-  const age = parseInt(button.dataset.age, 10);
+  form.dataset.cageLabel = cageLabel;
   form.elements.early.value = '';
-  if (!Number.isNaN(age) && age < {{ min_wean_age_days | int }}) {
-    const ok = await BioDialog.confirm(
-      (age < 0 ? t('The pups in cage %(cage)s are not born yet by their date.', { cage: cageLabel })
-        : t('The pups in cage %(cage)s are %(age)s days old.', { cage: cageLabel, age: age }))
-      + ' ' + t('Weaning is due at P%(days)s.', { days: {{ wean_offset_days | int }} }) + '\n\n' + t('Wean them early anyway?'),
-      { danger: true, okLabel: t('Wean early'), title: t('These pups are young') });
-    if (!ok) return;
-    form.elements.early.value = '1';
+  // Two litters waiting: the dialog asks which (the oldest first), fills
+  // the rows with its pups, and checks its age when sent (above).
+  try { weanLitters = JSON.parse(button.dataset.litters || '[]'); } catch (_) { weanLitters = []; }
+  const pick = form.elements.litter;
+  pick.replaceChildren(...weanLitters.map((l) => new Option(litterOptionLabel(l), l.born)));
+  pick.disabled = weanLitters.length < 2;
+  document.getElementById('wean-which').hidden = weanLitters.length < 2;
+  if (weanLitters.length < 2) {
+    // Pups under P{{ min_wean_age_days }}: ask first (the server refuses without early=1).
+    const age = parseInt(button.dataset.age, 10);
+    if (!Number.isNaN(age) && age < {{ min_wean_age_days | int }}) {
+      if (!(await confirmYoungPups(cageLabel, age))) return;
+      form.elements.early.value = '1';
+    }
   }
   document.getElementById('wean-cage-label').textContent = cageLabel ? '· ' + t('cage %(id)s', { id: cageLabel }) : '';
   document.getElementById('wean-submit-distribute').setAttribute('formaction', button.dataset.distributeAction);
@@ -1760,11 +1882,11 @@ async function openWeanModal(button) {
   // cage's pups when they are entered as mice; unsexed pups get a row too.
   let pups = {};
   try { pups = JSON.parse(button.dataset.pups || '{}'); } catch (_) {}
-  const body = document.getElementById('wean-rows-body');
-  body.innerHTML = '';
-  addWeanRow({ gender: 'F', mice: pups.F || '' });
-  addWeanRow({ gender: 'M', mice: pups.M || '' });
-  if (pups['']) addWeanRow({ gender: '', mice: pups[''] });
+  fillWeanRows(pups);
+  pick.onchange = () => {
+    const chosen = weanLitters.find((l) => l.born === pick.value);
+    if (chosen) fillWeanRows(chosen.wean_pups || {});
+  };
   dialog.showModal();
 }
 
