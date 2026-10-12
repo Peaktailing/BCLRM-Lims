@@ -26,7 +26,7 @@ from . import groups, lab, notify, telemetry, whats_new
 from .db import SessionLocal
 from .i18n import gettext, translate_value
 from .models import NotificationRecord, UserAccount
-from .services import WEAN_OFFSET_DAYS
+from .services import weaning_offset
 
 bp = Blueprint("lab", __name__)
 
@@ -168,7 +168,7 @@ def setup():
             admins=[{"id": a.id, "username": a.username, "name": a.display_name or a.username} for a in admins],
             members=[{"id": m.id, "username": m.username, "name": m.display_name or m.username} for m in members],
             date_styles=lab.DATE_STYLES, timezones=lab.timezone_names(), server_timezone=lab.server_timezone(),
-            local_setup=bool(current_app.config.get("LOCAL_SETUP")), wean_offset_days=WEAN_OFFSET_DAYS,
+            local_setup=bool(current_app.config.get("LOCAL_SETUP")), wean_offset_days=weaning_offset(),
             heartbeat_off_by_server=telemetry.off_by_env())
 
 

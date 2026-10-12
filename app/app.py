@@ -83,7 +83,7 @@ from .services import (
     add_notification,
     breeder_mice,
     is_breeding_cage,
-    WEAN_OFFSET_DAYS,
+    weaning_offset,
     MIN_WEAN_AGE_DAYS,
     mark_weaned,
     weaning_due,
@@ -1452,7 +1452,7 @@ def cage_pup_litter(cage) -> LitterRecord | None:
 
 
 def cage_wean_due(cage) -> tuple[str, str]:
-    """(date, state): the P21 weaning day from the cage's litter-born date,
+    """(date, state): the lab's weaning day from the cage's litter-born date,
     else from its pups' litter; state is "overdue", "soon" (within 3 days)
     or ""."""
     born = cage.date_give_birth
@@ -1461,7 +1461,7 @@ def cage_wean_due(cage) -> tuple[str, str]:
         born = litter.date_of_birth if litter else None
     if born is None:
         return "", ""
-    due = born + timedelta(days=WEAN_OFFSET_DAYS)
+    due = born + timedelta(days=weaning_offset())
     left = (due - date.today()).days
     return due.isoformat(), ("overdue" if left < 0 else "soon" if left <= 3 else "")
 
@@ -1787,8 +1787,8 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
         "experiments_list": experiments_list,
         "open_experiments": open_experiments,
         "totals": totals,
-        "wean_offset_days": WEAN_OFFSET_DAYS,
-        "min_wean_age_days": MIN_WEAN_AGE_DAYS,
+        "wean_offset_days": weaning_offset(),
+        "min_wean_age_days": min(MIN_WEAN_AGE_DAYS, weaning_offset()),
         "cage_geno_offset_days": genotyping_offset(),
     }
 
@@ -1872,8 +1872,8 @@ def home_dashboard():
                 "cage_id": mouse.cage.cage_id if mouse.cage else "",
             })
 
-        # ---- Upcoming weanings: litters whose weaning day (DOB + P21, the
-        # same WEAN_OFFSET_DAYS the cage cards use) is within ±7 days -------
+        # ---- Upcoming weanings: litters whose weaning day (DOB + the lab's
+        # weaning day, as the cage cards use) is within ±7 days -------
         weanings = []
         for item in weaning_due(db_session, today - timedelta(days=7), today + timedelta(days=7))[:10]:
             days_to_wean = (item["due"] - today).days
@@ -2046,7 +2046,7 @@ def home_dashboard():
         orders_list=orders_list,
         events_list=events_list,
         restock=restock,
-        wean_offset_days=WEAN_OFFSET_DAYS,
+        wean_offset_days=weaning_offset(),
     )
 
 
@@ -2329,7 +2329,7 @@ def settings():
         lab_data=lab_data, updates=updates, version_info=whats_new.version_info(), lab_features=lab.FEATURES, stock_choices=lab.STOCK_CHOICES,
         inventory_choices=lab.INVENTORY_CHOICES, member_permissions=lab.MEMBER_PERMISSIONS,
         date_styles=lab.DATE_STYLES, timezones=lab.timezone_names(), server_timezone=lab.server_timezone(),
-        wean_offset_days=WEAN_OFFSET_DAYS, roles=access.ROLES, group_switches=project_groups.SWITCHES,
+        wean_offset_days=weaning_offset(), roles=access.ROLES, group_switches=project_groups.SWITCHES,
         group_parts=project_groups.PARTS, stock_default_labels={k: STOCK_PRESETS[k]["label"] for k in lab.STOCK_CHOICES},
         user_settings=user_data,
         landing_choices=sorted(ALLOWED_LANDING_ENDPOINTS),
@@ -4595,7 +4595,7 @@ def cage_give_birth(cage_row_id: int):
             before = cage.date_give_birth
             cage.date_give_birth = born
             db_session.commit()
-            wean = fmt_day(born + timedelta(days=WEAN_OFFSET_DAYS))
+            wean = fmt_day(born + timedelta(days=weaning_offset()))
             if born == date.today():
                 flash(gettext("Recorded a litter born today in cage %(cage)s: weaning is due %(wean)s.",
                               cage=cage.cage_id, wean=wean), "success")
@@ -4606,7 +4606,7 @@ def cage_give_birth(cage_row_id: int):
                 # The cage holds one litter date: say what the new one replaced,
                 # so a litter still waiting to be weaned isn't forgotten.
                 flash(gettext("It replaces the litter born %(born)s (weaning was due %(wean)s). If those pups are still in the cage, wean them first.", born=fmt_day(before),
-                              wean=fmt_day(before + timedelta(days=WEAN_OFFSET_DAYS))), "warning")
+                              wean=fmt_day(before + timedelta(days=weaning_offset()))), "warning")
     return _back_to_colony("cages")
 
 
@@ -4694,14 +4694,14 @@ def _too_young_to_wean(cage) -> str | None:
     if born is None:
         return None
     age = (date.today() - born).days
-    if age >= MIN_WEAN_AGE_DAYS:
+    if age >= min(MIN_WEAN_AGE_DAYS, weaning_offset()):
         return None
-    due = born + timedelta(days=WEAN_OFFSET_DAYS)
+    due = born + timedelta(days=weaning_offset())
     if age < 0:
         return gettext("Cage %(cage)s's litter is dated %(born)s, in the future. Correct its date before weaning.",
                        cage=cage.cage_id, born=fmt_day(born))
     return gettext("The pups in cage %(cage)s are %(age)s days old; weaning is due %(due)s (P%(days)s). Nothing was changed. To wean them early anyway, confirm it when asked.", cage=cage.cage_id, age=age,
-                   due=fmt_day(due), days=WEAN_OFFSET_DAYS)
+                   due=fmt_day(due), days=weaning_offset())
 
 
 @app.route("/colony/cages/<int:cage_row_id>/wean-distribute", methods=["POST"])

@@ -879,7 +879,8 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
                   today: date | None = None) -> dict:
     """How to breed `count` mice of a genotype (and sex), aged within a
     window on a day: the odds per mating, how many matings, and by when."""
-    from .services import WEAN_OFFSET_DAYS
+    from .services import weaning_offset
+    wean_days = weaning_offset(session)
     today = today or date.today()
     if not isinstance(want, dict) or not want:
         raise ValueError("Say the genotype wanted at each locus, e.g. {\"Cre\": \"carrier\", \"Foxp3\": \"hom\"}.")
@@ -959,7 +960,7 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
 
     timing = None
     if by is not None:
-        youngest = age_min_days if age_min_days is not None else WEAN_OFFSET_DAYS
+        youngest = age_min_days if age_min_days is not None else wean_days
         born_by = by - timedelta(days=youngest)
         born_from = by - timedelta(days=age_max_days) if age_max_days is not None else None
         set_up_by = born_by - timedelta(days=PAIRING_TO_BIRTH)
@@ -967,8 +968,8 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
                   "set_up_from": max(born_from - timedelta(days=PAIRING_TO_BIRTH), today).isoformat()
                   if born_from else None,
                   "set_up_by": set_up_by.isoformat(),
-                  "wean_from": (born_from + timedelta(days=WEAN_OFFSET_DAYS)).isoformat() if born_from else None,
-                  "wean_by": (born_by + timedelta(days=WEAN_OFFSET_DAYS)).isoformat(),
+                  "wean_from": (born_from + timedelta(days=wean_days)).isoformat() if born_from else None,
+                  "wean_by": (born_by + timedelta(days=wean_days)).isoformat(),
                   "genotype_by": (born_by + timedelta(days=lab.genotyping_day(session))).isoformat(),
                   "too_late": set_up_by < today}
         if timing["too_late"]:
@@ -980,7 +981,7 @@ def breeding_plan(session, want: dict, sex: str = "", count: int = 1, age_min_da
         "written without het or hom is hemizygous (het). Mice marked sure: false were read that way; check them.",
         f"Litter size: {litter['source']}; pups that reach weaning: {litter['kept_source']}.",
         f"One litter counted per mating, {PAIRING_TO_BIRTH} days from setting it up to the birth (19–21 days' "
-        f"gestation), weaning at P{WEAN_OFFSET_DAYS}." + (" Half the pups taken as each sex." if sex else ""),
+        f"gestation), weaning at P{wean_days}." + (" Half the pups taken as each sex." if sex else ""),
         f"matings: enough to have {count} with {confidence:.0%} confidence (binomial); matings_on_average: "
         "enough on average. males_short counts a male with up to two females at a time (a trio).",
         "A breeder that carries more than the loci asked (also_carries) can pass that on too; those crosses "

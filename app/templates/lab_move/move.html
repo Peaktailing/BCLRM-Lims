@@ -27,6 +27,7 @@
     <label class="field-label">{{ _('Setup code') }}
       <input name="setup_code" autocomplete="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx" class="font-mono">
       <small class="field-hint">{{ _('Printed in the server’s log when it started. A server you set up from this app needs none.') }}</small>
+      <small class="field-hint">{{ _('To see it, run this on the server, in BioManager’s deploy folder:') }} <code>docker compose logs app | grep "setup code"</code></small>
     </label>
     <div class="flex flex-wrap gap-2">
       <button type="submit" class="btn btn-primary btn-lg">{{ _('Move') }}</button>

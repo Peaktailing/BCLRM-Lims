@@ -44,7 +44,7 @@ def notes_for(username, category=None):
 class LabSettingsCase(AppTestCase):
     """Remembers the lab-wide settings and puts them back afterwards."""
     KEYS = ["lab_setup_done", "lab_name", "members_create_databases", "members_share_databases",
-            "lab_timezone", "date_style", "genotyping_day"] + \
+            "lab_timezone", "date_style", "genotyping_day", "weaning_day"] + \
            [f"feature:{k}" for k in lab.FEATURES]
 
     def setUp(self):
@@ -492,3 +492,14 @@ class LabTimeAndDates(LabSettingsCase):
         r = self.a.get("/calendar/events.json", query_string={"start": days_ago(30), "end": days_ahead(40)})
         genos = [i["start"][:10] for i in r.get_json()["items"] if i["id"] == f"auto-cage-{cage}-geno"]
         self.assertEqual(genos, [(born + timedelta(days=25)).isoformat()])
+
+    def test_the_weaning_day_moves_the_reminder_and_the_cage(self):
+        self.survey(self.a, weaning_day="28")
+        born = TODAY - timedelta(days=10)
+        cage = self.make_cage(self.a, date_give_birth=born.isoformat())
+        due = (born + timedelta(days=28)).isoformat()
+        r = self.a.get("/calendar/events.json", query_string={"start": days_ago(30), "end": days_ahead(40)})
+        weans = [i["start"][:10] for i in r.get_json()["items"] if i["id"] == f"auto-cage-{cage}-wean"]
+        self.assertEqual(weans, [due])
+        self.assertIn(due, self.a.get("/colony?view=cages").get_data(as_text=True))
+        self.assertIn('value="28"', self.a.get("/settings").get_data(as_text=True))

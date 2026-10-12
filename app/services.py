@@ -991,31 +991,40 @@ def cage_is_active(cage: CageRecord) -> bool:
     return any(mouse_is_active(mouse) for mouse in cage.mice)
 
 
-# Weaning at P21 is the standard; the home dashboard, cage cards and the
-# calendar all read this one constant, and genotyping (a week after
-# weaning, P28) is one constant too: the cage, the calendar and Home must
-# never disagree about when it is due.
-WEAN_OFFSET_DAYS = 21
-GENO_OFFSET_DAYS = 28          # the default; the lab may choose another day (genotyping_offset)
+# Weaning at P21 and genotyping at P28 are the defaults; the lab may choose
+# other days (Lab setup, Settings). The home dashboard, cage cards and the
+# calendar all read weaning_offset and genotyping_offset: the cage, the
+# calendar and Home must never disagree about when it is due.
+WEAN_OFFSET_DAYS = 21          # the default (weaning_offset)
+GENO_OFFSET_DAYS = 28          # the default (genotyping_offset)
 CAGE_GENO_OFFSET_DAYS = GENO_OFFSET_DAYS
 
 
-def genotyping_offset(session=None) -> int:
-    """The day after birth the lab genotypes (Lab setup; P28 unless
-    chosen), read once per request."""
+def _lab_day(name: str, session=None) -> int:
+    """A day after birth the lab chose (lab.<name>), read once per request."""
     from flask import g, has_request_context
     from . import lab
-    if has_request_context() and "genotyping_day" in g:
-        return g.genotyping_day
+    if has_request_context() and name in g:
+        return g.get(name)
     if session is not None:
-        value = lab.genotyping_day(session)
+        value = getattr(lab, name)(session)
     else:
         from .db import SessionLocal
         with SessionLocal() as own:
-            value = lab.genotyping_day(own)
+            value = getattr(lab, name)(own)
     if has_request_context():
-        g.genotyping_day = value
+        setattr(g, name, value)
     return value
+
+
+def genotyping_offset(session=None) -> int:
+    """The day after birth the lab genotypes (P28 unless chosen)."""
+    return _lab_day("genotyping_day", session)
+
+
+def weaning_offset(session=None) -> int:
+    """The day after birth the lab weans (P21 unless chosen)."""
+    return _lab_day("weaning_day", session)
 
 
 # Younger than this, weaning asks first: P21 is the usual day, and pups
@@ -1024,7 +1033,8 @@ MIN_WEAN_AGE_DAYS = 18
 
 
 def weaning_due(session, start: date, end: date) -> list[dict]:
-    """Every litter waiting to be weaned whose day (born + P21) falls
+    """Every litter waiting to be weaned whose day (born + the lab's weaning
+    day, P21 unless chosen) falls
     between start and end, soonest first.
 
     The one source for Home, its layouts and the calendar, so they agree
@@ -1036,7 +1046,8 @@ def weaning_due(session, start: date, end: date) -> list[dict]:
     """
     from sqlalchemy.orm import selectinload
 
-    first, last = start - timedelta(days=WEAN_OFFSET_DAYS), end - timedelta(days=WEAN_OFFSET_DAYS)
+    wean_days = weaning_offset(session)
+    first, last = start - timedelta(days=wean_days), end - timedelta(days=wean_days)
     items: list[dict] = []
     cages = session.scalars(
         select(CageRecord).options(selectinload(CageRecord.mice).selectinload(MouseRecord.litter),
@@ -1052,7 +1063,7 @@ def weaning_due(session, start: date, end: date) -> list[dict]:
             if litter.weaned_on is not None:
                 continue
             counted.add(litter.id)
-        items.append({"born": born, "due": born + timedelta(days=WEAN_OFFSET_DAYS), "cage": cage,
+        items.append({"born": born, "due": born + timedelta(days=wean_days), "cage": cage,
                       "litter": litter, "pups": litter.total_pups if litter else 0})
     litters = session.scalars(
         select(LitterRecord).options(selectinload(LitterRecord.mice).selectinload(MouseRecord.cage)
@@ -1066,7 +1077,7 @@ def weaning_due(session, start: date, end: date) -> list[dict]:
         if litter.mice and not living:
             continue
         cage = next((m.cage for m in living if m.cage is not None), None)
-        items.append({"born": litter.date_of_birth, "due": litter.date_of_birth + timedelta(days=WEAN_OFFSET_DAYS),
+        items.append({"born": litter.date_of_birth, "due": litter.date_of_birth + timedelta(days=wean_days),
                       "cage": cage, "litter": litter, "pups": litter.total_pups or len(living)})
     items.sort(key=lambda item: (item["due"], item["litter"].litter_id if item["litter"] else ""))
     return items
@@ -1109,7 +1120,7 @@ def cage_derived_dates(cage: CageRecord) -> dict[str, str]:
         return {"genotyping_date": "", "weaning_date": ""}
     return {
         "genotyping_date": (cage.date_give_birth + timedelta(days=genotyping_offset())).isoformat(),
-        "weaning_date": (cage.date_give_birth + timedelta(days=WEAN_OFFSET_DAYS)).isoformat(),
+        "weaning_date": (cage.date_give_birth + timedelta(days=weaning_offset())).isoformat(),
     }
 
 
@@ -1421,7 +1432,7 @@ def export_mouse_rows(mouse_rows: list[dict[str, object]], export_format: str) -
 # - weaning at P21 (3 weeks)
 # - genotyping ~a week after weaning (P28)
 # - "old mouse" sac-threshold reminder at 30 weeks
-# WEAN_OFFSET_DAYS and GENO_OFFSET_DAYS are defined with the cage dates
+# weaning_offset and genotyping_offset are defined with the cage dates
 # above (one rule each for the home dashboard, cage cards and the calendar).
 SAC_THRESHOLD_WEEKS = 30
 

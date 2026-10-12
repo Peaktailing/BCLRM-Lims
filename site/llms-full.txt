@@ -103,7 +103,7 @@ Install the desktop app, open it the first time, and set up your lab.
 
 The first time the desktop app opens, it asks **Does your lab already use BioManager?** **Yes, open my lab** takes the lab's address, then you sign in as you do at the lab (or **use a code** approved on a device already signed in), and the computer joins the lab as one of your devices: its window works on the lab from then on, and it keeps a copy for when the server can't be reached ([Your devices](https://biomanager.org/guide/your-data#your-devices)). Nothing is made on the computer. **No, start a new lab** makes a new, empty lab, and says so: you name it, choose whether it lives on this computer or a lab server, and make its first account, which is the lab's **admin**. A server nobody has set up says it has no lab yet, and starts the same way, with the one-time setup code printed when the server started. The admin then answers a short survey, and BioManager builds exactly what you'll use — nothing more:
 
-1. **Your lab** — its name, time zone, how dates are written and the genotyping day ([what these do](https://biomanager.org/guide/lab-setup)).
+1. **Your lab** — its name, time zone, how dates are written, and the weaning and genotyping days ([what these do](https://biomanager.org/guide/lab-setup)).
 
 2. **What does your lab keep?** Tick animals and stocks (mice, zebrafish, flies, worms, other organisms) and molecular and supplies (plasmids, samples, orders, reagents, chemicals, antibodies, viruses). For each, a little more: a name (e.g. *Mouse room B*); for the colony how many racks, their size and how positions are labelled; for flies and worms which incubator temperatures you run. Blank means the usual.
 
@@ -450,7 +450,7 @@ The cages show three ways. **Table**: one row per cage, each with its mice benea
 
 Set up a mating by putting the breeders in a cage whose purpose is **Breeding**. On the **Cages** tab, open it (its arrow or mice count) or find its card under **Cards**: **Litter born**, **Genotyping** and **Wean** are there, and only on Breeding cages. **Create litter** numbers each litter L-1, L-2, L-3… (type your own ID instead if you like).
 
-1. **Litter born** asks for the date of birth (today unless you change it; a date in the future is refused) and records the birth. BioManager works out weaning (P21) and genotyping (P28, or the day set in [Settings → General](https://biomanager.org/guide/lab-setup)), which appear on Home and the calendar when due — the same list in both. A cage holds one litter date, so a new litter replaces the last: if those pups are still in the cage, wean them first.
+1. **Litter born** asks for the date of birth (today unless you change it; a date in the future is refused) and records the birth. BioManager works out weaning (P21) and genotyping (P28), or the days set in [Settings → General](https://biomanager.org/guide/lab-setup), which appear on Home and the calendar when due — the same list in both. A cage holds one litter date, so a new litter replaces the last: if those pups are still in the cage, wean them first.
 
 2. **Genotyping** asks for the mouse numbers of the father and mother, and how many pups were born; **Create litter** makes the litter and a mouse for each pup, set to *geno*. They wait in the genotyping queue on Home until you change their **Status** from *geno*; entering a genotype alone doesn't take them off it.
 
@@ -486,7 +486,7 @@ Who and where: Anyone who may edit the cage · Desktop and lab server
 
 5. Press **Record the litter**.
 
-BioManager works out weaning (P21) and genotyping (P28, or the day set in [Settings → General](https://biomanager.org/guide/lab-setup)), which appear on Home and the calendar when due — the same list in both. In the cage's row, *Litter born* and *Wean due* come right after the mice. To make a record for each pup, go on to [Genotype a litter](https://biomanager.org/guide/genotype-a-litter).
+BioManager works out weaning (P21) and genotyping (P28), or the days set in [Settings → General](https://biomanager.org/guide/lab-setup), which appear on Home and the calendar when due — the same list in both. In the cage's row, *Litter born* and *Wean due* come right after the mice. To make a record for each pup, go on to [Genotype a litter](https://biomanager.org/guide/genotype-a-litter).
 
 > **One litter date per cage** A cage holds one litter date, so a new litter replaces the last. If those pups are still in the cage, wean them first.
 
@@ -1373,7 +1373,7 @@ Who and where: Admins only
 
 After the first survey, the lab's setup is in **Settings**, under **Lab**. Admins change it; everyone else sees it, read only, so they know how the lab is set up. Each change is saved as you make it.
 
-- **General** — the lab's name, time zone, dates and genotyping day.
+- **General** — the lab's name, time zone, dates, and weaning and genotyping days.
 
 - **Databases** — switch each database and the calendar and notebook on or off; **Other databases** lists the ones made with **Add database** and members' own.
 
@@ -1390,6 +1390,8 @@ Under **General**, besides its name:
 - **Time zone** — what "today" and "overdue" mean, and the times shown. Blank uses the server's (or the computer's).
 
 - **Dates** — how dates are written in lists and messages: *Sep 26, 2026*, *26 Sep 2026* or *2026-09-26*. Date fields you type into follow your computer's language.
+
+- **Weaning day** — the day after birth a litter is due to be weaned (P21 unless you change it). Home, the calendar and the cage's **Wean due** date all follow it.
 
 - **Genotyping day** — the day after birth the genotyping reminder falls on (P28 unless you change it).
 

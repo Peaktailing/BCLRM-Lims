@@ -144,5 +144,6 @@
   "Waiting for it to be approved… The code lasts 10 minutes.": "正在等待批准……代码 10 分钟内有效。",
   "This computer joins the lab as one of your devices: sign in as you do at the lab. Your lab then opens in this window, and this computer keeps a daily copy of it.": "这台电脑将作为你的一台设备加入实验室：用你在实验室登录的方式登录。之后实验室会在这个窗口中打开，这台电脑每天保留一份副本。",
   "I sign in with Google or Microsoft: use a code": "我用 Google 或 Microsoft 登录：使用代码",
-  "Signed in this way, it is one of your devices under Settings → Devices & copies, where you can rename it or sign it out. To come back to this computer’s own BioManager, use Go → This Computer’s BioManager.": "这样登录后，它会出现在“设置 → 设备与副本”中你的设备里，你可以在那里重命名或让它退出。要回到这台电脑自己的 BioManager，请使用“前往 → 这台电脑的 BioManager”。"
+  "Signed in this way, it is one of your devices under Settings → Devices & copies, where you can rename it or sign it out. To come back to this computer’s own BioManager, use Go → This Computer’s BioManager.": "这样登录后，它会出现在“设置 → 设备与副本”中你的设备里，你可以在那里重命名或让它退出。要回到这台电脑自己的 BioManager，请使用“前往 → 这台电脑的 BioManager”。",
+  "To see it, run this on the server, in BioManager’s deploy folder:": "要查看它，请在服务器上 BioManager 的 deploy 文件夹里运行："
 }
