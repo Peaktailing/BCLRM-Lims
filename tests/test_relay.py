@@ -100,6 +100,24 @@ class Relay(AppTestCase):
             self.assertIsNone(desktop_join.joined())
             self.assertEqual(devices.window_url(), "")
 
+    def test_a_stylesheet_comes_through_as_one(self):
+        # One Content-Type, the server's: a second (text/plain) beside it
+        # made the Mac's window drop every stylesheet.
+        from app import desktop_join
+        with LabServer() as lab:
+            desktop_join.join(lab.url, self.who, PASSWORD)
+            base = desktop_join.start_relay()
+            host = base.split("//", 1)[1]
+            conn = http.client.HTTPConnection(host, timeout=15)
+            try:
+                conn.request("GET", "/static/tailwind.css", headers={"Host": host})
+                resp = conn.getresponse()
+                resp.read()
+                self.assertEqual(resp.status, 200)
+                self.assertEqual(resp.msg.get_all("Content-Type"), ["text/css; charset=utf-8"])
+            finally:
+                conn.close()
+
     def test_a_server_out_of_reach_says_so(self):
         from app import desktop_join
         with LabServer() as lab:

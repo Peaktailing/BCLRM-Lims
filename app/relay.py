@@ -144,6 +144,9 @@ class Relay:
         resp = conn.getresponse()
         self.jar.extract_cookies(_Headers(resp.msg), cookie_req)
         out = Response(status=resp.status)
+        # Werkzeug starts every Response as text/plain; added beside the
+        # server's own, WebKit (nosniff) took a stylesheet for plain text.
+        out.headers.remove("Content-Type")
         for key, value in resp.getheaders():
             low = key.lower()
             if low in DROPPED_DOWN:
