@@ -317,7 +317,7 @@ Bring along anything else that lives in the old `deploy/` folder: `certs/`
 with `TLS=files`, and `backups/` if `BACKUP_DIR` is not set. The database,
 the files and the lab's key are in Docker volumes named for the stack, so
 they stay. Then check: `https://DOMAIN/healthz` answers `ok`, **Settings →
-Devices & copies → Updates** offers **Update now**, and `sudo
+Version** offers **Update now**, and `sudo
 host/update.sh` says this version is the newest. Delete
 `Biomanager-checkout` once you are sure.
 
