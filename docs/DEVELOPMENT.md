@@ -276,6 +276,34 @@ off at first (to-dos, bookings, recent pages, calculators) and Recent
 plasmids. The calculators card puts the ones Utilities opened
 last first (`biomanager:util:recent` in `localStorage`, up to eight).
 
+**Animals that may need a look** (`app/welfare.py`, no schema change) is the
+card `welfare`, first of the colony's (or zebrafish's) cards, offered when
+the lab keeps either (`has_animals`). `welfare.checks()` is four
+deterministic checks, each `{id, title, severity, count, items, fix}` as
+`lab_checks` lists its own: `weight_loss` (a living mouse's latest weight at
+least `loss_pct()` below its peak in the last `WINDOW_DAYS` = 30 days, two
+weights at least, or below its first weight on or after the start of an
+active or paused experiment; the app setting `welfare_weight_loss_pct`,
+**Settings → General → Weight loss to flag**, 15 unless set, saved by
+`lab._apply_rest`); `welfare_notes` (mice, tanks and fish whose `audit_log`
+has a `create`, or an update touching `note`/`notes`, since `NOTES_DAYS` =
+14 days ago, and mouse weights of those days with a note, read by
+`welfare_words()`: `WORDS_EN` as whole words and `WORDS_ZH` as substrings,
+any case, skipping a word right after no/not/without/non or 无/没有/未见/未,
+with the first matching line); `not_weighed` (active colony experiments
+whose readout is body weight: a mouse not left out, not weighed since
+`max(last weight, start)` for more than `weigh_every()`, the longest gap
+between the regimen's reading days while they last, else 7); and
+`status_experiment` (`no_experiment`: status "experiment" in no
+planned/active/paused experiment, checked once the lab has any colony
+experiment; `other_status`: a non-blank other status in an active one,
+with `propose` setting it to "experiment"). Items carry `ref`, the numbers
+and a path `url`. `owner` narrows to a person's mice and the mice of their
+experiments; `home_view()` uses it for a member and the lab's for
+`access.is_care` (care, facility, admin), `?animals=mine|lab` switching,
+`HOME_LIMIT` rows per check. UTC stamps (`changed_at`) go through
+`day_start()`/`day_of()`; `weigh_date` is already the lab's day.
+
 ### Utilities
 
 `static/bench-calcs.js` is the arithmetic and its data (molecular weights,
@@ -586,6 +614,31 @@ Who may change what lives in one place, `app/access.py`:
   (`cage_purpose_chips()`). Revision 0029 wrote "Exp" and "Experiments" as
   "Experiment", made Stock cages shared Breeder cages, cleared "Retired",
   and took Stock and Retired out of the choices.
+- **A cage's litters** (`cage_litters`, `models.CageLitter`, revision 0037).
+  A mating cage often holds two females, so a second litter comes before
+  the first is weaned. Each birth is a row: `born`, `pups` and `dam` if
+  given, `litter_id_fk` (the litter of mice Genotyping made of its pups),
+  `weaned_on`. `mouse_cages.date_give_birth` stays, as the cage's oldest
+  litter not yet weaned (`services.refresh_birth_date`, called wherever
+  litters change), so the sheet's *Litter born* cell, the sync view, the
+  exports and every other reader of one date read as before; typing in that
+  cell corrects the oldest (`set_birth_date`; the row's `date_give_birth_was`
+  keeps a stale row from writing it back). `open_litters()` are the ones
+  not weaned, `waiting_litters()` those whose pups aren't all recorded
+  dead. **Litter born** (`app._record_birth`) on a cage with one open and a
+  new date wants `litter_choice` *another* or *correct* (and `litter`, the
+  birth date corrected, when there are two) and changes nothing without it;
+  the same date again only adds the count or mother. **Genotyping** and
+  **Wean** take `litter` (a birth date; `app._which_litter`), defaulting to
+  the oldest waiting (Genotyping: the oldest not yet genotyped);
+  `mark_weaned(cage, cage_litter=…)` weans that one and the litters of mice
+  born that day, and moves the cage's date on. `weaning_due` lists each
+  open litter (an item's `cage_litter`, and `several` when its cage has
+  two, which `weaning_title` shows as "(born 29 Sep)"); the calendar's
+  genotyping items are one per open litter too, and Home's genotyping queue
+  is one item per cage and litter. The table is audited, so undoing a wean
+  undoes its litter. Revision 0037 made each cage's date its first litter,
+  linked to the litter of its pups born that day.
 - **Unowned records stay open**, so records predating ownership don't lock
   anyone out.
 - **Lab common** (`is_shared`) on inventory items and plasmids
@@ -603,6 +656,49 @@ Visibility is deliberately *not* restricted — a census with holes is not a
 census. The **My colony / My groups / Shared / Everyone** switch on the
 colony page is a view filter (`access.scopes_for()` offers My groups only to
 someone in a group); edit rights are per record and don't change with it.
+
+### Uploaded files
+
+Every upload (a notebook page's pictures and attachments, a plasmid's
+files, a capture's photo or CSV) is saved by `services.save_uploaded_file`
+(or `save_uploaded_image`) under a random name in the uploads folder and
+served by one route, `/static/uploads/<path>` (`app/uploads.serve`, always
+registered, wherever the folder is: `app/static/uploads`, a frozen app's
+user-data folder, `BIOMANAGER_UPLOADS_DIR`). `security.guard_uploads` sends
+anyone not signed in to sign in; then the file goes only to someone who may
+see a record it belongs to, else 404 (`Cache-Control: no-store`; a file
+served is `private, max-age=3600`).
+
+What a file belongs to is the table `upload_owners` (`UploadOwner`,
+revision `0038_upload_owners`): `name`, and either `source = "upload"` with
+the `username` who uploaded it (the notebook editor's `/notebook/upload-image`
+and `/notebook/upload-file`, so a picture shows before its page is saved),
+or `source` = a table and `record_id` = a row whose text names
+`uploads/<name>`. An `after_flush` hook (`uploads._note_names`) adds those
+rows whenever any record naming a file is saved, through any page, the API
+or a proposal: a page's body, its versions, a template, `plasmid_files.path`,
+`captures.file_path`, an item's notes. The revision found what older
+records named by reading every text column. Rows are never removed; a
+record that went stops counting. `may_fetch` reads them by the indexed
+name and asks of each record, as its page would (`_record_visible`): a
+notebook page and the rows hanging off it (`page_id_fk`), `role_for` (so
+shares, the lab's `*` but not for guests, project groups; admins don't
+open others' private pages, nor their pictures); a capture, its owner; a
+template, its owner, or the lab or their project group if shared; a
+plasmid's file, while the plasmid exists (every plasmid is the lab's to
+see); the lab copy's classes for the rest (`ADMIN_ONLY` admins, `OWN_ROWS`
+the person, `OWN_OR_SHARED` owner or shared with them, a personal or
+project group's database and its rows `lab.can_see`); any other record is
+the lab's, for everyone signed in. A file no existing record names (never
+named, or its records deleted) is its uploader's and the admins'. A
+member's copy of the lab keeps the `upload_owners` rows of the records it
+holds and their own uploads (`uploads.narrow_copy`). A saved record adds
+its row only when whoever saves it may open the file already
+(`uploads._may_carry`: a file this request uploaded, `note_fresh` from
+`save_uploaded_file`; or `may_fetch` as above), so a name pasted into
+one's own page opens nothing for them or its readers; outside a request
+(start-up, scripts, the revision, a whole lab copied or moved) the records
+are the lab's own and count.
 
 ## Project groups
 
@@ -1037,7 +1133,9 @@ crossing the origin keeps `start > end`.
   `services.save_uploaded_file` into the uploads folder, with `kind` from
   the name (`_file_kind`: trace, image, document). Anyone who may edit the
   plasmid adds them; whoever added one, or an admin, takes it off, and the
-  file itself stays in uploads, as the notebook's do. Export my data
+  file itself stays in uploads, as the notebook's do (the lab sees it at
+  `/static/uploads/` while it is the plasmid's, the admins after:
+  `app/uploads.py`). Export my data
   carries them under `plasmids/<n>-<name>-files/`. Row ids without foreign
   keys, as for versions.
 - **Verify sequencing** (`app/seqverify.py`, pure; `static/seq-verify.js`
@@ -1390,7 +1488,14 @@ The header bell (`base.html`, `static/shell.js`) polls
 `/notifications/count` every minute while the tab is visible and fetches
 `/notifications/panel` when opened; `/notifications/<id>/open` marks one read
 and redirects only to a path in this app. The daily "waiting for genotyping"
-reminder is made on a user's first page of the day.
+reminder is made on a user's first page of the day, with
+`daily_experiment_reminder` and `daily_welfare_reminder` (category
+`welfare`: the counts of `welfare.checks()` losing weight, not weighed and
+notes, in Home's scope for that person; the status check isn't told).
+`notify.wants()`/`set_wants()` read and save each category's switch: a
+`users.notify_<category>` column, or for those in `SETTING_SWITCHES`
+(`welfare`) the app setting `notify_<category>:<username>`, `off` when
+silenced, so a new category needs no column.
 
 ## The lab notebook
 
@@ -1855,7 +1960,11 @@ from `ENDPOINTS`, so a new endpoint goes there too.
   plasmid has `has_sequence` and `length`); a litter's `cage` is where most
   of its living pups are and `cages` every one (a litter is in a cage only
   through its mice, as in `weaning_due`), and `/litters?cage=` lists those
-  with a living pup in it; `/experiments/<id>` is
+  with a living pup in it; a cage's `litters` are the litters born in it not
+  yet weaned (`services.cage_litter_json`: `born`, `pups`, `dam`, `litter`,
+  `age_days`, `wean_due`, `genotyping_due`), `litter_born` the oldest's date;
+  an item of `/due` about one carries it as `litter`, and its `propose` names
+  it when the cage has two; `/experiments/<id>` is
   `experiments.payload` without `PAGE_ONLY` (the step kinds, regimens,
   reagents, sample inventories and tests the page offers as choices).
 - **Writes reuse the pages' code**, so their rules hold: `PATCH /mice/<id>`
@@ -1937,9 +2046,14 @@ page itself.
   An `Action`'s optional `warn(s, target, values)` adds warnings of its own;
   `side_effects()` adds one for a record whose sharing changed though
   `shared` wasn't asked (a cage leaving Breeder is un-shared by
-  `models._breeder_cages_start_shared`). `litter_born` with `pups` adds
-  "<date>: litter born, N pups" to the cage's notes: the cage keeps a birth
-  date only, and the count is the litter's once genotyping makes it. `sample_from_animal` fills a sample's Source with the mouse, tank
+  `models._breeder_cages_start_shared`). `litter_born` keeps `pups` and
+  `mother` on the cage's litter (`cage_litters`, below); on a cage with a
+  litter not yet weaned and another date it needs `another` (true: a second
+  litter, both kept; false: a correction, with `litter`, the birth date of
+  the one corrected, when there are two) and is refused without it.
+  `litter_genotyping` and `wean` take `litter` (a birth date, or the litter
+  of mice its pups are) and otherwise act on the page's default, which their
+  summary names when the cage has two. `sample_from_animal` fills a sample's Source with the mouse, tank
   or animal. Plasmids go through `/plasmids` and `/plasmids/<id>/update`,
   with a pasted sequence through upload-sequence. Glycerol stocks and primers
   are items in those inventories, and a primer pair goes through
@@ -2034,7 +2148,8 @@ kept in `request_json`, shown on Proposed changes and stripped by
 again with `replaces`. Captures (`app/captures.py`, table `captures`,
 revision `0032_assistant_inbox`) are what a person wrote or photographed at
 the bench: text and one file (kept by `services.save_uploaded_file`, served
-to its owner only by `/captures/<id>/file`), with the record it was taken at
+to its owner only by `/captures/<id>/file`, as `/static/uploads/` is:
+`app/uploads.py`), with the record it was taken at
 (`at_kind`, `at_id`, `at_label`; from Bench mode or a scanned card's link,
 `from_card`). Status is waiting → used or dismissed. `GET
 /api/v1/captures[/<id>]` serve them; `for_assistant` inlines a photo as
@@ -2077,7 +2192,10 @@ and `males_short`, counting a male with up to two females.
 them and the `seed` (kept in the description) as they are. The pure parts (genotype model, binomial
 matings, noncentral-F power, stratified minimisation, usage rates, the ARRIVE
 builder) take plain values and are tested in
-`tests/test_assistant_compute.py`. `lab_checks`' `summary` counts each record
+`tests/test_assistant_compute.py`. `lab_checks` takes its animal checks
+(`weight_loss`, `welfare_notes`, `not_weighed`, `status_experiment`) from
+`welfare.checks()` (Home's card, tested in `tests/test_welfare.py`), making
+their `url`s whole; `weight_loss_pct` left out is the lab's setting. Its `summary` counts each record
 once per severity (`_distinct`: by reference, as often as the check that has
 it most), though an expired reagent is also an overdue job; `reorder_forecast`
 names what it can't forecast (`without_enough_history`). The endpoints are
@@ -3092,8 +3210,10 @@ private network such as Tailscale.
 - **Changes from other websites are refused.** Every POST is checked against
   the browser's `Sec-Fetch-Site`/`Origin` headers, so a malicious page cannot
   make a signed-in member's browser edit records. Sign out is a POST too.
-- **Uploads need a login**, get unguessable names, and are served so that an
-  uploaded HTML or SVG file downloads rather than running in the app.
+- **Uploads need a login**, get unguessable names, go only to someone who
+  may see a record they belong to (Access control → Uploaded files), and
+  are served so that an uploaded HTML or SVG file downloads rather than
+  running in the app.
 - **Google Calendar tokens are encrypted in the database** with a key
   derived from the signing key. Tokens saved before are encrypted at the
   next start. Losing or changing the key only means reconnecting Google

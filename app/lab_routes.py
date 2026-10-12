@@ -89,8 +89,9 @@ def refuse_switched_off():
 
 @bp.before_app_request
 def remind_once_a_day():
-    """The daily "waiting for genotyping" note, made on someone's first
-    page of the day (remembered in their session, so it costs one query)."""
+    """The daily notes (waiting for genotyping, due in your experiments,
+    animals that may need a look), made on someone's first page of the day
+    (remembered in their session, so it costs one query on the others)."""
     user = g.get("user")
     if user is None or request.method != "GET" or request.path.startswith(("/static", "/notifications/count", "/api/v1")):
         return None
@@ -103,6 +104,7 @@ def remind_once_a_day():
         if fresh is not None:
             reminded = notify.daily_genotyping_reminder(db_session, fresh)
             reminded = notify.daily_experiment_reminder(db_session, fresh) or reminded
+            reminded = notify.daily_welfare_reminder(db_session, fresh) or reminded
             if reminded:
                 db_session.commit()
     return None

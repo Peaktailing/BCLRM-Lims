@@ -430,6 +430,7 @@ def due(session, days: int) -> list[dict]:
                     "detail": it.get("detail", ""), "database": it.get("database") or group, "list": name,
                     "where": (it.get("loc") or {}).get("text", ""), "owner": it.get("owner", ""),
                     "ref": it.get("ref"), **({"mice": it["mice"]} if it.get("mice") else {}),
+                    **({"litter": it["litter"]} if it.get("litter") else {}),
                     "propose": it.get("propose"),
                     "url": request.host_url.rstrip("/") + it["url"] if it.get("url") else ""})
     out += _experiment_due(session, today, today + timedelta(days=days))

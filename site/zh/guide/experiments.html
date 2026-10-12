@@ -208,6 +208,18 @@
         （<code>1</code>、<code>2-5</code>、<code>2/3/4/5</code>、<code>1, 8, 15</code>）。第 1 天就是开始日期。要做的那些天
         会显示在日历上，实验负责人每天早上会收到当天待办的通知（在 <b>设置 → 通知 → 实验</b> （Settings → Notifications → Experiments）里关闭）。在页面上有人记录之前，什么都不算完成。<b>另存为
         处理方案…</b> （Save as a regimen…）把它保存下来，用于规划下一批队列。</p>
+      <h2 id="welfare">可能需要查看的动物</h2>
+      <p>首页的 <a href="home-page.html#animals">可能需要查看的动物</a> （Animals that may need a look）卡片也会读取小鼠实验的记录。
+        它只说记录显示了什么，从不做诊断：</p>
+      <ul>
+        <li><b>体重下降</b> （Losing weight）：小鼠最近一次体重比它在已开始的实验中的第一次体重，或比过去 30 天里最重的一次，
+          低了实验室设定的比例或更多（默认 15%，管理员可以在 <b>设置 → 一般 → 提示的体重下降</b> （Settings → General → Weight loss to flag）里修改）。</li>
+        <li><b>实验中未按时称重</b> （Not weighed in their experiment）：在观测指标为体重、正在进行的实验里，小鼠超过处理方案
+          各称重日之间最长的间隔没有称重（在第 1、4、7 天安排了 <i>观测日</i>：3 天）；方案没有安排称重，或最后一个称重日已过，
+          则为 7 天。被排除在分析之外的动物不计。</li>
+        <li><b>状态与实验不一致</b> （Status and experiment disagree）：状态是 <i>experiment</i>，却不在任何计划中、进行中或暂停的实验里；
+          或者在进行中的实验里，状态却是 <i>geno</i>、<i>breeder</i> 或 <i>transfer</i>。</li>
+      </ul>
       <h2 id="planned">计划中的实验，以及与计划的不同</h2>
       <p>AI 助手可以和你一起设计实验：分组、来自你保存的处理方案的给药安排、每组需要多少只动物，以及实验室有哪些动物可用
         （<a href="ai-assistants.html#plan">AI 助手</a>）。它以 <b>计划中</b> 的状态出现，此时还没有任何待办：不会出现在首页、
@@ -252,6 +264,7 @@
         <li class="lvl2"><a href="#derived">由测量值算出的观测指标</a></li>
         <li class="lvl2"><a href="#the-page">实验页面</a></li>
         <li class="lvl2"><a href="#the-regimen">处理方案</a></li>
+        <li class="lvl2"><a href="#welfare">可能需要查看的动物</a></li>
         <li class="lvl2"><a href="#planned">计划中的实验，以及与计划的不同</a></li>
         <li class="lvl2"><a href="#at-the-bench-and-afterwards">在实验台上，以及之后</a></li>
       </ol>

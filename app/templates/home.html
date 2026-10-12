@@ -127,6 +127,62 @@
     {% endif %}
   </article>
 {% endset %}{% set _discard = cards.update({"todos": c}) %}{% endif %}
+{% if welfare_view %}{% set c %}
+  {# Animals that may need a look (app/welfare.py): what the records show, never a diagnosis. #}
+  <article class="card flex flex-col" id="welfare">
+    <header class="card-head">
+      <h2>{{ icon('heart-pulse') }} {{ _('Animals that may need a look') }}</h2>
+      {% if welfare_view.scope == 'lab' %}
+        <a class="card-head-link" href="{{ url_for('home_dashboard', animals='mine') }}#welfare">{{ _('Show only yours') }}</a>
+      {% else %}
+        <a class="card-head-link" href="{{ url_for('home_dashboard', animals='lab') }}#welfare">{{ _('Show the lab’s') }}</a>
+      {% endif %}
+    </header>
+    {% if welfare_view.groups %}
+      <div class="flex flex-col">
+        {% for group in welfare_view.groups %}
+          <p class="px-4 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            {% if group.id == 'weight_loss' %}{{ _('Losing weight') }}{% elif group.id == 'welfare_notes' %}{{ _('Notes that may need a look') }}{% elif group.id == 'not_weighed' %}{{ _('Not weighed in their experiment') }}{% else %}{{ _('Status and experiment disagree') }}{% endif %}
+            · {{ group.count }}
+          </p>
+          {% for it in group.rows %}
+            <a class="row-line" href="{{ it.url }}">
+              <span class="ident shrink-0">{% if it.mouse %}#{{ it.mouse }}{% else %}{{ it.tank }}{% if it.fish %} · {{ it.fish }}{% endif %}{% endif %}</span>
+              <span class="min-w-0 flex-1 truncate text-ink-soft">
+                {% if group.id == 'weight_loss' %}
+                  {% if it.basis == 'experiment_start' %}{{ _('%(peak)s g on %(peak_on)s, its first weight in %(experiment)s → %(latest)s g on %(latest_on)s', peak='%g'|format(it.peak_g), peak_on=it.peak_on|day, experiment=it.experiment, latest='%g'|format(it.latest_g), latest_on=it.latest_on|day) }}{% else %}{{ _('peak %(peak)s g on %(peak_on)s → %(latest)s g on %(latest_on)s', peak='%g'|format(it.peak_g), peak_on=it.peak_on|day, latest='%g'|format(it.latest_g), latest_on=it.latest_on|day) }}{% endif %}
+                {% elif group.id == 'welfare_notes' %}
+                  “{{ it.line }}”{% if it.where == 'weight' %} · {{ _('weighed %(grams)s g', grams='%g'|format(it.grams)) }}{% endif %}
+                {% elif group.id == 'not_weighed' %}
+                  {{ it.experiment }} · {% if it.last_weighed %}{{ _('last weighed %(day)s', day=it.last_weighed|day) }}{% else %}{{ _('not weighed since it started') }}{% endif %}
+                {% elif it.kind == 'no_experiment' %}
+                  {{ _('status experiment, in no experiment') }}
+                {% else %}
+                  {{ _('status %(status)s, in %(experiment)s', status=it.status|tr, experiment=it.experiment) }}
+                {% endif %}
+              </span>
+              {% if group.id == 'weight_loss' %}
+                <span class="badge badge-danger shrink-0">−{{ '%g'|format(it.loss_pct) }}%</span>
+              {% elif group.id == 'welfare_notes' %}
+                <span class="badge badge-warn shrink-0" title="{{ it.words|join(', ') }}">{{ it.words[0] }}</span>
+              {% elif group.id == 'not_weighed' %}
+                <span class="badge badge-warn shrink-0">{{ _('%(n)sd', n=it.days) }}</span>
+              {% endif %}
+              {% if it.owner %}{{ it.owner | owner_badge }}{% endif %}
+            </a>
+          {% endfor %}
+          {% if group.more %}<p class="px-4 py-1 text-[11px] text-muted">{{ _('and %(n)s more', n=group.more) }}</p>{% endif %}
+        {% endfor %}
+        <p class="px-4 py-2 text-[11px] text-muted">{{ _('What the records show, to look at: never a diagnosis.') }}</p>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        {{ icon('check') }}
+        <p>{{ _('Nothing in the records needs a look.') }}</p>
+      </div>
+    {% endif %}
+  </article>
+{% endset %}{% set _discard = cards.update({"welfare": c}) %}{% endif %}
 {% if lab_features.colony %}{% set c %}
   <article class="card flex flex-col">
     <header class="card-head">

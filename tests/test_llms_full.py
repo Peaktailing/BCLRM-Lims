@@ -46,7 +46,7 @@ class LlmsFull(unittest.TestCase):
         self.assertEqual(published, self.text, "Run python scripts/llms-full.py after editing the guide")
 
     def test_a_note_s_title_is_set_off_from_its_text(self):
-        self.assertIn("> **One litter date per cage** A cage holds one litter date", self.text)
+        self.assertIn("> **Two litters in one cage** A trio's second female", self.text)
 
 
 if __name__ == "__main__":

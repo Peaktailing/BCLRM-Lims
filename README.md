@@ -121,7 +121,13 @@ never what you may edit.
   starts filled with the cage's pups, females and males apart, and sends
   each row to a new or existing cage; weaning before P18 asks first, and
   a weaned litter leaves every list. Birth dates in the future are
-  refused.
+  refused. A cage can have two litters at once (a trio's second female
+  gives birth before the first litter is weaned): **Litter born** then
+  asks whether it is **Another litter**, kept beside the first with its
+  own weaning and genotyping dates, or **Correct the date** of the first.
+  The cage lists each litter with its age, Home and the calendar show
+  each one ("Wean Cage 101 (born Sep 29)"), and **Genotyping** and
+  **Wean** ask which litter, the oldest first.
 - **Breeders** — the Breeder cages, the lab's breeding stock, at a glance,
   with the breeders counted by genotype and those past 30 weeks flagged;
   **Pick** takes a breeder as yours to set up a mating, and its owner is
@@ -154,6 +160,13 @@ never what you may edit.
     morning of what is due (Settings → Notifications → Experiments).
     Nothing is marked done until someone records it. **Save as a
     regimen…** keeps a regimen to start the next cohort from.
+  - **Animals that may need a look**, on Home: a mouse of an experiment
+    down the lab's weight-loss threshold from its first weight in it (or
+    from its peak of the last 30 days), one not weighed for longer than
+    the regimen's weighing days allow (7 days if it plans none; animals
+    left out of the analysis aren't counted), and a mouse whose status
+    says *experiment* while it is in no experiment, or something else
+    (geno, breeder) while it is in an active one.
   - **What was used**: pick the reagent from your inventories and its lot
     is kept with the day (an expired lot is flagged). When a day is a
     sampling, you can choose to **make a sample record for each mouse** in
@@ -591,6 +604,7 @@ database has a name of its own (one another database has is refused), so
     sequence, Gantt timelines) and mind maps from an indented list. Edit
     the page as Markdown, download it as `.md`, or import `.md` files.
   - **Pictures and files**: paste, drop, or take a photo on the phone.
+    They open only for the people who can open the page.
   - **Working together**: share a page to read or to edit, with lab mates,
     the whole lab or a project group. Editors write in it at the same time
     and see each other's cursors. Comments sit on a passage of text, and
@@ -645,7 +659,8 @@ database has a name of its own (one another database has is refused), so
     <td width="50%" valign="top">
       <h4>☀️ A home page that tells you what to do</h4>
       Built from the databases your lab keeps, in the sidebar's order:
-      a count for each database, then each one's own cards — mice older
+      a count for each database, then each one's own cards — <i>Animals
+      that may need a look</i> (below), mice older
       than 30 weeks, upcoming weanings and the genotyping queue for the
       colony, zebrafish tanks to return, recent plasmids, and a card of
       its own for each fly, worm or other animal database with what is
@@ -659,6 +674,18 @@ database has a name of its own (one another database has is refused), so
       and how wide, and which counts it shows, with your to-dos,
       bookings, recent pages and calculators (the ones you opened last)
       to add.
+      <br><br><b>Animals that may need a look</b> says what the records
+      show, never a diagnosis: a living mouse whose latest weight is 15%
+      or more below its peak of the last 30 days, or below its first
+      weight in an experiment (the lab sets the percentage in
+      <b>Settings → General → Weight loss to flag</b>); notes on a mouse,
+      tank or fish changed in the last 14 days that use a welfare word
+      (hunched, lethargic, not eating, wound, 弓背, 消瘦…, with the line
+      itself); mice in an experiment measuring body weight not weighed for
+      longer than its regimen allows (7 days if it plans no weighing
+      days); and mice whose status and experiments disagree. A member sees
+      their own animals and experiments (<b>Show the lab’s</b> for the
+      rest); animal care, facility managers and admins see the lab's.
     </td>
     <td width="50%" valign="top">
       <h4>📊 Spreadsheet-style editing</h4>
@@ -1219,6 +1246,9 @@ Open the breeding cage, choose **Litter born** and confirm the date of birth
 (today unless you change it). The weaning and
 genotyping dates appear on Home and the calendar when they come due. At
 weaning, add the pups with **Add many** and move them to their new cages.
+If the cage's last litter isn't weaned yet, say whether this is
+**Another litter** (both are kept, each with its own dates) or
+**Correct the date**.
 </details>
 
 <details>
@@ -1342,6 +1372,9 @@ track.
   animals, picks from your breeders, records a genotype for yours, writes
   @you in a note or a notebook comment, or when an order you placed is
   ordered, received or cancelled; admins hear of each new order request.
+  Once a day it also says how many animals may need a look (losing
+  weight, not weighed in an experiment, notes with a welfare word): your
+  own, or the lab's for animal care, facility managers and admins.
   Choose which kinds in **Settings → Notifications**. New members get a
   short welcome tour (**Settings → Your data → See the welcome tour
   again**).
@@ -1378,7 +1411,7 @@ track.
   (`/api/v1/search`), reads a record's history and family tree, and works
   things out from the lab's own records, changing nothing: animals available,
   a breeding plan, random groups, animals per group, when stock runs out, the
-  week's checks, an experiment's facts for its methods, a derived readout
+  week's checks (with the animals that may need a look), an experiment's facts for its methods, a derived readout
   (a tumour volume, ΔΔCt, fold change) from raw measurements, the animals used
   per protocol over a year (`/api/v1/animal-use`) and everything one person
   looks after (`/api/v1/handover`: your own, or an admin's of anyone). A *Read and

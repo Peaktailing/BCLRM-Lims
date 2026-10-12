@@ -225,8 +225,9 @@ class Handover(Reports):
         self.c.post("/colony/racks/save", data={"id": "", "name": rack, "rows": "3", "cols": "3"})
         rack_id = one("select id from mouse_racks where name=?", rack)
         cage = uniq("C")
-        self.make_cage(self.c, cage, purpose="Breeding", rack_id=str(rack_id), position="A1")
-        execute("update mouse_cages set date_give_birth=? where cage_id=?", TODAY - timedelta(days=18), cage)
+        # Its litter, born 18 days ago (a cage's litters are cage_litters rows: Litter born makes one).
+        self.make_cage(self.c, cage, purpose="Breeding", rack_id=str(rack_id), position="A1",
+                       date_give_birth=days_ago(18))
         mice = [self.make_mouse(self.c, self.leaver, cage=cage) for _ in range(2)]
         # A mouse of theirs in someone else's cage.
         elsewhere = uniq("C")

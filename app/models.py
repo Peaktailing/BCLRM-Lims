@@ -317,6 +317,39 @@ class CageRecord(Base):
 
     mice: Mapped[list["MouseRecord"]] = relationship(back_populates="cage")
     rack: Mapped["MouseRack | None"] = relationship()
+    # Each litter born here (a trio's two females give two, a week or two
+    # apart), oldest first; date_give_birth is the oldest not yet weaned.
+    cage_litters: Mapped[list["CageLitter"]] = relationship(
+        back_populates="cage", cascade="all, delete-orphan", order_by="[CageLitter.born, CageLitter.id]")
+
+
+class CageLitter(Base):
+    """A litter born in a cage (Litter born on a Breeding cage): its birth
+    date, how many pups if counted, its dam if known, and its own weaning
+    and genotyping days, until it is weaned. Genotyping makes its pups a
+    litter of mice (`litter`). The cage's date_give_birth is its oldest
+    litter not yet weaned (services.refresh_birth_date), so everything that
+    read one date per cage reads the same as before (revision 0037)."""
+
+    __tablename__ = "cage_litters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cage_id_fk: Mapped[int] = mapped_column(ForeignKey("mouse_cages.id"), index=True)
+    born: Mapped[date] = mapped_column(Date)
+    pups: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dam: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    litter_id_fk: Mapped[int | None] = mapped_column(ForeignKey("litters.id"), nullable=True, index=True)
+    weaned_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    cage: Mapped[CageRecord] = relationship(back_populates="cage_litters")
+    litter: Mapped["LitterRecord | None"] = relationship()
+
+    @property
+    def audit_label(self) -> str:
+        cage = self.__dict__.get("cage")
+        born = self.born.isoformat() if self.born else ""
+        return f"{cage.cage_id} · {born}" if cage is not None else born
 
 
 @event.listens_for(CageRecord.purpose, "set")
@@ -2113,6 +2146,23 @@ class Capture(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     proposal_id_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)   # the proposal that used it
     batch_id_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)      # and its batch
+
+
+class UploadOwner(Base):
+    """What an uploaded file (uploads/<name>) belongs to (app/uploads.py),
+    so /static/uploads/<name> is served only to someone who may see it.
+    `source` is the table of a record naming the file (`record_id` its
+    row), or "upload": `username` uploaded it. Rows are added when a
+    record naming a file is saved, never taken away: a record that went
+    no longer lets anyone see the file."""
+    __tablename__ = "upload_owners"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(300), index=True)
+    source: Mapped[str] = mapped_column(String(60), default="")
+    record_id: Mapped[int] = mapped_column(Integer, default=0)
+    username: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class NotebookPendingInsert(Base):

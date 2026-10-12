@@ -23,6 +23,7 @@ from .paths import uploads_dir
 from . import custom_fields
 from .models import (
     AnimalRecord,
+    CageLitter,
     CageRecord,
     CalendarEvent,
     CalendarSubscription,
@@ -677,6 +678,8 @@ def save_uploaded_image(upload: FileStorage | None) -> str:
     output_name = upload_name(upload.filename)
     destination = Path(UPLOAD_DIR / output_name)
     upload.save(destination)
+    from . import uploads
+    uploads.note_fresh(f"uploads/{output_name}")
     return f"uploads/{output_name}"
 
 
@@ -693,6 +696,9 @@ def save_uploaded_file(upload: FileStorage | None) -> dict | None:
         size_bytes = destination.stat().st_size
     except OSError:
         size_bytes = 0
+    # The record this request keeps it with owns it (app/uploads.py).
+    from . import uploads
+    uploads.note_fresh(f"uploads/{output_name}")
     return {
         "path": f"uploads/{output_name}",
         "original_name": upload.filename,
@@ -1032,6 +1038,66 @@ def weaning_offset(session=None) -> int:
 MIN_WEAN_AGE_DAYS = 18
 
 
+# ----- A cage's litters (models.CageLitter) ------------------------------
+# A mating cage often holds two females, so a second litter comes a week or
+# two after the first, before the first is weaned. Each birth is its own
+# litter with its own weaning and genotyping days; the cage's
+# date_give_birth is its oldest litter not yet weaned, kept so by
+# refresh_birth_date wherever litters change.
+
+def open_litters(cage: CageRecord) -> list[CageLitter]:
+    """The cage's litters not yet weaned, oldest first."""
+    return sorted((cl for cl in cage.cage_litters if cl.weaned_on is None), key=lambda cl: (cl.born, cl.id or 0))
+
+
+def pups_all_dead(cl: CageLitter) -> bool:
+    """Its pups were made mice at Genotyping and every one is recorded
+    dead: nothing is left to wean or genotype."""
+    litter = cl.litter
+    return litter is not None and bool(litter.mice) and all(m.date_of_death is not None for m in litter.mice)
+
+
+def waiting_litters(cage: CageRecord) -> list[CageLitter]:
+    """The cage's litters still to be weaned (not weaned, and not all
+    recorded dead), oldest first: what the cage, Home and the calendar list."""
+    return [cl for cl in open_litters(cage) if not pups_all_dead(cl)]
+
+
+def refresh_birth_date(cage: CageRecord) -> None:
+    """The cage's one birth date, as everything that reads one date sees
+    it: its oldest litter not yet weaned."""
+    still = open_litters(cage)
+    cage.date_give_birth = still[0].born if still else None
+
+
+def set_birth_date(cage: CageRecord, born: date | None) -> None:
+    """The cage's Litter born date typed in the sheet or a cage form: it is
+    the oldest litter not yet weaned, so a date there corrects that litter
+    (or records the first), and clearing it removes that litter."""
+    still = open_litters(cage)
+    if born is None:
+        if still:
+            cage.cage_litters.remove(still[0])
+    elif not still:
+        cage.cage_litters.append(CageLitter(born=born))
+    elif still[0].born != born:
+        still[0].born = born
+    refresh_birth_date(cage)
+
+
+def find_open_litter(cage: CageRecord, born: date | None) -> CageLitter | None:
+    """The cage's litter not yet weaned born on that day, if any."""
+    return next((cl for cl in open_litters(cage) if cl.born == born), None) if born else None
+
+
+def litter_wean_due(cl: CageLitter) -> date:
+    return cl.born + timedelta(days=weaning_offset())
+
+
+def litter_genotyping_due(cl: CageLitter, session=None) -> date:
+    return cl.born + timedelta(days=genotyping_offset(session))
+
+
 def weaning_due(session, start: date, end: date) -> list[dict]:
     """Every litter waiting to be weaned whose day (born + the lab's weaning
     day, P21 unless chosen) falls
@@ -1039,32 +1105,41 @@ def weaning_due(session, start: date, end: date) -> list[dict]:
 
     The one source for Home, its layouts and the calendar, so they agree
     with each other and with the cage sheet. Two things wait to be weaned:
-    a cage's "Litter born" date (the pups may not be entered as mice yet;
-    weaning the cage clears it), and a litter with a date of birth that has
-    not been weaned (weaned_on) and still has living mice or a pup count.
-    A litter whose pups sit in such a cage counts once, as that cage.
+    each litter born in a cage (cage_litters; the pups may not be entered
+    as mice yet), until it is weaned or its pups are recorded dead, and a
+    litter of mice with a date of birth that has not been weaned (weaned_on)
+    and still has living mice or a pup count. A litter of mice whose pups
+    are a cage's litter counts once, as that cage's. Each item carries its
+    cage's litter ("cage_litter"), and says when the cage has more than one
+    waiting ("several"), so titles can tell them apart.
     """
     from sqlalchemy.orm import selectinload
 
     wean_days = weaning_offset(session)
     first, last = start - timedelta(days=wean_days), end - timedelta(days=wean_days)
     items: list[dict] = []
-    cages = session.scalars(
-        select(CageRecord).options(selectinload(CageRecord.mice).selectinload(MouseRecord.litter),
-                                   selectinload(CageRecord.rack))
-        .where(CageRecord.date_give_birth.is_not(None),
-               CageRecord.date_give_birth >= first, CageRecord.date_give_birth <= last)).all()
+    births = session.scalars(
+        select(CageLitter).options(
+            selectinload(CageLitter.cage).selectinload(CageRecord.mice).selectinload(MouseRecord.litter),
+            selectinload(CageLitter.cage).selectinload(CageRecord.rack),
+            selectinload(CageLitter.cage).selectinload(CageRecord.cage_litters),
+            selectinload(CageLitter.litter).selectinload(LitterRecord.mice))
+        .where(CageLitter.weaned_on.is_(None), CageLitter.born >= first, CageLitter.born <= last)).all()
     counted: set[int] = set()
-    for cage in cages:
-        born = cage.date_give_birth
-        litter = next((m.litter for m in cage.mice
-                       if m.date_of_death is None and m.litter is not None and m.litter.date_of_birth == born), None)
+    for cl in births:
+        cage, born = cl.cage, cl.born
+        litter = cl.litter or next((m.litter for m in cage.mice
+                                    if m.date_of_death is None and m.litter is not None
+                                    and m.litter.date_of_birth == born), None)
         if litter is not None:
+            counted.add(litter.id)
             if litter.weaned_on is not None:
                 continue
-            counted.add(litter.id)
+        if pups_all_dead(cl):
+            continue
         items.append({"born": born, "due": born + timedelta(days=wean_days), "cage": cage,
-                      "litter": litter, "pups": litter.total_pups if litter else 0})
+                      "litter": litter, "pups": litter.total_pups if litter else (cl.pups or 0),
+                      "cage_litter": cl, "several": len(open_litters(cage)) > 1})
     litters = session.scalars(
         select(LitterRecord).options(selectinload(LitterRecord.mice).selectinload(MouseRecord.cage)
                                      .selectinload(CageRecord.rack))
@@ -1078,30 +1153,61 @@ def weaning_due(session, start: date, end: date) -> list[dict]:
             continue
         cage = next((m.cage for m in living if m.cage is not None), None)
         items.append({"born": litter.date_of_birth, "due": litter.date_of_birth + timedelta(days=wean_days),
-                      "cage": cage, "litter": litter, "pups": litter.total_pups or len(living)})
-    items.sort(key=lambda item: (item["due"], item["litter"].litter_id if item["litter"] else ""))
+                      "cage": cage, "litter": litter, "pups": litter.total_pups or len(living),
+                      "cage_litter": None, "several": False})
+    items.sort(key=lambda item: (item["due"], item["litter"].litter_id if item["litter"] else "",
+                                 item["cage"].cage_id if item["cage"] else ""))
     return items
+
+
+def born_day(day: date) -> str:
+    """A litter's birth day as the lab writes dates ("29 Sep")."""
+    from .app import fmt_day
+    return fmt_day(day)
 
 
 def weaning_title(item: dict) -> str:
     """"Litter L-12 · cage 12", or "Cage 12" before the pups are entered
-    (in the page's language)."""
+    (in the page's language); "Cage 12 (born 29 Sep)" when the cage has two
+    litters waiting, to tell them apart."""
     litter, cage = item["litter"], item["cage"]
     if litter is not None and cage is not None:
-        return gettext("Litter %(litter)s · cage %(cage)s", litter=litter.litter_id, cage=cage.cage_id)
-    if litter is not None:
-        return gettext("Litter %(litter)s", litter=litter.litter_id)
-    if cage is not None:
-        return gettext("Cage %(cage)s", cage=cage.cage_id)
-    return gettext("A litter")
+        title = gettext("Litter %(litter)s · cage %(cage)s", litter=litter.litter_id, cage=cage.cage_id)
+    elif litter is not None:
+        title = gettext("Litter %(litter)s", litter=litter.litter_id)
+    elif cage is not None:
+        title = gettext("Cage %(cage)s", cage=cage.cage_id)
+    else:
+        title = gettext("A litter")
+    if item.get("several"):
+        title = gettext("%(what)s (born %(born)s)", what=title, born=born_day(item["born"]))
+    return title
 
 
-def mark_weaned(cage: CageRecord, when: date | None = None) -> list[LitterRecord]:
-    """Weaning a cage: its "Litter born" date is cleared and the litters
-    of its pups are marked weaned. The pups are the living mice born on
-    that date, or, with no date, the youngest litter still under P28."""
+def cage_litter_json(cl: CageLitter) -> dict:
+    """A cage's litter as the API, the due list and an assistant see it:
+    its birth date (what `litter` takes in litter_genotyping and wean), its
+    pups and dam if recorded, the litter Genotyping made of its pups, and
+    its own days."""
+    return {"born": cl.born.isoformat(), "pups": cl.pups, "dam": cl.dam or "",
+            "litter": cl.litter.litter_id if cl.litter is not None else None,
+            "age_days": (date.today() - cl.born).days,
+            "wean_due": litter_wean_due(cl).isoformat(),
+            "genotyping_due": litter_genotyping_due(cl).isoformat()}
+
+
+def mark_weaned(cage: CageRecord, when: date | None = None,
+                cage_litter: CageLitter | None = None) -> list[LitterRecord]:
+    """Weaning one of a cage's litters (`cage_litter`, else its oldest not
+    yet weaned): it is marked weaned, and so are the litters of mice its
+    pups are (the living mice born that day). With no litter recorded in
+    the cage, the youngest litter of mice in it still under P28. The cage's
+    birth date moves on to its next litter, or is cleared."""
     when = when or date.today()
-    born = cage.date_give_birth
+    if cage_litter is None:
+        still = open_litters(cage)
+        cage_litter = still[0] if still else None
+    born = cage_litter.born if cage_litter is not None else None
     litters = {m.litter.id: m.litter for m in cage.mice
                if m.date_of_death is None and m.litter is not None and m.litter.date_of_birth
                and m.litter.weaned_on is None
@@ -1109,9 +1215,13 @@ def mark_weaned(cage: CageRecord, when: date | None = None) -> list[LitterRecord
     if not born and litters:
         youngest = max(litters.values(), key=lambda lit: lit.date_of_birth)
         litters = {youngest.id: youngest}
+    if cage_litter is not None:
+        cage_litter.weaned_on = when
+        if cage_litter.litter is not None and cage_litter.litter.weaned_on is None:
+            litters[cage_litter.litter.id] = cage_litter.litter
     for litter in litters.values():
         litter.weaned_on = when
-    cage.date_give_birth = None
+    refresh_birth_date(cage)
     return list(litters.values())
 
 
@@ -1500,24 +1610,29 @@ def derive_auto_calendar_items(session, start_dt=None, end_dt=None) -> list[dict
             return False
         return True
 
-    # ----- Cage wean + genotype ----------------------------------------
-    # Driven by CageRecord.date_give_birth (the cage's most recent litter
-    # date). For each one we derive a wean event at +21d and a genotype
-    # event at +28d. Title uses the cage's location, and the body includes
-    # the father + mother genotypes pulled from the linked litter when
-    # available.
-    cages = session.scalars(select(CageRecord).where(CageRecord.date_give_birth.is_not(None))).all()
-    for cage in cages:
-        dob = cage.date_give_birth
-        if dob is None:
+    # ----- Cage genotyping ---------------------------------------------
+    # Each litter born in a cage and not yet weaned (cage_litters) has its
+    # genotyping day (born + the lab's genotyping day); a cage with two
+    # litters has two, each titled with its birth date. The body includes
+    # the father + mother genotypes from the litter of its pups, when
+    # Genotyping made one.
+    from sqlalchemy.orm import selectinload
+    births = session.scalars(
+        select(CageLitter).options(selectinload(CageLitter.cage).selectinload(CageRecord.cage_litters),
+                                   selectinload(CageLitter.litter).selectinload(LitterRecord.mice))
+        .where(CageLitter.weaned_on.is_(None))).all()
+    for cl in births:
+        if pups_all_dead(cl):
             continue
+        cage, dob = cl.cage, cl.born
+        several = len(open_litters(cage)) > 1
 
         location_label = ((cage.cage_location or cage.cage_id or "").strip()
                           or gettext("Cage %(cage)s", cage=cage.id))
 
-        # Try to find the litter belonging to this cage: same DOB AND at
-        # least one mouse in this cage. Fall back gracefully if missing.
-        litter = session.scalar(
+        # The litter of its pups, or one born that day with a mouse in
+        # this cage. Fall back gracefully if missing.
+        litter = cl.litter or session.scalar(
             select(LitterRecord)
             .where(LitterRecord.date_of_birth == dob)
             .where(LitterRecord.mice.any(MouseRecord.cage_id_fk == cage.id))
@@ -1529,6 +1644,8 @@ def derive_auto_calendar_items(session, start_dt=None, end_dt=None) -> list[dict
         # on the wean / geno reminder, not just the raw ID.
         father = _parent_label(session, litter.father_info) if litter else ""
         mother = _parent_label(session, litter.mother_info) if litter else ""
+        if not mother and cl.dam:
+            mother = _parent_label(session, cl.dam)
         cage_geno = (cage.genotype_summary or "").strip()
         # Compose the notes line. Always include DOB; include parent geno
         # info when present, otherwise fall back to the cage's own summary.
@@ -1544,9 +1661,13 @@ def derive_auto_calendar_items(session, start_dt=None, end_dt=None) -> list[dict
         # Weaning comes from weaning_due below, the same list Home shows.
         geno = dob + timedelta(days=genotyping_offset(session))
         if _in_window(geno):
+            title = gettext("Genotype - %(where)s", where=location_label)
+            if several:
+                title = gettext("%(what)s (born %(born)s)", what=title, born=born_day(dob))
             items.append(_auto_item(
-                kind_tag="geno", anchor_id=cage.id,
-                title=gettext("Genotype - %(where)s", where=location_label),
+                # One a cage, as before; a second litter's has its own id.
+                kind_tag="geno" if not several else f"geno-{dob.isoformat()}", anchor_id=cage.id,
+                title=title,
                 color="#fcb77e",  # apricot
                 day=geno, body=body, source="cage",
                 href=f"/colony?view=cages&scope=all&q={quote(str(cage.cage_id))}",
@@ -1569,13 +1690,16 @@ def derive_auto_calendar_items(session, start_dt=None, end_dt=None) -> list[dict
             mother = _parent_label(session, litter.mother_info)
             body_parts += [gettext("Father: %(mouse)s", mouse=father)] if father else []
             body_parts += [gettext("Mother: %(mouse)s", mouse=mother)] if mother else []
+        elif wean["cage_litter"] is not None and wean["cage_litter"].dam:
+            body_parts.append(gettext("Mother: %(mouse)s", mouse=_parent_label(session, wean["cage_litter"].dam)))
         if cage is not None and (cage.genotype_summary or "").strip() and len(body_parts) == 1:
             body_parts.append(gettext("Genotype: %(genotype)s", genotype=cage.genotype_summary.strip()))
         where = ""
         if cage is not None:
             where = (cage.cage_location or "").strip()
         items.append(_auto_item(
-            kind_tag="wean", anchor_id=(cage.id if cage is not None else litter.id),
+            kind_tag="wean" if not wean["several"] else f"wean-{wean['born'].isoformat()}",
+            anchor_id=(cage.id if cage is not None else litter.id),
             title=(gettext("Wean - %(what)s (%(where)s)", what=weaning_title(wean), where=where) if where
                    else gettext("Wean - %(what)s", what=weaning_title(wean))),
             color="#b6e2a1",  # pistachio

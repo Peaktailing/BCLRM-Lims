@@ -30,6 +30,11 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.8.3": {
+        "changed": [
+            "The calendar follows light and dark as you switch, without reloading.",
+        ],
+    },
     "1.8.2": {
         "new": [
             "**Weaning day** in **Settings → General**, beside the genotyping day: P21 unless your lab chooses another, and every weaning date follows it.",

@@ -1,0 +1,7 @@
+{
+  "This cage has a litter born %(date)s that is not weaned yet. Is this one:": "这个笼已有一窝 %(date)s 出生、尚未断奶。这一窝是：",
+  "This cage has litters born %(dates)s that are not weaned yet. Is this one:": "这个笼已有 %(dates)s 出生、尚未断奶的几窝。这一窝是：",
+  "This cage has a litter born %(day)s, not yet weaned. This one is:": "这个笼已有一窝 %(day)s 出生、尚未断奶。这一窝是：",
+  "Another litter": "另一窝",
+  "Correct the date": "更正日期"
+}
