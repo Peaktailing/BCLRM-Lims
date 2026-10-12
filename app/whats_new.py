@@ -30,6 +30,11 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.10.1": {
+        "fixed": [
+            "Working offline, the phone lists each litter of a Breeding cage, and **Genotyping** and **Wean** ask **Which litter**.",
+        ],
+    },
     "1.10.0": {
         "new": [
             "**Strain** after **Custom tag** on every mouse: C57BL/6J, BALB/cJ and the other common strains are offered, and the list is on the colony's **Dropdowns** tab.",
