@@ -26,7 +26,7 @@ from . import i18n, inventory_service, organism_service, positions, stock_servic
 from .i18n import gettext, translate_value
 from .icons import resolve as resolve_icon
 from .models import CageRecord, CalendarEvent, InventoryItem, LitterRecord, MouseRack, MouseRecord, StockRack, StockUnit
-from .services import WEAN_OFFSET_DAYS, is_breeding_cage, weaning_due, weaning_title
+from .services import is_breeding_cage, weaning_offset, weaning_due, weaning_title
 
 LAYOUTS = {
     "classic": ("Classic", "columns"),
@@ -555,7 +555,7 @@ def build_agenda(session, today: date, horizon: int, features: dict, zebrafish: 
         items += _calendar_items(session, today, until)
     if features.get("colony", True):
         tracks["colony:age"] = (colony_label, gettext("30 weeks and older"), url_for("colony", view="breeders"))
-        tracks["colony:wean"] = (colony_label, gettext("Weaning · P%(days)s", days=WEAN_OFFSET_DAYS),
+        tracks["colony:wean"] = (colony_label, gettext("Weaning · P%(days)s", days=weaning_offset(session)),
                                  url_for("colony", view="litters"))
         tracks["colony:geno"] = (colony_label, gettext("Genotyping"), url_for("colony", view="mice"))
         items += _colony_items(session, today, until)

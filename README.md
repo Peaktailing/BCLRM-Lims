@@ -113,8 +113,8 @@ never what you may edit.
   (**Close all** folds them to one row each), or switch to **Cards**: a
   card per cage with its mice and its actions, as on a rack.
 - **Litters** — on a Breeding (mating) cage, **Litter born** records the birth
-  once, and the weaning date (P21) and genotyping date (P28, or the day
-  the lab sets in **Settings → General**) follow from it, on Home and the
+  once, and the weaning date (P21) and genotyping date (P28), or the days
+  the lab sets in **Settings → General**, follow from it, on Home and the
   calendar. **Genotyping** takes the parents' mouse numbers and how many
   pups were born, and makes the litter (numbered L-1, L-2, L-3…) and a
   mouse for each pup, waiting in the genotyping queue on Home. **Wean**

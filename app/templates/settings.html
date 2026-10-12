@@ -505,7 +505,11 @@
           </select>
         </label>
         <label class="set-row">
-          <span class="set-label"><b>{{ _('Genotyping day') }}</b><small>{{ _('Days after birth that pups are genotyped. Weaning is P%(wean)s.', wean=wean_offset_days) }}</small></span>
+          <span class="set-label"><b>{{ _('Weaning day') }}</b><small>{{ _('Days after birth that pups are weaned.') }}</small></span>
+          <input type="number" name="weaning_day" min="1" max="120" value="{{ state.weaning_day }}" class="set-input-short" {% if not admin %}disabled{% endif %}>
+        </label>
+        <label class="set-row">
+          <span class="set-label"><b>{{ _('Genotyping day') }}</b><small>{{ _('Days after birth that pups are genotyped.') }}</small></span>
           <input type="number" name="genotyping_day" min="1" max="120" value="{{ state.genotyping_day }}" class="set-input-short" {% if not admin %}disabled{% endif %}>
         </label>
         <datalist id="lab-timezones">{% for zone in timezones %}<option value="{{ zone }}"></option>{% endfor %}</datalist>

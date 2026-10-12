@@ -370,6 +370,7 @@ DATE_STYLES = {
     "iso": "2026-09-26",
 }
 DEFAULT_GENOTYPING_DAY = 28
+DEFAULT_WEANING_DAY = 21
 _ORIGINAL_TZ = os.environ.get("TZ")
 _tz_cache: dict = {"at": 0.0, "value": None}
 
@@ -460,12 +461,20 @@ def genotyping_day(session) -> int:
     return int(raw) if raw.isdigit() and 1 <= int(raw) <= 120 else DEFAULT_GENOTYPING_DAY
 
 
+def weaning_day(session) -> int:
+    """The day after birth the lab weans pups (P21 unless chosen)."""
+    get_setting, _ = _settings()
+    raw = (get_setting(session, "weaning_day", "") or "").strip()
+    return int(raw) if raw.isdigit() and 1 <= int(raw) <= 120 else DEFAULT_WEANING_DAY
+
+
 def survey_state(session) -> dict:
     """What the survey form should show as chosen right now."""
     return {
         "lab_timezone": lab_timezone(session),
         "date_style": date_style(session),
         "genotyping_day": genotyping_day(session),
+        "weaning_day": weaning_day(session),
         "features": features_on(session),
         "stocks": {kind: any(m.enabled for m in _stock_by_kind(session, kind)) for kind in STOCK_CHOICES},
         "inventories": {kind: any(m.enabled for m in _inventory_by_kind(session, kind)) for kind in INVENTORY_CHOICES},
@@ -562,6 +571,9 @@ def _apply_rest(session, form, sections) -> list[str]:
     raw_day = (form.get("genotyping_day") or "").strip()
     if raw_day.isdigit() and 1 <= int(raw_day) <= 120:
         set_setting(session, "genotyping_day", raw_day)
+    raw_day = (form.get("weaning_day") or "").strip()
+    if raw_day.isdigit() and 1 <= int(raw_day) <= 120:
+        set_setting(session, "weaning_day", raw_day)
     mark_setup_done(session)
     return []
 

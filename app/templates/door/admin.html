@@ -22,6 +22,7 @@
       <label class="door-field">{{ _('Setup code') }}
         <input name="setup_code" autocomplete="off" spellcheck="false" required placeholder="xxxx-xxxx-xxxx" class="font-mono">
         <small>{{ _('Printed in the server’s log when BioManager started, so nobody else on the network can make this account first.') }}</small>
+        <small>{{ _('To see it, run this on the server, in BioManager’s deploy folder:') }} <code>docker compose logs app | grep "setup code"</code></small>
       </label>
     {% endif %}
     <label class="door-field">{{ _('Password') }}

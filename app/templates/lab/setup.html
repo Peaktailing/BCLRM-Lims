@@ -57,9 +57,13 @@
           </select>
           <span class="field-hint normal-case tracking-normal">{{ _("How dates are written in lists and messages. Date fields follow the computer's language.") }}</span>
         </label>
+        <label class="field-label">{{ _('Weaning day') }}
+          <input type="number" name="weaning_day" min="1" max="120" value="{{ state.weaning_day }}">
+          <span class="field-hint normal-case tracking-normal">{{ _('Days after birth (P%(day)s) the weaning reminder falls on.', day=state.weaning_day) }}</span>
+        </label>
         <label class="field-label">{{ _('Genotyping day') }}
           <input type="number" name="genotyping_day" min="1" max="120" value="{{ state.genotyping_day }}">
-          <span class="field-hint normal-case tracking-normal">{{ _('Days after birth (P%(day)s) the genotyping reminder falls on. Weaning is P%(wean)s.', day=state.genotyping_day, wean=wean_offset_days) }}</span>
+          <span class="field-hint normal-case tracking-normal">{{ _('Days after birth (P%(day)s) the genotyping reminder falls on.', day=state.genotyping_day) }}</span>
         </label>
       </div>
       <datalist id="lab-timezones">{% for zone in timezones %}<option value="{{ zone }}"></option>{% endfor %}</datalist>

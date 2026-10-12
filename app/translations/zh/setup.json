@@ -13,7 +13,8 @@
   "Dates": "日期格式",
   "How dates are written in lists and messages. Date fields follow the computer's language.": "列表和消息中日期的写法。日期输入框跟随电脑的语言。",
   "Genotyping day": "基因型鉴定日",
-  "Days after birth (P%(day)s) the genotyping reminder falls on. Weaning is P%(wean)s.": "出生后第几天（P%(day)s）提醒做基因型鉴定。断奶是 P%(wean)s。",
+  "Days after birth (P%(day)s) the weaning reminder falls on.": "出生后第几天（P%(day)s）提醒断奶。",
+  "Days after birth (P%(day)s) the genotyping reminder falls on.": "出生后第几天（P%(day)s）提醒做基因型鉴定。",
   "What does your lab keep?": "你的实验室管理哪些东西？",
   "Tick everything the lab works with. Unticked databases are hidden, not deleted: tick one again and its records are back.": "勾选实验室用到的所有内容。未勾选的数据库只是隐藏，不会删除：重新勾选，记录就回来了。",
   "Animals and stocks": "动物与品系",
@@ -320,5 +321,6 @@
   "%(column)s: %(num)s blank cell took the value above it.": "%(column)s：%(num)s 个空白单元格沿用了上方的值。",
   "%(column)s: %(num)s blank cells took the value above them.": "%(column)s：%(num)s 个空白单元格沿用了上方的值。",
   "Its blank cell takes the value above it": "空白单元格沿用上方的值",
-  "Its %(num)s blank cells take the value above them": "%(num)s 个空白单元格沿用上方的值"
+  "Its %(num)s blank cells take the value above them": "%(num)s 个空白单元格沿用上方的值",
+  "Weaning day": "断奶日"
 }

@@ -2168,7 +2168,7 @@ function formatDateForInput(date) {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
-/* Same P21 rule as the server (services.WEAN_OFFSET_DAYS). */
+/* The lab's weaning day, as the server reckons it (services.weaning_offset). */
 function weanDue(born) {
   if (!born) return { due: '', state: '' };
   const weaningDate = new Date(`${born}T00:00:00`);
