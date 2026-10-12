@@ -678,6 +678,8 @@ def save_uploaded_image(upload: FileStorage | None) -> str:
     output_name = upload_name(upload.filename)
     destination = Path(UPLOAD_DIR / output_name)
     upload.save(destination)
+    from . import uploads
+    uploads.note_fresh(f"uploads/{output_name}")
     return f"uploads/{output_name}"
 
 
@@ -694,6 +696,9 @@ def save_uploaded_file(upload: FileStorage | None) -> dict | None:
         size_bytes = destination.stat().st_size
     except OSError:
         size_bytes = 0
+    # The record this request keeps it with owns it (app/uploads.py).
+    from . import uploads
+    uploads.note_fresh(f"uploads/{output_name}")
     return {
         "path": f"uploads/{output_name}",
         "original_name": upload.filename,
