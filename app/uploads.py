@@ -17,7 +17,10 @@ What a file belongs to is kept in `upload_owners` (models.UploadOwner):
                          template, a plasmid's file, a capture, ...
 
 Rows are added by an `after_flush` hook whenever a record whose text names
-an upload is saved, whichever page or API saved it, and by revision
+an upload is saved, whichever page or API saved it, but only when whoever
+saves it may open the file already (`_may_carry`: they uploaded it in this
+request or before, or a record they see owns it), so pasting a file's
+address into one's own page opens nothing; and by revision
 0038_upload_owners for what was saved before. They are never taken away: a
 record that went (or that someone may no longer see) simply stops letting
 anyone fetch the file.
@@ -97,6 +100,29 @@ def _text_attrs(mapper) -> list[str]:
     return _TEXT_ATTRS[mapper]
 
 
+def note_fresh(saved_path: str) -> None:
+    """A file this request uploaded (services.save_uploaded_file): the
+    record it saves the file with (a plasmid's file, a capture) owns it."""
+    from flask import g, has_request_context
+    if saved_path and has_request_context():
+        g.setdefault("fresh_uploads", set()).add(stored_name(saved_path))
+
+
+def _may_carry(session, name: str) -> bool:
+    """May the record being saved make `name` its own? Only if whoever saves
+    it may open the file already (they uploaded it, now or before, or a
+    record they see owns it): a name copied into a page of one's own must
+    not open someone else's file. Outside a request (start-up, scripts,
+    revisions, a copy or a move of the whole lab) the records are the lab's
+    own, as they were."""
+    from flask import g, has_request_context
+    if not has_request_context():
+        return True
+    if name in g.get("fresh_uploads", ()):
+        return True
+    return may_fetch(session, g.get("user"), name)
+
+
 @event.listens_for(Session, "after_flush")
 def _note_names(session, flush_context):
     if not enabled:
@@ -127,12 +153,16 @@ def _note_names(session, flush_context):
     conn = session.connection()
     owners = UploadOwner.__table__
     rows = []
+    carries: dict[str, bool] = {}
     for (source, record_id), names in found.items():
         have = set(conn.execute(select(owners.c.name).where(owners.c.source == source,
                                                             owners.c.record_id == record_id,
                                                             owners.c.name.in_(sorted(names)))).scalars())
-        rows += [{"name": n, "source": source, "record_id": record_id, "username": ""}
-                 for n in sorted(names - have)]
+        for n in sorted(names - have):
+            if n not in carries:
+                carries[n] = _may_carry(session, n)
+            if carries[n]:
+                rows.append({"name": n, "source": source, "record_id": record_id, "username": ""})
     if rows:
         now = datetime.utcnow()
         conn.execute(owners.insert(), [{**r, "created_at": now} for r in rows])

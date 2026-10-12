@@ -639,9 +639,13 @@ project group's database and its rows `lab.can_see`); any other record is
 the lab's, for everyone signed in. A file no existing record names (never
 named, or its records deleted) is its uploader's and the admins'. A
 member's copy of the lab keeps the `upload_owners` rows of the records it
-holds and their own uploads (`uploads.narrow_copy`). Pasting a file's
-address into a record gives that record's readers the file, as attaching
-it again would.
+holds and their own uploads (`uploads.narrow_copy`). A saved record adds
+its row only when whoever saves it may open the file already
+(`uploads._may_carry`: a file this request uploaded, `note_fresh` from
+`save_uploaded_file`; or `may_fetch` as above), so a name pasted into
+one's own page opens nothing for them or its readers; outside a request
+(start-up, scripts, the revision, a whole lab copied or moved) the records
+are the lab's own and count.
 
 ## Project groups
 

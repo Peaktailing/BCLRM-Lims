@@ -150,15 +150,65 @@ class NotebookPictures(Base):
         self.assertServed(self.m, name)
         self.assertServed(self.a, name)
 
-    def test_an_old_link_in_a_page_saved_another_way_works_once_noted(self):
-        """A page whose text names a file in any saved form (here an <img>,
-        a link and an encoded name) gives every one of them its page."""
-        first, second = a_file(), a_file()
+    def test_a_file_named_in_any_form_goes_with_its_page(self):
+        """A page whose text names a file in any saved form (here an <img>
+        with a query and a link) gives every one of them its page."""
+        first, second = self.upload_picture(self.m), self.upload_picture(self.m)
         page = self.new_page(self.m)
         self.save(self.m, page, f'[data](/static/uploads/{first}) and <img src="/static/uploads/{second}?v=2">')
         self.share(self.m, page, self.other)
         self.assertServed(self.o, first)
         self.assertServed(self.o, second)
+
+    def test_the_uploader_s_picture_in_a_shared_page_opens_for_its_readers(self):
+        reader = make_user()
+        page = self.new_page(self.m)
+        self.share(self.m, page, reader)
+        name = self.upload_picture(self.m)
+        self.assertRefused(client_for(reader), name)
+        self.save(self.m, page, f"![x](/static/uploads/{name})")
+        self.assertServed(client_for(reader), name)
+
+    def test_a_copied_address_in_one_s_own_page_opens_nothing(self):
+        """Someone who learnt the name of a picture in a private page (a
+        forwarded link, a screenshot) pastes it into their own page: neither
+        they nor their page's readers can open it."""
+        name = self.upload_picture(self.m)
+        private = self.new_page(self.m)
+        self.save(self.m, private, f"![blot](/static/uploads/{name})")
+        reader = make_user()
+        own = self.new_page(self.o)
+        self.share(self.o, own, reader)
+        self.save(self.o, own, f"Look: ![blot](/static/uploads/{name})")
+        self.assertEqual(count("upload_owners", "name=? and source='notebook_pages' and record_id=?", name, own), 0)
+        self.assertRefused(self.o, name)
+        self.assertRefused(client_for(reader), name)
+        # Shared with them, it opens; their own page still gives it nobody else.
+        self.share(self.m, private, self.other)
+        self.assertServed(self.o, name)
+        self.assertRefused(client_for(reader), name)
+
+    def test_someone_who_may_open_it_may_put_it_in_another_page(self):
+        name = self.upload_picture(self.m)
+        private = self.new_page(self.m)
+        self.save(self.m, private, f"![blot](/static/uploads/{name})")
+        self.share(self.m, private, self.other)
+        reader = make_user()
+        own = self.new_page(self.o)
+        self.share(self.o, own, reader)
+        self.save(self.o, own, f"From the blot page: ![blot](/static/uploads/{name})")
+        self.assertServed(client_for(reader), name)
+
+    def test_another_s_capture_or_plasmid_file_named_in_a_record_opens_nothing(self):
+        r = self.m.post("/captures/new", data={"text": "", "file": (io.BytesIO(PNG), "plate.png")},
+                        content_type="multipart/form-data")
+        self.assertIn(r.status_code, (200, 302))
+        name = uploads.stored_name(one("select file_path from captures where owner_username=? order by id desc limit 1",
+                                       self.member))
+        item = self.make_item(self.o, notes=f"/static/uploads/{name}")
+        self.assertTrue(item)
+        self.assertRefused(self.o, name)
+        self.assertRefused(self.a, name)
 
 
 class OtherKinds(Base):
