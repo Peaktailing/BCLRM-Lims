@@ -242,6 +242,148 @@ def reagent_snapshot(session, item_id) -> dict:
             "inventory": module.label if module else ""}
 
 
+# ---------------------------------------------------------------- the reagent used
+#
+# Each day recorded keeps the inventory item it used and that item's lot and
+# expiry as they were (ExperimentStepRecord.reagent), however it is recorded:
+# the page, bench mode, or an action. Unless someone says otherwise, it is
+# the step's own item; a step with only an agent ("Tamoxifen") uses the one
+# item of that name, and remembers it.
+
+def reagents_named(session, name: str) -> list[InventoryItem]:
+    """The stock items called `name` (any case) that a manipulation could
+    use: in the inventories this person sees, not used up, newest first."""
+    from sqlalchemy import func
+    from . import inventory_service as inv
+    name = (name or "").strip().lower()
+    if not name:
+        return []
+    out = []
+    for module in inv.list_modules(session):
+        if module.kind in ("orders", "samples") or not lab.can_see(module):
+            continue
+        mv = inv.view(module)
+        out += [i for i in session.scalars(select(InventoryItem).where(
+            InventoryItem.module_id_fk == module.id, func.lower(InventoryItem.name) == name))
+            if mv.is_available(i.status) is not False]
+    return sorted(out, key=lambda i: -i.id)
+
+
+def default_reagent(session, step: ExperimentStep, on: date) -> tuple[int | None, list[InventoryItem]]:
+    """(the item a day of `step` used when no one says, the items named as
+    its agent): the step's own item; else the one item of the agent's name
+    (the one not expired on `on`, when only one isn't). None when there are
+    several to choose from, or none."""
+    if step.reagent_item_id_fk and session.get(InventoryItem, step.reagent_item_id_fk) is not None:
+        return step.reagent_item_id_fk, []
+    named = reagents_named(session, step.agent)
+    fresh = [i for i in named if not (i.expires_on and i.expires_on < on)]
+    pool = fresh or named
+    return (pool[0].id if len(pool) == 1 else None), named
+
+
+def reagent_used(session, step: ExperimentStep, data: dict, on: date) -> dict:
+    """The reagent a day used, as its record keeps it: the item chosen
+    ("reagent_id"; blank is none), else the default; and "lot" when it
+    isn't that item's: another item of the same name with that lot, or
+    else that lot as typed (its expiry unknown)."""
+    if "reagent_id" in data:
+        raw = str(data.get("reagent_id") or "")
+        item_id = int(raw) if raw.isdigit() else None
+    else:
+        item_id = default_reagent(session, step, on)[0]
+    snapshot = reagent_snapshot(session, item_id) if item_id else {}
+    lot = " ".join(str(data.get("lot") or "").split())[:80]
+    if lot and lot.lower() != (snapshot.get("lot") or "").lower():
+        name = snapshot.get("name") or step.agent
+        other = next((i for i in reagents_named(session, name) if (i.lot or "").strip().lower() == lot.lower()), None)
+        if other is not None:
+            snapshot = reagent_snapshot(session, other.id)
+        else:
+            snapshot = {**snapshot, "name": name, "lot": lot, "expires": ""}
+    return snapshot
+
+
+def amounts_given(entries: list[dict]) -> list[str]:
+    """What the animals of a record got, added up: "1.5 mg", "150 µL"… the
+    volume first, then the amount (an item kept in mL takes the one, in mg
+    the other)."""
+    totals: dict[str, float] = {}
+    for key in ("volume", "amount"):
+        for e in entries:
+            q = parse_quantity(str(e.get(key) or ""))
+            if q is None or q[2]:
+                continue
+            value, unit = q[0], q[1]
+            if unit in _MASS:
+                unit, value = "mg", value * _MASS[unit]
+            elif unit in _VOLUME:
+                unit, value = "µL", value * _VOLUME[unit]
+            totals[unit] = totals.get(unit, 0.0) + value
+    return [f"{round(v, 6):g} {u}" for u, v in totals.items() if v > 0]
+
+
+def take_off(session, snapshot: dict, entries: list[dict]) -> tuple[str, str]:
+    """Take what was given off the item's quantity, as "Some of an item
+    used" does (app/actions.py _used: units converted, pack sizes); its
+    status follows Low at. (the amount taken, what to say) or ("", why
+    not). The quantity taken, in the item's unit, goes in the snapshot
+    ("taken_qty"), so undoing the day gives it back (give_back)."""
+    from . import actions
+    from . import inventory_service as inv
+    from .inventory_routes import _can_edit
+    from .models import InventoryModule
+    item = session.get(InventoryItem, int(snapshot.get("id") or 0))
+    if item is None:
+        return "", gettext("Nothing was taken off the inventory: no item was used.")
+    label = actions._item_label(session, item)
+    if not _can_edit(item):
+        return "", gettext("Nothing was taken off %(item)s: you can't change it.", item=label)
+    if any(e.get("needs") for e in entries):
+        return "", gettext("Nothing was taken off %(item)s: some have no weight to work out what they got.", item=label)
+    amounts = amounts_given(entries)
+    if not amounts:
+        return "", gettext("Nothing was taken off %(item)s: the dose isn't an amount with a unit.", item=label)
+    why = ""
+    for given in amounts:
+        try:
+            used, said, converted = actions._used(session, item, {"amount": given})
+        except actions.ActionError as error:
+            why = why or str(error)
+            continue
+        try:
+            before, after = actions._left_after(session, item, used)
+        except actions.ActionError as error:
+            return "", gettext("Nothing was taken off %(item)s: %(why)s", item=label, why=str(error))
+        item.quantity = after
+        item.updated_at, item.updated_by = datetime.utcnow(), g.user.username
+        inv.follow_stock_level(inv.view(session.get(InventoryModule, item.module_id_fk)), item)
+        snapshot["taken_qty"] = used
+        amount = f"{said} ({converted})" if converted else said
+        return amount, gettext("%(item)s: %(amount)s taken off (%(before)s → %(after)s).", item=label,
+                               amount=amount, before=before, after=after)
+    return "", gettext("Nothing was taken off %(item)s: %(why)s", item=label, why=why)
+
+
+def give_back(session, kept: dict) -> str:
+    """Put back on its item what a recorded day took off (kept: the day's
+    reagent), when the day is undone or recorded with another item; what
+    to say, or "" when nothing was taken or the item is gone."""
+    from . import actions
+    from . import inventory_service as inv
+    from .models import InventoryModule
+    used = kept.get("taken_qty")
+    item = session.get(InventoryItem, int(kept.get("id") or 0)) if used else None
+    now = inv.amount(item.quantity) if item is not None else None
+    if item is None or now is None:
+        return ""
+    item.quantity = inv.number_text(round(now + float(used), 6))
+    item.updated_at, item.updated_by = datetime.utcnow(), g.user.username
+    inv.follow_stock_level(inv.view(session.get(InventoryModule, item.module_id_fk)), item)
+    return gettext("%(item)s: %(amount)s put back on the inventory.", item=actions._item_label(session, item),
+                   amount=kept.get("taken") or inv.number_text(float(used)))
+
+
 def step_title(step: ExperimentStep, family: str = "mouse", readout: dict | None = None, shown: bool = False) -> str:
     """What a day of `step` is called; `shown`: in the page's language
     (the readout's or the kind's name), for the calendar."""
@@ -509,15 +651,17 @@ def _chosen(session, exp, place, step, data) -> list:
 
 
 def _record(session, exp, place, step, day, data):
+    """(warnings, what was done beside it, None), or (None, None, the
+    refusal)."""
     try:
         on = date.fromisoformat(str(data.get("done_on") or date.today().isoformat())[:10])
     except ValueError:
-        return None, (jsonify({"ok": False, "error": gettext("That date isn't a date.")}), 400)
+        return None, None, (jsonify({"ok": False, "error": gettext("That date isn't a date.")}), 400)
     if on > date.today():
-        return None, (jsonify({"ok": False, "error": gettext("It can't be recorded as done on a day still to come.")}), 400)
+        return None, None, (jsonify({"ok": False, "error": gettext("It can't be recorded as done on a day still to come.")}), 400)
     chosen = _chosen(session, exp, place, step, data)
     if not chosen:
-        return None, (jsonify({"ok": False, "error": gettext("Tick the %(nouns)s it was done to.",
+        return None, None, (jsonify({"ok": False, "error": gettext("Tick the %(nouns)s it was done to.",
                                                              nouns=i18n.translate_value(place.nouns))}), 400)
     problems = []
     if ex.is_reading(step.kind):
@@ -531,7 +675,7 @@ def _record(session, exp, place, step, day, data):
             problem = ex.set_reading(session, exp, place, x, on, raw)
             if problem:
                 if not isinstance(problem, ex.NotYours):      # a wrong value, not one skipped
-                    return None, (jsonify({"ok": False, "error": problem}), 400)
+                    return None, None, (jsonify({"ok": False, "error": problem}), 400)
                 problems.append(problem)
         session.flush()
     record = next((r for r in step.records if r.day == day), None)
@@ -541,16 +685,38 @@ def _record(session, exp, place, step, day, data):
     record.done_on, record.done_by = on, g.user.username
     record.mice = json.dumps(_entries(session, exp, place, step, chosen, on))
     record.note = str(data.get("note") or "").strip()
-    # The reagent used: the plan's, or the one picked at the bench.
-    reagent_id = data.get("reagent_id", step.reagent_item_id_fk)
-    snapshot = reagent_snapshot(session, reagent_id) if str(reagent_id or "").isdigit() else {}
-    record.reagent = json.dumps(snapshot) if snapshot else ""
+    # The reagent used and its lot: the one chosen, else the step's own (or
+    # the one item named as its agent), remembered on the step for next time.
+    before = _record_dict(record)["reagent"] if record.id else {}
+    said: list[str] = []
+    snapshot = reagent_used(session, step, data, on)
+    if snapshot.get("id") and snapshot["id"] != step.reagent_item_id_fk \
+            and not any(r.day > day for r in step.records if r is not record):
+        step.reagent_item_id_fk = snapshot["id"]
     if snapshot.get("expires") and snapshot["expires"] < on.isoformat():
         if snapshot.get("lot"):
             problems.append(gettext("%(name)s lot %(lot)s expired on %(date)s.", name=snapshot["name"],
                                     lot=snapshot["lot"], date=snapshot["expires"]))
         else:
             problems.append(gettext("%(name)s expired on %(date)s.", name=snapshot["name"], date=snapshot["expires"]))
+    # Taken off the inventory only when asked, and once a day; recorded again
+    # with another item, what the first took goes back on it.
+    if before.get("taken") and before.get("id") == snapshot.get("id"):
+        snapshot["taken"] = before["taken"]
+        if "taken_qty" in before:
+            snapshot["taken_qty"] = before["taken_qty"]
+    else:
+        given_back = give_back(session, before) if before.get("taken") else ""
+        if given_back:
+            said.append(given_back)
+        if data.get("take_off") and snapshot and not ex.is_reading(step.kind):
+            taken, words = take_off(session, snapshot, json.loads(record.mice))
+            if taken:
+                snapshot["taken"] = taken
+                said.append(words)
+            else:
+                problems.append(words)
+    record.reagent = json.dumps(snapshot) if snapshot else ""
     # Sample records, only when the person asked for them.
     if data.get("make_samples") and not _record_dict(record)["samples"]:
         made, trouble = make_samples(session, exp, place, step, day, chosen, on, str(data.get("sample_inventory") or ""),
@@ -558,7 +724,7 @@ def _record(session, exp, place, step, day, data):
         record.samples = json.dumps(made) if made else ""
         problems += trouble
     exp.updated_at = datetime.utcnow()
-    return problems, None
+    return problems, said, None
 
 
 def make_samples(session, exp, place, step, day, chosen, on: date, inventory_key: str, name: str):
@@ -624,11 +790,12 @@ def record_day(experiment_id: int, step_id: int, day: int):
         step = s.get(ExperimentStep, step_id)
         if step is None or step.experiment_id_fk != exp.id or day not in safe_days(step):
             abort(404)
-        problems, error = _record(s, exp, place, step, day, data)
+        problems, said, error = _record(s, exp, place, step, day, data)
         if error:
             return error
         s.commit()
-        return _answer(s, exp, place, problems=problems)
+        # "warnings" too: an action's change passes them on (app/contained.py).
+        return _answer(s, exp, place, problems=problems, warnings=problems, message=" ".join(said))
 
 
 @bp.get("/<int:experiment_id>/preview")
@@ -681,12 +848,12 @@ def record_now(experiment_id: int):
         step, error = _fill_step(s, exp, place, data, [day])
         if error:
             return error
-        problems, error = _record(s, exp, place, step, day, data)
+        problems, said, error = _record(s, exp, place, step, day, data)
         if error:
             s.rollback()
             return error
         s.commit()
-        return _answer(s, exp, place, problems=problems, message=note)
+        return _answer(s, exp, place, problems=problems, warnings=problems, message=" ".join(filter(None, [note, *said])))
 
 
 @bp.post("/<int:experiment_id>/steps/<int:step_id>/day/<int(signed=True):day>/subject")
@@ -725,10 +892,13 @@ def undo_day(experiment_id: int, step_id: int, day: int):
         record = s.scalar(select(ExperimentStepRecord).join(ExperimentStep).where(
             ExperimentStep.experiment_id_fk == exp.id, ExperimentStepRecord.step_id_fk == step_id,
             ExperimentStepRecord.day == day))
+        said = ""
         if record is not None:
+            # What the day took off the inventory goes back on it.
+            said = give_back(s, _record_dict(record)["reagent"] or {})
             s.delete(record)
             s.commit()
-        return _answer(s, exp, place)
+        return _answer(s, exp, place, message=said)
 
 
 # ---------------------------------------------------------------- saved regimens

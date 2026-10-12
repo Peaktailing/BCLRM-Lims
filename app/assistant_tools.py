@@ -51,7 +51,8 @@ with get at the path resolve gives it.
 BioManager computes; you talk. Never work out a number yourself that a BioManager tool can: how many \
 animals fit (availability), breeding odds and matings (breeding_plan), group allocation (randomize), \
 animals per group (power_analysis), when stock runs out (reorder_forecast), the week's checks \
-(lab_checks), an experiment's facts (experiment_summary), derived readouts (derive), animals used per \
+(lab_checks), an experiment's facts (experiment_summary), derived readouts (derive), a plate \
+reader's or qPCR export on a plate layout (plate_readout), animals used per \
 protocol for a review (animal_use), what someone leaving looks after (handover). Call the tool, give its \
 numbers with the \
 assumptions it states, and say so when it can't answer rather than estimating."""
@@ -390,6 +391,16 @@ def derive(api: Api, a: dict) -> dict:
     return api.request("POST", "derive", body={k: a.get(k) for k in ("formula", "rows", "control")})
 
 
+PLATE_KEYS = ("layout", "wells", "format", "text", "capture", "target", "reference", "subtract_blank",
+              "standard_curve", "skip", "date")
+
+
+def plate_readout(api: Api, a: dict) -> dict:
+    """An export laid on an experiment's plate layout (app/plates.py), changing nothing."""
+    return api.request("POST", f"experiments/{int(a['experiment_id'])}/plate",
+                       body={k: a[k] for k in PLATE_KEYS if a.get(k) is not None})
+
+
 def verify_sequencing(api: Api, a: dict) -> dict:
     """Sanger reads (capture ids, or text) against a plasmid's map: the
     plasmid by its number, or a reference from resolve."""
@@ -524,7 +535,7 @@ TOOLS.update({
         lambda api, a: lab_checks(api, a)),
     "experiment_summary": (
         "What the records say about an experiment, for its methods: the animals (species, genotypes, sex, age and "
-        "weight at the start, n per group), procedures (agent, dose, route, days, lots used), the readout, the tests "
+        "weight at the start, n per group), procedures (agent, dose, route, days, lots used and any used after its expiry), the readout, the tests "
         "used and the last day's comparison, dates; and arrive, the ARRIVE 2.0 Essential 10, each with what is "
         "recorded and what is missing. Never fill in what is missing yourself.",
         _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"}},
@@ -550,6 +561,32 @@ TOOLS.update({
               "control": {"type": "string", "description": "For delta_delta_ct and fold_change: the control group "
                                                            "(each row's group)"}}),
         lambda api, a: derive(api, a)),
+    "plate_readout": (
+        "Read a plate reader's or qPCR machine's export onto an experiment's plate layout (which animal is in which "
+        "well, the blanks and standards), as the experiment page's Plate layout does, changing nothing. Give the export as "
+        "text (CSV or tab-separated: an 8 × 12 grid with row letters and column numbers, or a list with Well and a "
+        "value or Ct column, and Target for several genes) or as capture (a capture's id), and the layout by its id "
+        "or name (a name it doesn't know answers with the layouts the experiment has). It "
+        "averages each animal's replicate wells, takes off the blank or reads a standard curve, or for a ΔCt, ΔΔCt "
+        "or fold change readout takes the target and reference genes' Cts; it flags replicates far from the others "
+        "and wells past what the instrument reads. Show the person the values and flags, then propose the change it "
+        "returns (experiment_reading) as it is. Never average or subtract the wells yourself.",
+        _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"},
+              "layout": {"type": "string", "description": "The plate layout's id or name"},
+              "wells": {"type": "object", "description": "Instead of a saved layout: {\"A1\": \"mouse:9\", "
+                                                         "\"H12\": \"blank\", \"G1\": {\"role\": \"standard\", "
+                                                         "\"conc\": 10}}, with format"},
+              "format": {"type": "integer", "enum": [24, 48, 96, 384]},
+              "text": {"type": "string", "description": "The export, as text"},
+              "capture": {"type": "integer", "description": "A capture whose file or text is the export"},
+              "target": {"type": "string", "description": "Which read or gene to use, when the export has several"},
+              "reference": {"type": "string", "description": "For ΔCt, ΔΔCt and fold change: the reference gene"},
+              "subtract_blank": {"type": "boolean", "description": "Take the blank wells' mean off (default true)"},
+              "standard_curve": {"type": "boolean", "description": "Read each value off the standards' line"},
+              "skip": {"type": "array", "items": {"type": "string"}, "description": "Wells to leave out, e.g. [\"A3\"]"},
+              "date": {"type": "string", "description": "The day the readings are for (today if left out)"}},
+             ("experiment_id",)),
+        lambda api, a: plate_readout(api, a)),
 })
 
 # The write-ups (app/assistant_reports.py): BioManager counts and lists, the assistant writes.

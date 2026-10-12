@@ -211,8 +211,9 @@
           animal.</li>
         <li>In plasmids: a new plasmid (with its sequence pasted as GenBank or FASTA), a change, a glycerol stock, a primer or
           a primer pair.</li>
-        <li>In an experiment: a step done, a readout, animals added, its status, a note; and a new, <b>planned</b> experiment
-          (<a href="#plan">below</a>).</li>
+        <li>In an experiment: a step done (with the reagent and lot used: the step's own, unless you name another bottle or
+          lot; an unknown lot is refused, and with several bottles of the same name it asks which), a readout, animals
+          added, its status, a note; and a new, <b>planned</b> experiment (<a href="#plan">below</a>).</li>
         <li>In the notebook: a line in today's daily log; a new page (marked <i>Drafted by</i> the assistant, never signed); a
           section added to a page, unless someone has it open.</li>
         <li>In the calendar: an event, or an instrument booking.</li>
@@ -236,6 +237,10 @@
         <li><b>Readouts from raw numbers</b>: a caliper sheet, a qPCR export or a plate-reader file becomes tumour volumes,
           ΔΔCt and fold change, or blank-subtracted ODs, worked out by BioManager and shown to you before it proposes them
           (<a href="experiments.html#derived">Experiments</a>).</li>
+        <li><b>A plate on its layout</b>: give it the plate reader's or qPCR machine's export (or a capture of its file), and
+          it is read onto the experiment's plate layout: each animal's wells averaged, the replicates far from the others and
+          the wells past what the instrument reads named, and the readings proposed for you to approve
+          (<a href="experiments.html#plates">Experiments</a>).</li>
       </ul>
       <p><b>Designing an experiment.</b> Tell it the question (<i>does deleting Il33 in airway epithelium reduce
         inflammation in our HDM model? Start in about six weeks</i>). It proposes the groups and controls, the main readout,
@@ -256,7 +261,7 @@
 
       <h2 id="write">Write-ups</h2>
       <p><i>Write the methods for the TMX cohort</i> gives a methods paragraph built only from the records: strains, sex, age
-        and numbers per group, each manipulation with its dose, route, days and lot, the readout and the tests. With it comes
+        and numbers per group, each manipulation with its dose, route, days and lot (and any lot used after it expired), the readout and the tests. With it comes
         the ARRIVE 2.0 Essential 10, each item with what the records say and what's missing, and the experiment's changes from
         its plan. It can put the draft in a new notebook page, marked as drafted by the assistant.</p>
       <p><b>The animal-use report.</b> <i>Draft our animal-use report for protocol 2024-0012</i> gives, for the last twelve

@@ -445,6 +445,9 @@ from . import experiment_steps  # noqa: E402
 from . import experiment_plan  # noqa: E402  (the plan kept at Start, and the changes from it)
 app.register_blueprint(experiment_pages.bp)
 app.register_blueprint(experiment_steps.bp)
+# Plate layouts: a plate reader's or qPCR machine's export read onto an experiment's animals (app/plates.py).
+from . import plates as experiment_plates  # noqa: E402
+app.register_blueprint(experiment_plates.bp)
 # Signing a notebook page, which locks it (app/signatures.py).
 from . import signatures as record_signatures  # noqa: E402
 app.register_blueprint(record_signatures.bp)
@@ -3038,6 +3041,12 @@ def delete_experiment(experiment_id: int):
             refused = _experiment_refusal(exp)
             if refused:
                 return refused
+            # Its readings and subjects aren't the experiment's ORM children:
+            # left behind, PostgreSQL refuses the delete (as experiments.delete).
+            from .models import ExperimentReading, ExperimentSubject
+            for model in (ExperimentSubject, ExperimentReading):
+                for row in db_session.scalars(select(model).where(model.experiment_id_fk == exp.id)):
+                    db_session.delete(row)
             log_delete(
                 db_session, "experiments", exp.id,
                 record_label=f"Experiment: {exp.name}",

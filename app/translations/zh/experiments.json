@@ -111,5 +111,13 @@
   "A QR code that opens bench mode": "打开实验台模式的二维码",
   "Open here": "在这里打开",
   "Bench": "实验台",
-  "The experiment": "实验页面"
+  "The experiment": "实验页面",
+  "Nothing was taken off the inventory: no item was used.": "未从库存扣除：没有使用库存记录。",
+  "Nothing was taken off %(item)s: you can't change it.": "未从 %(item)s 扣除：你不能修改它。",
+  "Nothing was taken off %(item)s: the dose isn't an amount with a unit.": "未从 %(item)s 扣除：剂量不是带单位的数量。",
+  "Nothing was taken off %(item)s: %(why)s": "未从 %(item)s 扣除：%(why)s",
+  "%(item)s: %(amount)s taken off (%(before)s → %(after)s).": "%(item)s：扣除 %(amount)s（%(before)s → %(after)s）。",
+  "Take what they got off the inventory": "从库存中扣除给药量",
+  "Nothing was taken off %(item)s: some have no weight to work out what they got.": "未从 %(item)s 扣除：有些动物没有体重，算不出给药量。",
+  "%(item)s: %(amount)s put back on the inventory.": "%(item)s：%(amount)s 已放回库存。"
 }

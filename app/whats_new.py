@@ -30,6 +30,17 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.11.0": {
+        "new": [
+            "**Plate layout** on an experiment: put its animals in a plate's wells, then **Read a plate →** turns a plate reader's or qPCR export into each animal's readout.",
+        ],
+        "changed": [
+            "Every injection keeps the lot of the reagent it used, however it is recorded; **Take what they got off the inventory** takes the amounts off the bottle.",
+        ],
+        "fixed": [
+            "Deleting an experiment from the colony's list also removes its readings.",
+        ],
+    },
     "1.10.2": {
         "changed": [
             "The anonymous counts sent to BioManager's makers once a day are switched in **Settings → General**, and a new lab's setup no longer asks: they are on until an admin switches them off.",

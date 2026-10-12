@@ -1425,7 +1425,7 @@ def experiment_summary(session, experiment_id: int) -> dict:
     for st in exp.steps:
         info = xs.step_dict(st, place.family, session)
         done = sorted(r.done_on for r in st.records)
-        lots = []
+        lots, expired = [], []
         for r in st.records:
             try:
                 reagent = _json.loads(r.reagent or "{}")
@@ -1435,12 +1435,18 @@ def experiment_summary(session, experiment_id: int) -> dict:
                 lot = f"{reagent.get('name') or ''} lot {reagent['lot']}".strip()
                 if lot not in lots:
                     lots.append(lot)
+                # A lot used after its expiry date, on the day it was used.
+                if reagent.get("expires") and reagent["expires"] < r.done_on.isoformat():
+                    said = f"{lot}, expired {reagent['expires']}, used {r.done_on.isoformat()}"
+                    if said not in expired:
+                        expired.append(said)
         what = " ".join(filter(None, [info["agent"] or info["kind_label"], info["dose"], info["route"]]))
         procedures.append({"what": what, "kind": info["kind_label"], "agent": info["agent"], "dose": info["dose"],
                            "route": info["route"], "concentration": info["concentration"], "days": info["days_label"],
                            "group": info["group"], "notes": info["notes"], "done": len(done),
                            "first_done": done[0].isoformat() if done else None,
-                           "last_done": done[-1].isoformat() if done else None, "lots": lots})
+                           "last_done": done[-1].isoformat() if done else None, "lots": lots,
+                           **({"expired_lots": expired} if expired else {})})
 
     readout = table["readout"]
     measured = [d for i, d in enumerate(table["dates"]) if any(r["values"][i] is not None for r in table["rows"])]

@@ -158,6 +158,21 @@ never what you may edit.
     BioManager works out the value, keeps what you measured with it
     (shown when you point at the value, and in the export), and refuses a
     missing, negative or impossible number in words.
+  - **Plates from a plate reader or qPCR machine.** **Plate layout**, above
+    the sheet, lays out a 24-, 48-, 96- or 384-well plate: pick an animal,
+    **Blank** or **Standard** (with its concentration) and click or drag
+    across wells, or **Fill in order** with two or three wells each (an
+    animal's replicates). The layout is kept with the experiment, and the
+    next plate opens on it (*Same as last plate*). **Read a plate →** takes
+    the instrument's export, pasted or as a CSV, TSV or Excel file: a grid
+    with row letters and column numbers, or a list of wells and values
+    (Well, Target, Ct for a qPCR run with several genes). Each well's value
+    shows on the plate, replicates far from the others and wells past what
+    the instrument reads are flagged, and a click leaves a well out. Each
+    animal's wells are averaged, the blank taken off or the value read off
+    the standard curve, or for ΔCt, ΔΔCt and fold change the target and
+    reference genes' Cts used; **Save readings** writes them as the day's
+    readout, and the plate and its file are kept as where they came from.
   - **The regimen reminds you; you record it.** Days still to do are on
     the calendar, and the experiment's owner gets a notification each
     morning of what is due (Settings → Notifications → Experiments).
@@ -170,15 +185,20 @@ never what you may edit.
     left out of the analysis aren't counted), and a mouse whose status
     says *experiment* while it is in no experiment, or something else
     (geno, breeder) while it is in an active one.
-  - **What was used**: pick the reagent from your inventories and its lot
-    is kept with the day (an expired lot is flagged). When a day is a
-    sampling, you can choose to **make a sample record for each mouse** in
-    Samples, its source that mouse.
+  - **What was used**: every day recorded keeps the reagent and its lot,
+    however it is recorded (the page, bench mode, an AI assistant): the
+    bottle the regimen names, or the one in your inventories named as what
+    is given, unless you pick another bottle or type another lot. A lot
+    already expired that day is recorded with a warning. Tick **Take what
+    they got off the inventory** to take the amounts given off the
+    bottle's quantity. When a day is a sampling, you can choose to **make
+    a sample record for each mouse** in Samples, its source that mouse.
   - **Tests by day**: stars on the chart where the groups differ (Welch's
     t-test for two groups, one-way ANOVA for more, χ² for survival
     counts), with each test in a table below it.
   - **Export** gives an Excel workbook: the readout (long, for Prism or R,
-    and wide), each animal's manipulations, and the tests.
+    and wide), each animal's manipulations with the reagent and lot, and
+    the tests.
   - **Planned, then started.** An experiment an AI assistant designs with
     you arrives as **Planned**: nothing is due until you press **Start**,
     which keeps a copy of the plan (the groups, the **Main readout day**,
@@ -1416,7 +1436,8 @@ track.
   things out from the lab's own records, changing nothing: animals available,
   a breeding plan, random groups, animals per group, when stock runs out, the
   week's checks (with the animals that may need a look), an experiment's facts for its methods, a derived readout
-  (a tumour volume, ΔΔCt, fold change) from raw measurements, the animals used
+  (a tumour volume, ΔΔCt, fold change) from raw measurements, a plate reader's or qPCR export read onto an
+  experiment's plate layout (`/api/v1/experiments/<id>/plate`), the animals used
   per protocol over a year (`/api/v1/animal-use`) and everything one person
   looks after (`/api/v1/handover`: your own, or an admin's of anyone). A *Read and
   propose* token, meant for an AI assistant, changes nothing itself: it

@@ -892,7 +892,7 @@ Reagents, chemicals, antibodies, viruses and primers have a **Low at** column be
 
 - In the sheet, a quantity or Low at is saved when you leave the cell or press Enter, so typing `12` doesn't pass through `1` on the way.
 
-- Counted in ampoules, vials, tubes or bottles but used by the mL? Give the item a **Pack size**, what one of them holds (`10 mL`), in its dialog beside **Unit** (or show the column in the sheet). An AI assistant told *2 mL used* then takes 0.2 of an ampoule off the quantity.
+- Counted in ampoules, vials, tubes or bottles but used by the mL? Give the item a **Pack size**, what one of them holds (`10 mL`), in its dialog beside **Unit** (or show the column in the sheet). An AI assistant told *2 mL used* then takes 0.2 of an ampoule off the quantity, and so does an experiment day recorded with **Take what they got off the inventory** ([Experiments](https://biomanager.org/guide/experiments#the-page)).
 
 ### Every inventory
 
@@ -988,13 +988,36 @@ Some readouts are a sum, not a reading: a tumour's volume from the calipers, fol
 
 - A number left out, below zero, a width longer than the length, a Ct of 60 or *Undetermined* is refused, saying why, rather than saved.
 
+### Plates from a plate reader or qPCR machine
+
+An ELISA, a viability assay or a qPCR run gives one number per well, and the work is knowing which well was which animal. Lay the plate out once, and each export goes straight into the readout.
+
+1. **Plate layout**, above the sheet, opens the plate: 24, 48, 96 or 384 wells (**Wells**). Pick an animal on the left, or **Blank**, or **Standard** with its concentration, then click a well or drag across several; a row letter or column number takes the whole row or column, and **Empty** clears. **Fill in order** puts every animal not yet on the plate into the next empty wells, two or three each, across the rows or down the columns. Several wells for one animal are its replicates.
+
+2. Give it a name and **Save layout**. It is kept with the experiment, and the next time the plate opens on the layout you last read onto (*Same as last plate*); change it, or start a **New layout**.
+
+3. **Read a plate →**, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.
+
+4. Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD over 10, a Ct over 50, *OVRFLW*) in red, and left out, as is *Undetermined*. Click any well to leave it out, and again to put it back.
+
+5. Below the plate, each animal's wells, their mean and spread (CV), and the value it gets. Set the **Day**, then **Save readings**.
+
+| A readout of your own | (**Readout → Something else…**, such as IL-6 in pg/mL.) The mean of each animal's wells, less the blank's mean (**Take off the blank**). With standards of two or more concentrations, **Read each value off the standard curve** turns each into a concentration from a straight line through the standards; the line and its r² are shown, and a value past the highest or lowest standard is marked. |
+|---|---|
+| Absorbance, blank subtracted | The mean OD less the blank's, kept with both. |
+| ΔCt, ΔΔCt, fold change | Choose the **Target gene** and the **Reference gene** from the run; each animal's mean Ct of each is used, and ΔΔCt and fold change are against the **Control group** as when you type them. |
+
+Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment: **Plates read**, under the layout, lists each with its day, layout and file. Only the experiment's owner (or an admin) lays out and reads plates, as with the rest of the experiment.
+
 ### The page
 
 - **The experiment** on top: name, status, start (day 1), end, readout and description, saved as you type.
 
 - **The sheet of its animals** switches between **Treatment** — each manipulation day a column: ✓ and the amount for each animal that got it (click to change) — and the readout, a column a day, typed in place (**Another day** adds one). Each animal's group is edited here too.
 
-- **Record manipulation** records what was just done — *the HDM group got Tamoxifen 20 mg/kg i.p. today* — or a day of the regimen. For a dose per body weight it works out each animal's amount from its latest weight, and the volume given the solution (*10 mg/mL*). Tick the animals it was done to, pick the **Reagent used** (its lot is kept; an expired one is flagged) and, if you want, **make a sample record for each one** in Samples, with the animal as its source.
+- **Record manipulation** records what was just done — *the HDM group got Tamoxifen 20 mg/kg i.p. today* — or a day of the regimen. For a dose per body weight it works out each animal's amount from its latest weight, and the volume given the solution (*10 mg/mL*). Tick the animals it was done to and, if you want, **make a sample record for each one** in Samples, with the animal as its source.
+
+- Each day recorded keeps the **Reagent used** and its **Lot**, and the expiry the lot had. It starts as the item picked in the regimen; when the regimen names only what is given (*Tamoxifen*), the one item of that name in your inventories is picked, and kept on the regimen for next time (with several, they come first in the list: pick the bottle you used). A new bottle is another item, or type its lot. A lot already past its expiry on the day is recorded, with a warning. Tick **Take what they got off the inventory** to take the amounts (or volumes) the animals got off the item's quantity, turned into its unit (a **Pack size** turns mL into ampoules); it is taken once, however often the day is saved, and **Undo: not done** puts it back. The lot shows on the day in the list and the sheet, and in **Export**.
 
 - **The chart** shows the readout by group over the days (the value, or its % of the first; for a count, % of those at the start). Each manipulation day is a dashed line: point at it to see what was done that day, by whom. Stars mark the days the groups differ, and **Tests by day** below lists each test (Welch's t-test for two groups, one-way ANOVA for more, χ² for counts), each day on its own.
 
@@ -1032,9 +1055,9 @@ From then on, four changes ask for a one-line reason, because each can change wh
 
 ### At the bench, and afterwards
 
-- **Bench mode** (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers — type each weight or count, or give each today's manipulation and tap **Given ✓**; record it at the end. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
+- **Bench mode** (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers — type each weight or count, or give each today's manipulation and tap **Given ✓**; record it at the end, with the **Reagent used** and its **Lot** filled in as on the page. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
 
-- **Export** downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations, and the tests by day.
+- **Export** downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations with the reagent and lot it got, and the tests by day.
 
 - **Add to notebook** makes your notebook page for the experiment, with a live view of its manipulations and readout (`/experiment` adds one to any page; **Freeze a copy** keeps it as it is now).
 
@@ -1657,7 +1680,7 @@ At the rack you rarely have time for a conversation. **Capture** keeps what you'
 
 - In plasmids: a new plasmid (with its sequence pasted as GenBank or FASTA), a change, a glycerol stock, a primer or a primer pair.
 
-- In an experiment: a step done, a readout, animals added, its status, a note; and a new, **planned** experiment ([below](https://biomanager.org/guide/ai-assistants#plan)).
+- In an experiment: a step done (with the reagent and lot used: the step's own, unless you name another bottle or lot; an unknown lot is refused, and with several bottles of the same name it asks which), a readout, animals added, its status, a note; and a new, **planned** experiment ([below](https://biomanager.org/guide/ai-assistants#plan)).
 
 - In the notebook: a line in today's daily log; a new page (marked *Drafted by* the assistant, never signed); a section added to a page, unless someone has it open.
 
@@ -1681,6 +1704,8 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 
 - **Readouts from raw numbers**: a caliper sheet, a qPCR export or a plate-reader file becomes tumour volumes, ΔΔCt and fold change, or blank-subtracted ODs, worked out by BioManager and shown to you before it proposes them ([Experiments](https://biomanager.org/guide/experiments#derived)).
 
+- **A plate on its layout**: give it the plate reader's or qPCR machine's export (or a capture of its file), and it is read onto the experiment's plate layout: each animal's wells averaged, the replicates far from the others and the wells past what the instrument reads named, and the readings proposed for you to approve ([Experiments](https://biomanager.org/guide/experiments#plates)).
+
 **Designing an experiment.** Tell it the question (*does deleting Il33 in airway epithelium reduce inflammation in our HDM model? Start in about six weeks*). It proposes the groups and controls, the main readout, how many animals and which, the regimen from your saved regimens, and the test, and says what it assumed. Doses for something the lab hasn't used come with a source, and checking the design against your animal protocol is yours. Approved, it is a **planned** experiment: nothing is due until you press **Start**, and after that, changes to the plan ask why ([Experiments](https://biomanager.org/guide/experiments#planned)).
 
 ### A weekly review
@@ -1689,7 +1714,7 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 
 ### Write-ups
 
-*Write the methods for the TMX cohort* gives a methods paragraph built only from the records: strains, sex, age and numbers per group, each manipulation with its dose, route, days and lot, the readout and the tests. With it comes the ARRIVE 2.0 Essential 10, each item with what the records say and what's missing, and the experiment's changes from its plan. It can put the draft in a new notebook page, marked as drafted by the assistant.
+*Write the methods for the TMX cohort* gives a methods paragraph built only from the records: strains, sex, age and numbers per group, each manipulation with its dose, route, days and lot (and any lot used after it expired), the readout and the tests. With it comes the ARRIVE 2.0 Essential 10, each item with what the records say and what's missing, and the experiment's changes from its plan. It can put the draft in a new notebook page, marked as drafted by the assistant.
 
 **The animal-use report.** *Draft our animal-use report for protocol 2024-0012* gives, for the last twelve months (or the dates you say), a table per protocol of the mice and zebrafish by strain: how many were born, added to the records, used in experiments, died or were euthanized (with the reasons their notes give) and kept for breeding. BioManager does the counting, and the report says what each number is based on and what the records can't say, such as animals with no protocol. A mouse's protocol is the colony's own protocol column (add one under **Configure → Your own columns**, called *IACUC #* or *Protocol*); a fish's is its line's **IACUC #**. It is a draft to check against your institution's form.
 
