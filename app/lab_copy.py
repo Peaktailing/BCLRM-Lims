@@ -326,6 +326,9 @@ def member_view(out, username: str) -> None:
         # The addresses it had before a rename (app/database_keys.py) too.
         run(f"DELETE FROM database_aliases WHERE kind = :kind AND module_id IN ({hidden})", kind=ALIAS_KIND[modules])
         run(f"DELETE FROM {modules} WHERE id IN ({hidden})")
+    # What each uploaded file belongs to: their own uploads, and the records kept.
+    from . import uploads
+    uploads.narrow_copy(run, Base.metadata.tables)
 
 
 UPLOAD_REF = re.compile(r"uploads/([^\s\"'<>()\[\]\\?#]+)")

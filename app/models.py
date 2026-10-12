@@ -2115,6 +2115,23 @@ class Capture(Base):
     batch_id_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)      # and its batch
 
 
+class UploadOwner(Base):
+    """What an uploaded file (uploads/<name>) belongs to (app/uploads.py),
+    so /static/uploads/<name> is served only to someone who may see it.
+    `source` is the table of a record naming the file (`record_id` its
+    row), or "upload": `username` uploaded it. Rows are added when a
+    record naming a file is saved, never taken away: a record that went
+    no longer lets anyone see the file."""
+    __tablename__ = "upload_owners"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(300), index=True)
+    source: Mapped[str] = mapped_column(String(60), default="")
+    record_id: Mapped[int] = mapped_column(Integer, default=0)
+    username: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class NotebookPendingInsert(Base):
     """A line to add to a notebook page that someone has open in the live
     editor (app/lab_notebook.add_note): the server can't edit its Yjs

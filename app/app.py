@@ -7,7 +7,7 @@ import secrets
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Flask, Response, abort, flash, g, get_flashed_messages, has_request_context, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, Response, abort, flash, g, get_flashed_messages, has_request_context, jsonify, redirect, render_template, request, session, url_for
 from markupsafe import Markup, escape
 from werkzeug.datastructures import ImmutableMultiDict
 from sqlalchemy import case, func, select
@@ -170,18 +170,18 @@ with SessionLocal() as _db_session:
         security.announce_setup_code(app.logger)
 
 
-# When running as a frozen .app/.exe, or with BIOMANAGER_UPLOADS_DIR set (a
-# server keeps uploads on its data volume), uploads live outside app/static/.
-# Flask's default /static/ handler only sees files inside app/static/, so an
-# explicit route resolves /static/uploads/<name> against the uploads dir; the
-# more specific rule wins over /static/<path>. security.guard_uploads keeps
-# both behind a login.
-from .paths import is_frozen, uploads_dir as _uploads_dir  # noqa: E402
+# Uploaded files, wherever the uploads folder is (app/static/uploads, a
+# frozen .app/.exe's user-data folder, or BIOMANAGER_UPLOADS_DIR: a server's
+# data volume). This rule wins over Flask's own /static/<path>.
+# security.guard_uploads sends anyone not signed in to sign in, and
+# app/uploads.py serves a file only to someone who may see a record it
+# belongs to.
+from . import uploads as _uploads  # noqa: E402
 
-if is_frozen() or os.environ.get("BIOMANAGER_UPLOADS_DIR", "").strip():
-    @app.route("/static/uploads/<path:filename>")
-    def _serve_uploads(filename):
-        return send_from_directory(_uploads_dir(), filename)
+
+@app.route("/static/uploads/<path:filename>")
+def _serve_uploads(filename):
+    return _uploads.serve(filename)
 
 
 @app.route("/favicon.ico")
@@ -6903,7 +6903,16 @@ def notebook_upload_image():
     saved = save_uploaded_image(upload)
     if not saved:
         return jsonify({"ok": False}), 400
+    _note_uploader(saved)
     return jsonify({"ok": True, "url": url_for("static", filename=saved)})
+
+
+def _note_uploader(saved_path: str) -> None:
+    """Its uploader may open the picture or file before the page naming it
+    is saved (app/uploads.py)."""
+    with SessionLocal() as db_session:
+        _uploads.note_uploader(db_session, saved_path, g.user.username)
+        db_session.commit()
 
 
 @app.route("/notebook/upload-file", methods=["POST"])
@@ -6913,6 +6922,7 @@ def notebook_upload_file():
     saved = save_uploaded_file(upload)
     if not saved:
         return jsonify({"ok": False}), 400
+    _note_uploader(saved["path"])
     return jsonify({
         "ok": True,
         "url": url_for("static", filename=saved["path"]),

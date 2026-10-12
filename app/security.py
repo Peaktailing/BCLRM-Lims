@@ -439,7 +439,9 @@ def add_security_headers(response):
         name = "Content-Security-Policy" if mode == "enforce" else "Content-Security-Policy-Report-Only"
         headers.setdefault(name, content_security_policy())
     if request.path.startswith(UPLOADS_PREFIX):
-        headers["Cache-Control"] = "private, max-age=3600"
+        # Kept by this person's browser only; a refusal not at all, so a
+        # picture opens once its page is saved or shared with them.
+        headers["Cache-Control"] = "private, max-age=3600" if response.status_code in (200, 206, 304) else "no-store"
         if response.mimetype not in INLINE_UPLOADS:
             headers["Content-Disposition"] = "attachment"
         if response.mimetype != "application/pdf":
