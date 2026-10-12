@@ -703,7 +703,7 @@ class MiceTarget(Target):
                                         typed=typed, id=mouse_id))
         ctx["taken"].add(mouse_id)
         owner = _owner(ctx, v.get("owner", ""), warnings, extras)
-        form = {k: v[k] for k in ("ear_tag", "gender", "cage_id", "cage_location", "litter_id", "date_of_birth",
+        form = {k: v[k] for k in ("ear_tag", "strain", "gender", "cage_id", "cage_location", "litter_id", "date_of_birth",
                                   "status", "date_of_death") if k in v}
         # The lab's own columns, under the names populate_mouse_from_form reads.
         form.update({k: value for k, value in v.items() if k.startswith("attr_")})
@@ -780,9 +780,14 @@ def mice_target(session) -> Target:
             Field("ear_tag", "Custom tag", ("custom tag", "ear tag", "eartag", "tag", "ear punch", "ear notch",
                                             "notch", "tattoo", "tail tattoo", "tail mark", "toe clip", "marking",
                                             "mark", "identification", "耳标", "耳号", "剪耳", "剪趾", "标记")),
+            # The background (C57BL/6J, BALB/cJ). A "Strain" column used to
+            # come in as the genotype, for want of anywhere else to put it;
+            # one that names lines (Ai14) can be pointed there on the match page.
+            Field("strain", "Strain", ("strain", "background", "strain background", "genetic background",
+                                       "品系", "背景品系", "遗传背景")),
             Field("gender", "Sex", ("sex", "gender", "m f", "male female", "性别", "雌雄", "公母"), kind="sex"),
-            Field("genotype", "Genotype", ("genotype", "strain", "line", "transgene", "allele", "cre", "gt",
-                                           "transgene 1", "基因型", "品系")),
+            Field("genotype", "Genotype", ("genotype", "line", "transgene", "allele", "cre", "gt",
+                                           "transgene 1", "基因型")),
             *(Field(f"transgene_{n}", f"Transgene {n}", (f"transgene {n}", f"allele {n}", f"tg {n}"))
               for n in (2, 3, 4)),
             Field("date_of_birth", "Date of birth", ("dob", "birth date", "birthdate", "born", "birthday",

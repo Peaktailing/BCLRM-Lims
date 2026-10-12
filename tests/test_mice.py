@@ -185,7 +185,7 @@ class ColumnsTheLabAdds(AppTestCase):
         from tests.test_sheet_import import xlsx
         self.columns({"label": "Tail clip", "type": "text"})
         tag = uniq("TC")
-        data = xlsx([["Mouse ID", "Strain", "Tail clip"], ["", tag, "done"]])
+        data = xlsx([["Mouse ID", "Genotype", "Tail clip"], ["", tag, "done"]])
         r = self.a.post("/import-sheet/mice/upload", data={"file": (io.BytesIO(data), "colony.xlsx")},
                         content_type="multipart/form-data")
         token = r.headers["Location"].rsplit("/", 1)[1]
@@ -247,11 +247,12 @@ class TheEarTag(AppTestCase):
         names them, and must move when the sheet's columns do."""
         import re
         html = self.get_ok(self.m, "/colony?view=mice")
-        table = html.split('data-table-id="mice-v4"', 1)[1]
+        table = html.split('data-table-id="mice-v5"', 1)[1]
         heads = re.findall(r"<th\b[^>]*>", table.split("</tr>", 1)[0])
         keys = [re.search(r'data-sort-key="([^"]+)"', h).group(1) if "data-sort-key" in h else "" for h in heads]
         self.assertEqual(keys.index("ear_tag"), 2)
-        self.assertEqual(keys.index("transgene_1"), 6)
+        self.assertEqual(keys.index("strain"), 3)
+        self.assertEqual(keys.index("transgene_1"), 7)
 
     def test_the_number_carries_the_tag_on_hover_too(self):
         """Someone who hides the column still sees the mark when they point
@@ -273,6 +274,41 @@ class TheEarTag(AppTestCase):
         was = one("select mouse_id from mice where id=?", mouse)
         self.autosave(self.m, f"/colony/mice/{mouse}/update", {"ear_tag": "999"})
         self.assertEqual(one("select mouse_id from mice where id=?", mouse), was)
+
+
+class TheStrain(AppTestCase):
+    """A mouse's strain, its background (C57BL/6J, BALB/cJ), in a column
+    after the Custom tag, offering the colony's strain choices."""
+
+    def test_it_is_typed_in_the_sheet_after_the_custom_tag_and_kept(self):
+        mouse = self.make_mouse(self.m, self.member)
+        self.assertSaved(self.autosave(self.m, f"/colony/mice/{mouse}/update", {"strain": "BALB/cJ"}))
+        self.assertEqual(one("select strain from mice where id=?", mouse), "BALB/cJ")
+        html = self.get_ok(self.m, "/colony?view=mice")
+        self.assertIn('value="BALB/cJ"', html)
+        self.assertLess(html.index('data-sort-key="ear_tag"'), html.index('data-sort-key="strain"'))
+        self.assertLess(html.index('data-sort-key="strain"'), html.index('data-sort-key="gender"'))
+        # Saving another field leaves it alone.
+        self.autosave(self.m, f"/colony/mice/{mouse}/update", {"ear_tag": "RF"})
+        self.assertEqual(one("select strain from mice where id=?", mouse), "BALB/cJ")
+
+    def test_it_offers_the_common_strains(self):
+        html = self.get_ok(self.m, "/colony?view=mice")
+        offered = html.split('<datalist id="options-strain">', 1)[1].split("</datalist>", 1)[0]
+        for strain in ("C57BL/6J", "BALB/cJ", "129S1/SvImJ", "FVB/NJ"):
+            self.assertIn(f'value="{strain}"', offered)
+        self.assertIn('list="options-strain"', html)
+
+    def test_searching_for_the_strain_finds_the_mouse(self):
+        mouse = self.make_mouse(self.m, self.member)
+        strain = uniq("B6.Cg")
+        self.autosave(self.m, f"/colony/mice/{mouse}/update", {"strain": strain})
+        found = self.m.get(f"/search?q={strain}").get_json()
+        self.assertIn("mouse", [r["type"] for r in found["results"]])
+
+    def test_a_lab_column_cannot_take_its_name(self):
+        from app import custom_fields
+        self.assertIn("strain", custom_fields.RESERVED["colony"])
 
 
 class Case(AppTestCase):

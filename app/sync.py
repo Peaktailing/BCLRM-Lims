@@ -87,7 +87,8 @@ def _d(value):
 
 
 def mouse_row(m: MouseRecord) -> dict:
-    return {"id": m.id, "number": m.mouse_id, "ear_tag": m.ear_tag or "", "sex": m.gender or "",
+    return {"id": m.id, "number": m.mouse_id, "ear_tag": m.ear_tag or "", "strain": m.strain or "",
+            "sex": m.gender or "",
             "transgenes": [m.transgene_1 or "", m.transgene_2 or "", m.transgene_3 or "", m.transgene_4 or ""],
             "genotype": m.genotype or "", "status": m.status or "", "owner": m.owner or "", "note": m.note or "",
             "cage": m.cage_id_fk, "litter": m.litter_id_fk, "date_of_death": _d(m.date_of_death),

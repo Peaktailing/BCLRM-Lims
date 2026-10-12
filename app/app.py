@@ -1336,6 +1336,8 @@ def populate_mouse_from_form(db_session, mouse: MouseRecord, form, preserve_owne
         mouse.gender = form.get("gender", "").strip()
     if form_changed(form, "ear_tag"):
         mouse.ear_tag = form.get("ear_tag", "").strip()[:40]
+    if form_changed(form, "strain"):
+        mouse.strain = form.get("strain", "").strip()[:120]
     # Columns this lab added to the colony: only the ones the form sent.
     custom_fields.apply_form(mouse, form, custom_fields.fields(db_session, "colony"))
     previous_status = mouse.status
@@ -2482,8 +2484,8 @@ def export_my_data():
             ).all()
             iso = lambda d: d.isoformat() if d else ""
             zf.writestr("mice.csv", csv_text([
-                ["mouse_id", "ear_tag", "gender", "genotype", "status", "owner", "cage_id", "litter_id", "dob", "dod", "note"],
-                *([m.mouse_id, m.ear_tag, m.gender, m.genotype, m.status, m.owner, m.cage.cage_id if m.cage else "",
+                ["mouse_id", "ear_tag", "strain", "gender", "genotype", "status", "owner", "cage_id", "litter_id", "dob", "dod", "note"],
+                *([m.mouse_id, m.ear_tag, m.strain, m.gender, m.genotype, m.status, m.owner, m.cage.cage_id if m.cage else "",
                    m.litter.litter_id if m.litter else "", iso(m.litter.date_of_birth) if m.litter else "",
                    iso(m.date_of_death), m.note] for m in mice)]))
 
@@ -3645,6 +3647,7 @@ def bulk_add_to_experiment():
 # Columns the preview grid understands, in display order.
 BATCH_COLUMNS = [
     ("ear_tag", "Custom tag", 80),
+    ("strain", "Strain", 110),
     ("gender", "Sex", 70),
     ("transgene_1", "Transgene 1", 130),
     ("transgene_2", "Transgene 2", 130),
@@ -3872,7 +3875,7 @@ def batch_mice():
 
 # The file "Download a template" gives: the headers the importer reads, in
 # the short spelling the page shows, and two example rows to overwrite.
-BATCH_TEMPLATE_HEADERS = ["sex", "transgene_1", "transgene_2", "transgene_3", "transgene_4",
+BATCH_TEMPLATE_HEADERS = ["sex", "strain", "transgene_1", "transgene_2", "transgene_3", "transgene_4",
                           "cage", "cage_location", "owner", "litter", "dob", "status", "note"]
 
 
@@ -3884,7 +3887,7 @@ def batch_mice_template():
     buffer = _io.StringIO()
     writer = _csv.writer(buffer)
     writer.writerow(BATCH_TEMPLATE_HEADERS)
-    example = {"transgene_1": "DAT-IRES-Cre/+", "cage": "new-F", "owner": g.user.username,
+    example = {"strain": "C57BL/6J", "transgene_1": "DAT-IRES-Cre/+", "cage": "new-F", "owner": g.user.username,
                "dob": (date.today() - timedelta(days=56)).isoformat(), "status": "experiment"}
     writer.writerow([{**example, "sex": "F"}.get(h, "") for h in BATCH_TEMPLATE_HEADERS])
     writer.writerow([{**example, "sex": "M", "cage": "new-M"}.get(h, "") for h in BATCH_TEMPLATE_HEADERS])
@@ -6224,7 +6227,8 @@ def search_results(q: str, limit: int = 5) -> tuple[str, list[dict]]:
         else:
             mouse_stmt = mouse_stmt.where(
                 MouseRecord.genotype.ilike(like, escape="\\") | MouseRecord.owner.ilike(like, escape="\\") | MouseRecord.note.ilike(like, escape="\\")
-                | MouseRecord.ear_tag.ilike(like, escape="\\") | MouseRecord.attrs.ilike(like, escape="\\")
+                | MouseRecord.ear_tag.ilike(like, escape="\\")
+                | MouseRecord.strain.ilike(like, escape="\\") | MouseRecord.attrs.ilike(like, escape="\\")
             )
         for m in db_session.scalars(mouse_stmt.order_by(MouseRecord.mouse_id.desc()).limit(limit)).all():
             results.append({
@@ -7370,7 +7374,8 @@ def notebook_search_entity(entity_type: str):
                 stmt = stmt.where(MouseRecord.mouse_id == int(query))
             elif query:
                 stmt = stmt.where(MouseRecord.genotype.ilike(like_pattern(query), escape="\\") | MouseRecord.owner.ilike(like_pattern(query), escape="\\")
-                                  | MouseRecord.ear_tag.ilike(like_pattern(query), escape="\\"))
+                                  | MouseRecord.ear_tag.ilike(like_pattern(query), escape="\\")
+                                  | MouseRecord.strain.ilike(like_pattern(query), escape="\\"))
             stmt = stmt.order_by(MouseRecord.mouse_id.desc()).limit(limit)
             rows = db_session.scalars(stmt).all()
             return jsonify({"ok": True, "items": [
@@ -7439,7 +7444,8 @@ def notebook_search_entity(entity_type: str):
                 like = like_pattern(query)
                 mouse_stmt = mouse_stmt.where(
                     MouseRecord.genotype.ilike(like, escape="\\") | MouseRecord.owner.ilike(like, escape="\\")
-                    | MouseRecord.ear_tag.ilike(like, escape="\\") | MouseRecord.attrs.ilike(like, escape="\\")
+                    | MouseRecord.ear_tag.ilike(like, escape="\\")
+                    | MouseRecord.strain.ilike(like, escape="\\") | MouseRecord.attrs.ilike(like, escape="\\")
                 )
             mouse_stmt = mouse_stmt.order_by(MouseRecord.mouse_id.desc()).limit(per_type_limit)
             for m in db_session.scalars(mouse_stmt).all():

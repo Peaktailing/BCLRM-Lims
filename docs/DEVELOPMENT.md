@@ -2552,6 +2552,16 @@ the tag as well (`_sheet.html`'s `id_cell(aside=…)`), so hiding the column
 under **Columns** loses nothing; the column stays because a tooltip cannot
 be scanned down a sheet, sorted, printed or read on a phone at the rack.
 
+**Strain** is `mice.strain` (revision 0039, 120 characters, free text): the
+mouse's background, the column after the Custom tag. Its cell, the dialog
+and Add many offer `datalist#options-strain`, the colony's dropdown choices
+for the field `strain` (`MOUSE_PRESET_FIELDS`), which a new lab starts with
+as `models.DEFAULT_MOUSE_STRAINS` and an older one gains in 0039 when it has
+none. It is in the export, search, the phone sync row (`sync.mouse_row`) and
+the importer, where a "Strain" or "Background" column now maps to it (one
+called "Strain" went to the genotype before). The column moved the
+transgenes along, so the sheet's id is `mice-v5` (`_mouse_sheet.html`).
+
 **Numbers are handed out once.** `services.reserve_mouse_ids()` counts
 above the highest mouse and above `app_settings.mouse_id_high`, the highest
 ever handed out, so deleting the newest mouse or undoing an Add many never

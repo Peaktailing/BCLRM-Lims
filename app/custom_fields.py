@@ -38,7 +38,7 @@ MAX_FIELDS = 30
 # A lab's column may not be called the same as one the record already has,
 # or the sheet would have two columns answering to one name.
 RESERVED = {
-    "colony": {"id", "mouse_id", "ear_tag", "gender", "genotype", "status", "owner", "note", "notes",
+    "colony": {"id", "mouse_id", "ear_tag", "strain", "gender", "genotype", "status", "owner", "note", "notes",
                "cage", "cage_id", "litter", "litter_id", "age", "date_of_birth", "date_of_death", "dob", "dod"},
     "zebrafish": {"id", "tank_id", "line", "status", "owner", "note", "notes", "age", "date_of_birth",
                   "fish", "room", "rack", "position"},
