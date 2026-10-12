@@ -327,7 +327,8 @@ def take_off(session, snapshot: dict, entries: list[dict]) -> tuple[str, str]:
     """Take what was given off the item's quantity, as "Some of an item
     used" does (app/actions.py _used: units converted, pack sizes); its
     status follows Low at. (the amount taken, what to say) or ("", why
-    not)."""
+    not). The quantity taken, in the item's unit, goes in the snapshot
+    ("taken_qty"), so undoing the day gives it back (give_back)."""
     from . import actions
     from . import inventory_service as inv
     from .inventory_routes import _can_edit
@@ -357,10 +358,30 @@ def take_off(session, snapshot: dict, entries: list[dict]) -> tuple[str, str]:
         item.quantity = after
         item.updated_at, item.updated_by = datetime.utcnow(), g.user.username
         inv.follow_stock_level(inv.view(session.get(InventoryModule, item.module_id_fk)), item)
+        snapshot["taken_qty"] = used
         amount = f"{said} ({converted})" if converted else said
         return amount, gettext("%(item)s: %(amount)s taken off (%(before)s → %(after)s).", item=label,
                                amount=amount, before=before, after=after)
     return "", gettext("Nothing was taken off %(item)s: %(why)s", item=label, why=why)
+
+
+def give_back(session, kept: dict) -> str:
+    """Put back on its item what a recorded day took off (kept: the day's
+    reagent), when the day is undone or recorded with another item; what
+    to say, or "" when nothing was taken or the item is gone."""
+    from . import actions
+    from . import inventory_service as inv
+    from .models import InventoryModule
+    used = kept.get("taken_qty")
+    item = session.get(InventoryItem, int(kept.get("id") or 0)) if used else None
+    now = inv.amount(item.quantity) if item is not None else None
+    if item is None or now is None:
+        return ""
+    item.quantity = inv.number_text(round(now + float(used), 6))
+    item.updated_at, item.updated_by = datetime.utcnow(), g.user.username
+    inv.follow_stock_level(inv.view(session.get(InventoryModule, item.module_id_fk)), item)
+    return gettext("%(item)s: %(amount)s put back on the inventory.", item=actions._item_label(session, item),
+                   amount=kept.get("taken") or inv.number_text(float(used)))
 
 
 def step_title(step: ExperimentStep, family: str = "mouse", readout: dict | None = None, shown: bool = False) -> str:
@@ -678,16 +699,23 @@ def _record(session, exp, place, step, day, data):
                                     lot=snapshot["lot"], date=snapshot["expires"]))
         else:
             problems.append(gettext("%(name)s expired on %(date)s.", name=snapshot["name"], date=snapshot["expires"]))
-    # Taken off the inventory only when asked, and once a day.
+    # Taken off the inventory only when asked, and once a day; recorded again
+    # with another item, what the first took goes back on it.
     if before.get("taken") and before.get("id") == snapshot.get("id"):
         snapshot["taken"] = before["taken"]
-    elif data.get("take_off") and snapshot and not ex.is_reading(step.kind):
-        taken, words = take_off(session, snapshot, json.loads(record.mice))
-        if taken:
-            snapshot["taken"] = taken
-            said.append(words)
-        else:
-            problems.append(words)
+        if "taken_qty" in before:
+            snapshot["taken_qty"] = before["taken_qty"]
+    else:
+        given_back = give_back(session, before) if before.get("taken") else ""
+        if given_back:
+            said.append(given_back)
+        if data.get("take_off") and snapshot and not ex.is_reading(step.kind):
+            taken, words = take_off(session, snapshot, json.loads(record.mice))
+            if taken:
+                snapshot["taken"] = taken
+                said.append(words)
+            else:
+                problems.append(words)
     record.reagent = json.dumps(snapshot) if snapshot else ""
     # Sample records, only when the person asked for them.
     if data.get("make_samples") and not _record_dict(record)["samples"]:
@@ -864,10 +892,13 @@ def undo_day(experiment_id: int, step_id: int, day: int):
         record = s.scalar(select(ExperimentStepRecord).join(ExperimentStep).where(
             ExperimentStep.experiment_id_fk == exp.id, ExperimentStepRecord.step_id_fk == step_id,
             ExperimentStepRecord.day == day))
+        said = ""
         if record is not None:
+            # What the day took off the inventory goes back on it.
+            said = give_back(s, _record_dict(record)["reagent"] or {})
             s.delete(record)
             s.commit()
-        return _answer(s, exp, place)
+        return _answer(s, exp, place, message=said)
 
 
 # ---------------------------------------------------------------- saved regimens

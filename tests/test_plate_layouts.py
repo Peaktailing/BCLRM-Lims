@@ -427,3 +427,18 @@ class ForAnAssistant(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeletingTheExperiment(AppTestCase):
+    def test_the_colony_s_delete_takes_its_readings_too(self):
+        # Readings (a plate's among them) aren't the experiment's ORM
+        # children; left behind, PostgreSQL refuses the delete.
+        r = self.m.post("/colony/experiments/create", data={"name": uniq("Plate exp ")})
+        exp = int(location(r).rsplit("/", 1)[1])
+        from tests.base import execute
+        execute("insert into experiment_readings (experiment_id_fk, subject, readout_key, read_on, value, note, "
+                "recorded_by, created_at) values (?, 'mouse:1', 'custom', ?, 0.5, '', ?, ?)",
+                exp, TODAY, self.member, TODAY)
+        self.m.post(f"/colony/experiments/{exp}/delete")
+        self.assertEqual(count("experiments", "id=?", exp), 0)
+        self.assertEqual(count("experiment_readings", "experiment_id_fk=?", exp), 0)

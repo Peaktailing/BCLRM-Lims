@@ -3032,6 +3032,12 @@ def delete_experiment(experiment_id: int):
             refused = _experiment_refusal(exp)
             if refused:
                 return refused
+            # Its readings and subjects aren't the experiment's ORM children:
+            # left behind, PostgreSQL refuses the delete (as experiments.delete).
+            from .models import ExperimentReading, ExperimentSubject
+            for model in (ExperimentSubject, ExperimentReading):
+                for row in db_session.scalars(select(model).where(model.experiment_id_fk == exp.id)):
+                    db_session.delete(row)
             log_delete(
                 db_session, "experiments", exp.id,
                 record_label=f"Experiment: {exp.name}",

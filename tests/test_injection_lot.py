@@ -111,6 +111,24 @@ class Lots(AppTestCase):
         self.record(step, day=1, take_off=True, note="again")     # saved again: not twice
         self.assertEqual(one("select quantity from inventory_items where id=?", self.bottle), "9.91")
 
+    def test_undoing_the_day_puts_it_back(self):
+        step = self.step(reagent_id=str(self.bottle))
+        self.record(step, day=1, take_off=True)
+        self.assertEqual(one("select quantity from inventory_items where id=?", self.bottle), "9.91")
+        r = self.m.post(f"/colony/experiments/{self.exp}/steps/{step}/day/1/undo", json={})
+        self.assertIn("put back", r.get_json()["message"])
+        self.assertEqual(one("select quantity from inventory_items where id=?", self.bottle), "10")
+
+    def test_recorded_again_with_another_bottle_the_first_gets_it_back(self):
+        other = self.make_item(self.m, "reagents", self.agent, lot="L-2", quantity="5", unit="mL",
+                               expires_on=(TODAY + timedelta(days=300)).isoformat())
+        step = self.step(reagent_id=str(self.bottle))
+        self.record(step, day=1, take_off=True)
+        data = self.record(step, day=1, reagent_id=str(other), take_off=True)
+        self.assertIn("put back", data["message"])
+        self.assertEqual(one("select quantity from inventory_items where id=?", self.bottle), "10")
+        self.assertEqual(one("select quantity from inventory_items where id=?", other), "4.91")
+
     def test_take_off_that_does_not_fit_says_why(self):
         vials = self.make_item(self.m, "reagents", uniq("Vials "), quantity="3", unit="vials")
         step = self.step(reagent_id=str(vials))

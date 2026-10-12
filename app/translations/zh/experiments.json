@@ -118,5 +118,6 @@
   "Nothing was taken off %(item)s: %(why)s": "未从 %(item)s 扣除：%(why)s",
   "%(item)s: %(amount)s taken off (%(before)s → %(after)s).": "%(item)s：扣除 %(amount)s（%(before)s → %(after)s）。",
   "Take what they got off the inventory": "从库存中扣除给药量",
-  "Nothing was taken off %(item)s: some have no weight to work out what they got.": "未从 %(item)s 扣除：有些动物没有体重，算不出给药量。"
+  "Nothing was taken off %(item)s: some have no weight to work out what they got.": "未从 %(item)s 扣除：有些动物没有体重，算不出给药量。",
+  "%(item)s: %(amount)s put back on the inventory.": "%(item)s：%(amount)s 已放回库存。"
 }

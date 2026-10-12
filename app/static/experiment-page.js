@@ -772,8 +772,10 @@
       if (!recordCtx || recordCtx.adhoc) return;
       if (!(await confirmAsk(t('Mark this day as not done?')))) return;
       try {
-        apply(await send(`${API}/steps/${recordCtx.stepId}/day/${recordCtx.day}/undo`, {}));
+        const data = await send(`${API}/steps/${recordCtx.stepId}/day/${recordCtx.day}/undo`, {});
+        apply(data);
         recordForm.closest('dialog').close();
+        if (data.message) say('saved', data.message);   // what it took off, put back
       } catch (error) { showError(recordForm.closest('dialog'), error.message); }
     });
   }
