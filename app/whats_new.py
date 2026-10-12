@@ -30,6 +30,11 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.8.1": {
+        "fixed": [
+            "The animal-use report counts today's animals wherever the lab is, not only in UTC.",
+        ],
+    },
     "1.8.0": {
         "new": [
             "**Verify sequencing** on a plasmid's **Sequence** tab checks Sanger reads against its map: every difference, what it does to a protein, and a verdict for the clone.",

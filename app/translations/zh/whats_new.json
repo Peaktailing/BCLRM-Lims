@@ -110,5 +110,6 @@
   "A reagent kept in ampoules or vials can say what one holds, so using 2 mL takes the right part of one off.": "按安瓿或瓶计数的试剂可以写明每个装多少，用掉 2 mL 就会扣掉相应的一部分。",
   "For AI assistants: an animal-use report for the annual review, a handover for someone leaving, and sequencing checks from reads uploaded as **Captures**.": "AI 助手新增：年度审查用的动物使用报告、成员离开时的交接清单，以及用上传为 **速记** 的测序结果做核对。",
   "The plugin for Claude and ChatGPT is on the website's Download page.": "Claude 和 ChatGPT 的插件可以在网站下载页下载。",
-  "For scripts: a plasmid's API answer leaves out its sequence unless asked with sequence=1.": "使用脚本请注意：质粒的 API 返回默认不含序列，需要时加 sequence=1。"
+  "For scripts: a plasmid's API answer leaves out its sequence unless asked with sequence=1.": "使用脚本请注意：质粒的 API 返回默认不含序列，需要时加 sequence=1。",
+  "The animal-use report counts today's animals wherever the lab is, not only in UTC.": "动物使用报告按实验室所在时区计算当天的动物，而不只按 UTC。"
 }

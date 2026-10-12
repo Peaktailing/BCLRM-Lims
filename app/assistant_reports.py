@@ -18,7 +18,7 @@ endpoints and who may ask.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from flask import url_for
 from sqlalchemy import or_, select
@@ -179,6 +179,17 @@ STARTED = ("active", "paused", "done", "cancelled")   # every status but planned
 FISH_BREEDING = ("breeding", "mating")
 
 
+def _day_of(stamp) -> date | None:
+    """The lab's own day of a stamp the database keeps in UTC (created_at,
+    recorded_at), as app.local_time reads them."""
+    return stamp.replace(tzinfo=timezone.utc).astimezone().date() if stamp else None
+
+
+def _from(day: date) -> datetime:
+    """The UTC stamp at which the lab's `day` begins, to compare those stamps with."""
+    return datetime.combine(day, datetime.min.time()).astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def _ran_during(session, start: date, end: date):
     """The experiments with animals used in [start, end]: started on or
     before its end and not ended before its start."""
@@ -203,7 +214,7 @@ def _mouse_entries(session, start: date, end: date) -> tuple[list[dict], dict]:
     entries, facts = [], {"no_birth_date": 0, "transferred": 0, "columns": [f["label"] for f in columns]}
     stmt = select(MouseRecord).options(selectinload(MouseRecord.cage), selectinload(MouseRecord.litter)).where(
         or_(MouseRecord.date_of_death.is_(None), MouseRecord.date_of_death >= start),
-        MouseRecord.created_at < datetime.combine(end + timedelta(days=1), datetime.min.time()))
+        MouseRecord.created_at < _from(end + timedelta(days=1)))
     for m in session.scalars(stmt):
         born = m.litter.date_of_birth if m.litter else None
         if born is not None and born > end:
@@ -214,7 +225,7 @@ def _mouse_entries(session, start: date, end: date) -> tuple[list[dict], dict]:
         reason = death_reason(m.status, m.note)[0] if ended is not None else ""
         entry = {"species": MOUSE, "strain": strain_of(m.genotype or "; ".join(transgene_parts(m)), strains),
                  "protocol": protocol, "protocol_from": column, "born": born,
-                 "added": m.created_at.date() if m.created_at else None, "ended": ended, "reason": reason,
+                 "added": _day_of(m.created_at), "ended": ended, "reason": reason,
                  "used": m.id in used,
                  "breeding": m.mouse_id in parents or (alive_then and m.cage is not None
                                                        and holds_breeders(m.cage.purpose))}
@@ -256,20 +267,20 @@ def _fish_entries(session, start: date, end: date) -> tuple[list[dict], dict]:
             taken[fid] = taken.get(fid, 0) + (n or 0)
     entries = []
     for f in session.scalars(select(FishRecord).options(selectinload(FishRecord.tank)).where(
-            FishRecord.created_at < datetime.combine(end + timedelta(days=1), datetime.min.time()))):
+            FishRecord.created_at < _from(end + timedelta(days=1)))):
         tank = f.tank
         line = lines.get(f.line_id_fk) or (lines.get(tank.line_id_fk) if tank is not None else None)
         p, column = protocol(tank, line)
         alive = (f.status or "alive") == "alive"
         entries.append({"species": FISH, "strain": line.name if line else (f.genotype or "(no line)"),
                         "protocol": p, "protocol_from": column, "count": (f.count or 0) + taken.get(f.id, 0),
-                        "born": f.date_of_fertilization, "added": f.created_at.date() if f.created_at else None,
+                        "born": f.date_of_fertilization, "added": _day_of(f.created_at),
                         "used": (used[f.id] if used[f.id] is not None else (f.count or 0)) if f.id in used else 0,
                         "breeding": (f.count or 0) if alive and tank is not None and bool(tank.active)
                                     and (tank.purpose or "").lower() in FISH_BREEDING else 0})
     sac = session.scalars(select(FishSacLog).where(
-        FishSacLog.recorded_at >= datetime.combine(start, datetime.min.time()),
-        FishSacLog.recorded_at < datetime.combine(end + timedelta(days=1), datetime.min.time()))).all()
+        FishSacLog.recorded_at >= _from(start),
+        FishSacLog.recorded_at < _from(end + timedelta(days=1)))).all()
     for e in sac:
         tank, line = tanks.get(e.tank_id_fk), lines.get(e.line_id_fk)
         p, column = protocol(tank, line)
@@ -277,7 +288,7 @@ def _fish_entries(session, start: date, end: date) -> tuple[list[dict], dict]:
         status = said[len(FISH_STATUS_SAC_REASON):] if said.startswith(FISH_STATUS_SAC_REASON) else "sac"
         reason = death_reason(status, "" if said.startswith(FISH_STATUS_SAC_REASON) else said)[0]
         entries.append({"species": FISH, "strain": line.name if line else "(no line)", "protocol": p,
-                        "protocol_from": column, "count": e.count or 0, "ended": e.recorded_at.date(),
+                        "protocol_from": column, "count": e.count or 0, "ended": _day_of(e.recorded_at),
                         "reason": reason})
     return entries, {"columns": [f["label"] for f in columns]}
 

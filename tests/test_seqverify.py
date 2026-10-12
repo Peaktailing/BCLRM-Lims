@@ -253,7 +253,7 @@ class Verifying(Base):
     def setUp(self):
         super().setUp()
         self.rid = self.make_plasmid(self.m, name=uniq("pVerify"))
-        execute("update plasmids set full_sequence=?, is_circular=1, features_json=? where id=?", SEQ,
+        execute("update plasmids set full_sequence=?, is_circular=?, features_json=? where id=?", SEQ, True,
                 json.dumps(FEATURES), self.rid)
         self.number = one("select plasmid_id from plasmids where id=?", self.rid)
         region = mutate(SEQ[900:1500], {1004: "C"}, start=900)
@@ -295,7 +295,7 @@ class Verifying(Base):
         self.assertIn("与图谱一致", zh["report"]["verdict"])
 
     def test_someone_who_cant_edit_it_checks_but_doesnt_keep(self):
-        execute("update plasmids set owner=?, is_shared=0 where id=?", self.member, self.rid)
+        execute("update plasmids set owner=?, is_shared=? where id=?", self.member, False, self.rid)
         self.assertNotIn('name="keep"', self.get_ok(self.o, f"/plasmid/{self.number}"))
         before = one("select count(*) from plasmid_files where plasmid_row_id=?", self.rid)
         j = self.o.post(f"/plasmids/{self.rid}/verify", data={"reads": (io.BytesIO(self.ab1), "c.ab1"), "keep": "1"},
