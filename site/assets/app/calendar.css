@@ -3,6 +3,15 @@
    and time away; the grid itself is TOAST UI Calendar, restyled below.
    Colours come from the app's tokens, so light and dark both follow. */
 
+/* How strongly a chip shows its colour on the page (calendar-page.js
+   paint()): a chip is that much of its colour, the rest the surface. Its
+   edge is a bright colour darkened toward the ink in light mode. */
+:root { --cal-chip: 20%; --cal-chip-away: 12%; --cal-chip-edge: 72%; }
+
+  :root[data-theme=dark] { --cal-chip: 32%; --cal-chip-away: 32%; --cal-chip-edge: 100%; }
+
+:root[data-theme="dark"] { --cal-chip: 32%; --cal-chip-away: 32%; --cal-chip-edge: 100%; }
+
 .cal {
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);

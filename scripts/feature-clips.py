@@ -517,7 +517,8 @@ def sign_in(page, base, password):
             break
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
-    hide = page.get_by_role("button", name="Hide this list")
+    import re
+    hide = page.get_by_role("button", name=re.compile(r"Hide this list|隐藏这个清单"))
     if hide.count():
         hide.first.click()
         page.wait_for_load_state("networkidle")

@@ -92,6 +92,16 @@ var bmClips = (function () {
   var me = document.querySelector('script[src*="site.js"]');
   var root = me ? me.src.replace(/site\.js(\?.*)?$/, '') : '';
   var lib = null, clips = {};
+  // The site's language and light or dark: a Chinese page plays the Chinese
+  // recording (<clip>.zh.json), and a clip follows the site's dark mode
+  // (scripts/live-clips.py), its still too (<clip>-dark.webp).
+  var zh = /^zh/i.test(document.documentElement.lang || '');
+  var dim = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function siteDark() { return !!(dim && dim.matches); }
+  function stillFor(src, recorded) {
+    if (!src || !/\.webp(\?.*)?$/.test(src)) return src;
+    return src.replace(/\.webp(\?.*)?$/, (zh ? '.zh' : '') + (siteDark() && !recorded ? '-dark' : '') + '.webp$1');
+  }
   function replayer() {
     if (!lib) {
       lib = new Promise(function (resolve, reject) {
@@ -106,8 +116,10 @@ var bmClips = (function () {
   }
   function fetchClip(name) {
     if (!clips[name]) {
-      clips[name] = fetch(root + 'assets/clips/' + name + '.json')
-        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      var get = function (file) {
+        return fetch(root + 'assets/clips/' + file).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); });
+      };
+      clips[name] = (zh ? get(name + '.zh.json').catch(function () { return get(name + '.json'); }) : get(name + '.json'))
         .then(function (text) { return JSON.parse(text.split('%BM%/').join(root + 'assets/app/')); })
         .catch(function (e) { delete clips[name]; throw e; });
     }
@@ -135,7 +147,15 @@ var bmClips = (function () {
     still.className = 'live-still';
     still.alt = '';
     still.decoding = 'async';
-    still.src = video.getAttribute('poster');
+    var poster = video.getAttribute('poster');
+    // This language's and theme's still, else the one the page names.
+    function showStill() {
+      var want = stillFor(poster);
+      still.onerror = want !== poster ? function () { still.onerror = null; still.src = poster; } : null;
+      still.src = want;
+    }
+    showStill();
+    if (dim && dim.addEventListener) dim.addEventListener('change', function () { showStill(); });
     var screen = document.createElement('div');
     screen.className = 'live-screen';
     box.appendChild(still);
@@ -207,19 +227,23 @@ var bmClips = (function () {
       r.on('fullsnapshot-rebuilded', function () {
         var doc = r && r.iframe.contentDocument;
         if (!doc) return;
-        // The app as recorded (light unless the recording says dark),
-        // whatever this visitor's system is.
-        // The site's copies of the app's stylesheets are dark where the page
-        // says data-theme=dark (scripts/live-clips.py); the controls follow.
+        // Light or dark as the site is (the site's copies of the app's
+        // stylesheets are dark where the page says data-theme=dark,
+        // scripts/live-clips.py); a clip that shows the theme itself keeps
+        // the one it was recorded in. The controls follow.
         var root = doc.documentElement, frame = r.iframe;
+        var follow = clip.follow !== false;
         if (!root.getAttribute('data-theme')) root.setAttribute('data-theme', 'light');
         var scheme = function () {
+          var want = siteDark() ? 'dark' : 'light';
+          if (follow && root.getAttribute('data-theme') !== want) { root.setAttribute('data-theme', want); return; }
           var cs = root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
           frame.style.colorScheme = cs;
           root.style.colorScheme = cs;      // the page's own controls, too
         };
         scheme();
         new MutationObserver(scheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+        if (follow && dim && dim.addEventListener) dim.addEventListener('change', scheme);
         var sheets = Array.prototype.slice.call(doc.querySelectorAll('link[rel~="stylesheet"]'));
         Promise.all(sheets.map(function (l) {
           return l.sheet ? null : new Promise(function (done) { l.addEventListener('load', done); l.addEventListener('error', done); setTimeout(done, 3000); });
@@ -245,12 +269,12 @@ var bmClips = (function () {
     }
     new ResizeObserver(function () { layout(); }).observe(box);
 
-    p.show = function (clipName, poster) {
+    p.show = function (clipName, newPoster) {
       token++;
       drop();
       p.paused = true;
       name = clipName; clip = null;
-      if (poster) still.src = poster;
+      if (newPoster) { poster = newPoster; showStill(); }
     };
     p.play = function () {
       if (!live || !name || !p.paused) return;
