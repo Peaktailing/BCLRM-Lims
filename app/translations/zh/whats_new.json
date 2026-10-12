@@ -114,5 +114,8 @@
   "The animal-use report counts today's animals wherever the lab is, not only in UTC.": "动物使用报告按实验室所在时区计算当天的动物，而不只按 UTC。",
   "**Weaning day** in **Settings → General**, beside the genotyping day: P21 unless your lab chooses another, and every weaning date follows it.": "**设置 → 一般** 里新增 **断奶日**，在基因型鉴定日旁边：默认 P21，实验室可以改，所有断奶日期都按它来算。",
   "Setting up a lab server, the **Setup code** field says how to see the code.": "搭建实验室服务器时，**设置码** 一栏会说明怎样查看它。",
-  "The calendar follows light and dark as you switch, without reloading.": "日历会随浅色和深色模式立即切换，不用刷新。"
+  "The calendar follows light and dark as you switch, without reloading.": "日历会随浅色和深色模式立即切换，不用刷新。",
+  "A Breeding cage can have more than one litter: **Litter born** asks **Another litter** or **Correct the date**, and **Genotyping** and **Wean** ask which litter.": "一个繁殖笼可以有不止一窝：**产仔** 会问是 **另一窝** 还是 **更正日期**，**基因型鉴定** 和 **断奶** 会问是哪一窝。",
+  "**Animals that may need a look** on **Home**: weight loss, welfare words in notes, missed weighing and status that disagrees with the experiment. Set the threshold in **Settings → General → Weight loss to flag**.": "**首页** 上的 **可能需要查看的动物**：体重下降、备注里的福利相关词语、漏称体重，以及与实验不符的状态。在 **设置 → 一般 → 提示的体重下降** 设定阈值。",
+  "Uploaded files open only for people who may see a record they belong to.": "上传的文件只对能看到其所属记录的人开放。"
 }
