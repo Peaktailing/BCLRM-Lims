@@ -1629,8 +1629,10 @@ log over time is drawn as a line).
 (`frontend/src/blocks/experiment.js`) keeps only `{"id", "show",
 "percent"}` and reads `/colony/experiments/<id>/notebook.json`; *Freeze a
 copy* stores that payload in the block as `frozen`, so the page's
-versions keep it. The payload, the plan and the records are
-`app/experiment_steps.py`:
+versions keep it. A recorded day's reagent and lot (its record's
+`reagent`) show under the manipulation, *(expired)* as on the experiment
+page (`reagentUsed()`, `reagentText()`; `tests/js/experiment.check.mjs`).
+The payload, the plan and the records are `app/experiment_steps.py`:
 
 Experiments are on any database's animals (`app/experiments.py`):
 `experiments.db` says which (`colony`, `zebrafish`, `stocks:<key>`,

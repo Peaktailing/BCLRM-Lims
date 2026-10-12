@@ -1,7 +1,7 @@
 // A mouse colony experiment in a notebook page: its manipulations day by
-// day (what, dose, route, which group, when it was done and by whom, the
-// amount each mouse got) and its body weights, as a table and a chart
-// with the manipulation days marked.
+// day (what, dose, route, which group, the reagent and lot used, when it
+// was done and by whom, the amount each mouse got) and its body weights,
+// as a table and a chart with the manipulation days marked.
 //
 // The block holds only which experiment and what to show, and reads the
 // rest live from /colony/experiments/<id>/notebook.json
@@ -13,10 +13,34 @@
 //   {"id": 12, "show": ["plan", "weights"], "percent": false}
 //   ```
 
-import { api, clock, el, escapeHtml as esc, isoDate } from '../util.js';
+import { api, clock, el, escapeHtml as esc, isoDate, tr } from '../util.js';
 
 export function defaultExperiment() {
   return { id: null, show: ['plan', 'weights'], percent: false };
+}
+
+// The reagent a recorded day used, as its record keeps it (app/experiment_steps.py
+// reagent_used): its name, its lot, and whether that lot had expired by the
+// day it was used. Null for a day that kept none.
+export function reagentUsed(rec) {
+  const r = rec && rec.reagent;
+  if (!r || !r.name) return null;
+  return { name: r.name, lot: r.lot || '', expired: Boolean(r.expires && rec.done_on && r.expires < rec.done_on) };
+}
+
+// …in the experiment page's words (static/experiment-page.js usedText):
+// "Tamoxifen lot L7 (expired)".
+export function reagentText(rec, t = tr) {
+  const used = reagentUsed(rec);
+  if (!used) return '';
+  return `${used.name}${used.lot ? ` ${t('lot %(lot)s', { lot: used.lot })}` : ''}${used.expired ? ` ${t('(expired)')}` : ''}`;
+}
+
+function reagentHtml(rec) {
+  const used = reagentUsed(rec);
+  if (!used) return '';
+  return `<div class="nb-exp-lot">${esc(used.name)}${used.lot ? ` ${esc(tr('lot %(lot)s', { lot: used.lot }))}` : ''}${
+    used.expired ? ` <span class="nb-exp-expired">${esc(tr('(expired)'))}</span>` : ''}</div>`;
 }
 
 function openInAppTab(url) {
@@ -132,7 +156,7 @@ export function mountExperiment(host, ctx) {
       const done = rec ? `<span class="nb-exp-done">✓ ${esc(niceDate(rec.done_on))} · ${esc(rec.done_by)}</span>`
         : `<span class="nb-exp-state" data-state="${esc(r.state)}">${esc({ today: 'today', overdue: 'overdue', upcoming: 'to come', planned: 'planned' }[r.state] || '')}</span>`;
       return `<tr><td class="nb-exp-day">Day ${r.day}${r.date ? `<div class="nb-muted">${esc(niceDate(r.date))}</div>` : ''}</td>
-        <td><b>${esc(r.title)}</b>${r.group ? ` <span class="nb-muted">· ${esc(r.group)}</span>` : ''}${rec && rec.note ? `<div class="nb-muted">${esc(rec.note)}</div>` : ''}</td>
+        <td><b>${esc(r.title)}</b>${r.group ? ` <span class="nb-muted">· ${esc(r.group)}</span>` : ''}${reagentHtml(rec)}${rec && rec.note ? `<div class="nb-muted">${esc(rec.note)}</div>` : ''}</td>
         <td>${done}</td><td>${amounts}</td></tr>`;
     }).join('');
     const table = el('div', { class: 'nb-exp-scroll' });

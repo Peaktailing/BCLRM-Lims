@@ -551,8 +551,9 @@ database has a name of its own (one another database has is refused), so
     it, its owner gives a reason and **Open to amend**, and the reason stays
     in the record with every signature. A signed page can't be deleted.
   - **Colony experiment** (`/experiment`) shows an experiment on any of
-    your animals in the page: its manipulations, when each was done and by
-    whom, the amount each animal got, and its readout as a table and a
+    your animals in the page: its manipulations, the reagent and lot each
+    day used (marked *(expired)* when the lot was past its expiry), when
+    each was done and by whom, the amount each animal got, and its readout as a table and a
     chart (body weight in grams or % of the first, manipulation days
     marked), kept up to date.
     **Freeze a copy** keeps what it shows at that moment in the page. On

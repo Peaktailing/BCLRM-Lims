@@ -99,6 +99,20 @@ class Lots(AppTestCase):
         self.assertTrue(any("L-0" in p and "expired" in p for p in data["problems"]), data["problems"])
         self.assertEqual(self.kept(step)["lot"], "L-0")
 
+    def test_the_notebook_block_reads_the_lot_of_each_day(self):
+        old = self.make_item(self.m, "reagents", self.agent, lot="L-0",
+                             expires_on=(TODAY - timedelta(days=10)).isoformat())
+        step = self.step(reagent_id=str(self.bottle))
+        self.record(step, day=1)
+        self.record(step, day=2, reagent_id=str(old))
+        data = self.m.get(f"/colony/experiments/{self.exp}/notebook.json").get_json()["experiment"]
+        used = {r["day"]: r["record"] and r["record"]["reagent"] for r in data["schedule"]}
+        self.assertEqual((used[1]["name"], used[1]["lot"]), (self.agent, "L-1"))
+        self.assertEqual((used[2]["id"], used[2]["lot"]), (old, "L-0"))
+        done_on = [r["record"]["done_on"] for r in data["schedule"] if r["day"] == 2][0]
+        self.assertLess(used[2]["expires"], done_on)              # the block marks it (expired)
+        self.assertIsNone(used[3])                                # not done yet
+
     def test_taken_off_the_inventory_only_when_asked_and_once(self):
         step = self.step(reagent_id=str(self.bottle))
         self.record(step)
