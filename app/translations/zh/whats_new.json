@@ -123,5 +123,6 @@
   "Importing mice, a column called Strain or Background goes into **Strain**, not the genotype.": "导入小鼠时，名为 Strain 或 Background 的列会进入 **品系**，而不是基因型。",
   "The mouse sheet shows every column again: untick under **Columns** any you had hidden.": "小鼠表格会重新显示所有列：以前隐藏的列请在 **列** 里再取消勾选。",
   "The ••• menu in a sheet's toolbar opens over the bar below it and the sidebar.": "表格工具栏的 ••• 菜单会显示在下方那一栏和侧边栏之上。",
-  "Working offline, the phone lists each litter of a Breeding cage, and **Genotyping** and **Wean** ask **Which litter**.": "离线时，手机会列出繁殖笼的每一窝，**基因型鉴定** 和 **断奶** 会问 **哪一窝**。"
+  "Working offline, the phone lists each litter of a Breeding cage, and **Genotyping** and **Wean** ask **Which litter**.": "离线时，手机会列出繁殖笼的每一窝，**基因型鉴定** 和 **断奶** 会问 **哪一窝**。",
+  "The anonymous counts sent to BioManager's makers once a day are switched in **Settings → General**, and a new lab's setup no longer asks: they are on until an admin switches them off.": "每天发给 BioManager 开发者的匿名统计改在 **设置 → 一般** 里开关，新实验室设置时也不再询问：统计默认开启，直到管理员关闭。"
 }
