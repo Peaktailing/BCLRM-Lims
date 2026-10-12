@@ -111,6 +111,9 @@
     return data;
   }
 
+  // For the Plate dialog (static/plate-layout.js): the page's data, and drawing it again after a save.
+  window.BMExperiment = { data: () => D, apply: (data) => apply(data), say: (state, text) => say(state, text) };
+
   function apply(data, { sheet = true } = {}) {
     ['subjects', 'groups', 'steps', 'schedule', 'table', 'readout', 'weighs', 'start_date', 'editable', 'kinds',
       'regimens', 'reagents', 'sample_inventories', 'planned', 'fixed', 'plan', 'readout_day', 'planned_test',

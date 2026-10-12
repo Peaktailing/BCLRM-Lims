@@ -187,6 +187,36 @@
         <li>在 <b>实验台模式</b> （Bench mode）里，每只动物每项测量一个输入框，算出的数值随时显示。</li>
         <li>漏填、小于零、宽比长还大、Ct 为 60 或 <i>Undetermined</i> 的数值不会被保存，并会说明原因。</li>
       </ul>
+      <h2 id="plates">酶标仪或 qPCR 仪的孔板</h2>
+      <p>ELISA、细胞活力实验或一次 qPCR 运行，每个孔给出一个数，麻烦在于记清哪个孔是哪只动物。孔板布局只需排一次，之后每份导出
+        都能直接变成观测指标。</p>
+      <ol>
+        <li>表格上方的 <b>孔板布局</b> （Plate layout）打开孔板：24、48、96 或 384 孔（<b>孔数</b> Wells）。在左边选一只动物，
+          或 <b>空白</b> （Blank），或 <b>标准品</b> （Standard）并填上浓度，然后点击一个孔或拖过多个孔；点行字母或列号可选整行
+          或整列，<b>空孔</b> （Empty）用来清除。<b>按顺序填充</b> （Fill in order）把还不在板上的每只动物依次放进后面的空孔，
+          每只两三个孔，按行横向或按列纵向。同一只动物的多个孔就是它的复孔。</li>
+        <li>起个名字，按 <b>保存布局</b> （Save layout）。布局随实验保存，下次打开时就是上一次读板用的布局
+          （<i>与上一块板相同</i>）；可以修改，或 <b>新建布局</b> （New layout）。</li>
+        <li>按 <b>读取孔板 →</b> （Read a plate →），然后粘贴导出的数据或选择文件（CSV、TSV 或 Excel）。BioManager 能读取带行字母
+          A–H 和列号 1–12 的网格（一个文件里有几次读数时，例如两个波长，可以选用哪一次），或孔位与数值的列表：Well 和 OD，
+          或 qPCR 运行的 Well、Target 和 Ct（或 Cq）。</li>
+        <li>保存之前，每个孔的值都显示在孔板上。与其他复孔相差太大的（Ct 相差超过半个循环，其他数值相差超过五分之一）用橙色圈出；
+          超出仪器读数范围的孔（OD 超过 10、Ct 超过 50、<i>OVRFLW</i>）用红色圈出并略去，<i>Undetermined</i> 也会略去。
+          点任意一个孔可以略去它，再点一次放回。</li>
+        <li>孔板下方列出每只动物的孔、平均值和离散程度（CV），以及它得到的值。设好 <b>日期</b> （Day），再按 <b>保存读数</b>
+          （Save readings）。</li>
+      </ol>
+      <table class="gtable">
+        <tr><th>自定义观测指标</th><td>（<b>观测指标 → 其他…</b>，例如以 pg/mL 计的 IL-6。）每只动物各孔的平均值，减去空白的
+          平均值（<b>减去空白</b> Take off the blank）。有两种以上浓度的标准品时，<b>从标准曲线读出每个值</b>
+          （Read each value off the standard curve）用穿过标准品的直线把每个值换算成浓度；会显示这条直线和它的 r²，
+          超出最高或最低标准品的值会标出。</td></tr>
+        <tr><th>吸光度（减空白）</th><td>平均 OD 减去空白的 OD，两者都会保留。</td></tr>
+        <tr><th>ΔCt、ΔΔCt、倍数变化</th><td>从运行结果中选 <b>目的基因</b> （Target gene）和 <b>内参基因</b>
+          （Reference gene）；用每只动物各自的平均 Ct，ΔΔCt 和倍数变化同手动录入时一样以 <b>对照组</b> （Control group）为准。</td></tr>
+      </table>
+      <p>如果那一天已有读数，保存会替换它们，并会事先说明。孔板随实验保存：布局下方的 <b>已读的孔板</b> （Plates read）列出每一块，
+        带有日期、布局和文件。和实验的其他部分一样，只有实验的所有者（或管理员）可以排布局和读板。</p>
       <h2 id="the-page">实验页面</h2>
       <ul>
         <li>顶部是 <b>实验信息</b>：名称、状态、开始（第 1 天）、结束、观测指标和描述，边输入边保存。</li>
@@ -258,10 +288,11 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="本页内容">
-      <p>本页内容 · 阅读约 6 分钟</p>
+      <p>本页内容 · 阅读约 8 分钟</p>
       <ol>
         <li class="lvl2"><a href="#a-week">它对你每周的工作意味着什么</a></li>
         <li class="lvl2"><a href="#derived">由测量值算出的观测指标</a></li>
+        <li class="lvl2"><a href="#plates">酶标仪或 qPCR 仪的孔板</a></li>
         <li class="lvl2"><a href="#the-page">实验页面</a></li>
         <li class="lvl2"><a href="#the-regimen">处理方案</a></li>
         <li class="lvl2"><a href="#welfare">可能需要查看的动物</a></li>

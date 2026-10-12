@@ -253,3 +253,58 @@
 @media (max-width: 640px) {
   .xp-compare th[scope="row"] { white-space: normal; }
 }
+
+/* Plate layouts (static/plate-layout.js): the plate as a grid of wells, coloured by group, then by what was read */
+.pl-dialog { width: min(1120px, calc(100vw - 32px)); }
+.pl-step { display: flex; flex-direction: column; gap: 12px; }
+.pl-step[hidden] { display: none; }
+.pl-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.pl-bar:empty { display: none; }
+.pl-grow { flex: 1 1 220px; }
+.pl-work { display: flex; align-items: flex-start; gap: 14px; }
+.pl-palette { display: flex; flex-direction: column; gap: 10px; width: 210px; flex: none; max-height: 420px; overflow: auto; }
+.pl-chips { display: flex; flex-direction: column; gap: 3px; }
+.pl-roles { padding-top: 8px; border-top: 1px solid var(--color-hairline); }
+.pl-chip {
+  display: flex; align-items: center; gap: 7px; width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 8px;
+  background: none; color: var(--color-ink); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.pl-chip:hover { background: var(--color-recess); }
+.pl-chip[aria-checked="true"] { border-color: var(--color-brand-600); background: color-mix(in srgb, var(--color-brand-600) 8%, transparent); }
+.pl-chip i { width: 10px; height: 10px; flex: none; border-radius: 3px; border: 1px solid var(--color-hairline); }
+.pl-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-chip em { font-style: normal; font-size: 11.5px; color: var(--color-muted); }
+.pl-conc[hidden] { display: none; }
+.pl-plate-wrap { flex: 1; min-width: 0; overflow: auto; }
+.pl-plate { border-collapse: separate; border-spacing: 3px; user-select: none; -webkit-user-select: none; touch-action: none; }
+.pl-plate th button {
+  width: 100%; padding: 0 2px; border: 0; background: none; color: var(--color-muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.pl-plate.is-reading th button { cursor: default; }
+.pl-well {
+  display: grid; place-items: center; width: 46px; height: 32px; padding: 0 2px; overflow: hidden; border: 1px solid var(--color-hairline);
+  border-radius: 999px; background: var(--color-surface); color: var(--color-ink); font: inherit; font-size: 11px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer;
+}
+.pl-384 .pl-well, .pl-384 th button { width: 28px; height: 20px; font-size: 9px; }
+.pl-24 .pl-well, .pl-48 .pl-well { width: 56px; height: 40px; }
+.pl-well.is-sample { border-color: var(--pl-color); background: color-mix(in srgb, var(--pl-color) 16%, var(--color-surface)); }
+.pl-well.is-blank { background: var(--color-recess); color: var(--color-muted); }
+.pl-well.is-standard { border-style: dashed; border-color: var(--color-ink-soft); }
+.pl-well.is-picked { outline: 2px solid var(--color-brand-600); outline-offset: 1px; }
+.pl-well.is-outlier, .pl-key.is-outlier { box-shadow: 0 0 0 2px var(--color-warn-700); }
+.pl-well.is-limit, .pl-key.is-limit { box-shadow: 0 0 0 2px var(--color-danger-600); }
+.pl-well.is-no_value, .pl-key.is-no_value { color: var(--color-muted); background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--color-hairline) 4px 5px); }
+.pl-well.is-skipped { opacity: 0.45; text-decoration: line-through; }
+.pl-key { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 999px; vertical-align: -1px; border: 1px solid var(--color-hairline); }
+.pl-legend { line-height: 1.8; }
+.pl-preview { display: flex; flex-direction: column; gap: 10px; }
+.pl-preview-notes { display: flex; flex-direction: column; gap: 6px; }
+.pl-preview tr.is-error td { color: var(--color-ink-soft); }
+.pl-preview .xp-danger-text { color: var(--color-danger-700); font-size: 12px; }
+.pl-reads ul { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--color-ink-soft); }
+.pl-fill .xp-num { width: 70px; }
+@media (max-width: 760px) {
+  .pl-work { flex-direction: column; }
+  .pl-palette { width: 100%; max-height: 180px; }
+}

@@ -1657,6 +1657,8 @@ animals it starts with.
 | `experiment_regimens` | saved regimens: an experiment's lines and days, per kind of animal, to plan the next one from (planning never records anything done) |
 | `experiment_steps` | an experiment's manipulations: days (`"2–5"`, day 1 = the start date), kind, agent, dose, route, concentration, treatment group |
 | `experiment_step_records` | one per step and day done: date, who, and per mouse the weight used and the amount and volume given (`mice`, JSON) |
+| `plate_layouts` | a plate layout kept with an experiment: name, format (24/48/96/384), `wells` (JSON: each well's role, `sample` with its animal's key, `blank`, or `standard` with `conc`), `used_at` (the last read onto) |
+| `plate_reads` | a plate read onto a layout and saved as readings: the layout as it was, the day and readout, the choices (`options`), every well's value as exported (`data`), each animal's value (`results`), and the file (`file_path`, an upload) |
 
 A `reading` step (`weigh` in the first version) writes the readout when recorded.
 A step may name the inventory item it uses (`reagent_item_id_fk`); a record
@@ -1704,6 +1706,44 @@ same arithmetic for an action's preview. `experiment_reading` takes
 summary shows each animal's inputs → value. `POST /api/v1/derive`
 (`api.COMPUTING`; GET lists the formulas) is `derived.derive` over rows,
 changing nothing, for the `derive` tool.
+
+**Plate layouts** (`app/plates.py`, `static/plate-layout.js`, tables
+`plate_layouts` and `plate_reads`, revision 0040). The experiment page's
+**Plate layout** dialog (owners and admins, `access.can_edit_experiment`)
+draws a layout on a plate (a rectangle dragged, a whole row or column,
+**Fill in order**) and saves it with `POST /experiments/<id>/plates/layouts`
+(`clean_layout`: wells on the plate, animals of the experiment, a standard's
+`conc`); `GET …/plates.json` lists the layouts, the last read onto first
+(*Same as last plate*), and the plates read. **Read a plate →** posts the
+export (multipart: `layout_id`, `file` or `text`, `on`, `target`,
+`reference`, `subtract_blank`, `standard_curve`, `skip`) to `…/plates/preview`,
+which changes nothing, and **Save readings** to `…/plates/save`. Both run
+`work_out` → `analyse`, the pure part: `read_export` reads the file with
+`sheet_import.read_workbook` (a workbook's *Results* sheet first) and
+`parse` finds a list with a well column (Well Position over Well's numbers)
+and a value column (`Ct`/`Cq` make it `kind: ct`; a `Target` column splits
+it by gene) or a grid (a header 1, 2, 3… with row letters before it; each
+grid in a file is a read, named by the line above it), else headerless
+`well value` lines. `mode_for(readout)` decides what a plate gives: `ct`
+for ΔCt, ΔΔCt and fold change (each animal's mean Ct of the target and
+reference genes, as `inputs`), `od` for `blank_subtracted` (needs blank
+wells), `value` for any other number (the mean, less the blank's mean, or
+read off the standards' least-squares line); body weight, a count and the
+caliper formulas are refused in words. A Ct outside 0–50, an OD over 10
+(in `od`), an *OVRFLW* or a word is `limit` or `no_value` and left out; a
+replicate more than `CT_TOLERANCE` (0.5 cycles) or `VALUE_TOLERANCE` (20 %)
+from its animal's median is `outlier`, flagged only; `skip` leaves wells out
+by hand. ΔΔCt and fold change come from `experiments.derive_day`, so the
+day's other readings count. `save` writes each value through
+`experiments.set_reading` (derived inputs as the sheet takes them,
+`control_first`), counts what it `replaces`, and keeps a `PlateRead`; the
+file is saved (`services.save_uploaded_file`) only once some animal has a
+value, and `upload_owners` makes it the experiment's to see. For an
+assistant, `POST /api/v1/experiments/<id>/plate` (`api.COMPUTING`) runs the
+same with `layout` (id or name) or `wells` + `format`, and `text` or a
+`capture` (its file), and answers the analysis with the `experiment_reading`
+change to propose (`plate_readout` tool). Tested in
+`tests/test_plate_layouts.py`.
 
 **Planned experiments and changes from the plan** (`app/experiment_plan.py`,
 revision 0033). Status `planned` comes before `active`: an assistant's
@@ -2173,8 +2213,9 @@ rows only (`lab_copy.OWN_ROWS`).
 computes; the model talks. `/search`, `/history`, `/lineage`,
 `/availability`, `/reorder-forecast`, `/lab-checks`,
 `/experiments/<id>/summary` and `/regimens` read; `/breeding-plan`,
-`/randomize`, `/power` and `/derive` (derived readouts, `app/derived.py`;
-the `derive` tool) are POSTs that change nothing (`api.COMPUTING`,
+`/randomize`, `/power`, `/derive` (derived readouts, `app/derived.py`;
+the `derive` tool) and `/experiments/<id>/plate` (a plate on its layout,
+`app/plates.py`; the `plate_readout` tool) are POSTs that change nothing (`api.COMPUTING`,
 open to any token). Each runs as the token's person: `lookup.record` 404s a
 record in a database they can't open, history shows only their own changes
 unless they are an admin, and search is the ⌘K search
