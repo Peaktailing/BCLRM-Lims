@@ -170,7 +170,7 @@ class PerDatabaseHomeTests(AppTestCase):
                {"key": "colony", "kind": "colony", "module": None}]
         keys = [c[0] for c in home_layouts.lab_cards(dbs)]
         self.assertEqual(keys[:4], list(home_layouts.TOP_CARDS))
-        self.assertEqual(keys[4:9], ["stock:flyroom", "plasmids", "sac", "weanings", "geno"])
+        self.assertEqual(keys[4:10], ["stock:flyroom", "plasmids", "welfare", "sac", "weanings", "geno"])
         self.assertLess(keys.index("geno"), keys.index("calendar"))
 
     def test_an_arrangement_saved_with_the_shared_card_keeps_its_place_and_choice(self):

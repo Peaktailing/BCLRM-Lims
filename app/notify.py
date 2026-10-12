@@ -13,6 +13,9 @@ What tells whom (the category decides the Settings switch that silences it):
   lab         a database or function was added or switched on for the lab
   notebook    pages shared with you, comments, and @you in a page or in the
               notes of any record (a plasmid "for @rowan", an order's note)
+  experiments once a day, the manipulations and readouts due in yours
+  welfare     once a day, animals that may need a look (app/welfare.py):
+              yours, or the lab's for animal care, facility managers and admins
   account     sign-ups waiting for approval (admins)
 
 Changes are noticed where the change history notices them, at the flush,
@@ -50,7 +53,29 @@ CATEGORIES = {
     "notebook": ("Notebook and @mentions", "Pages shared with you, comments and @mentions (in pages and in records' notes), "
                              "meeting notes and action items"),
     "experiments": ("Experiments", "Once a day: manipulations and readouts due in your experiments"),
+    "welfare": ("Animals that may need a look", "Once a day: animals losing weight, not weighed in an experiment, "
+                                                "or with notes that may need a look (yours; the lab's for animal care)"),
 }
+# Categories whose switch is kept as an app setting ("notify_<category>:<user>",
+# "off" when silenced) rather than a users column: no schema change for them.
+SETTING_SWITCHES = {"welfare"}
+
+
+def wants(session, user, category: str) -> bool:
+    """Whether this person wants notifications of this category (Settings →
+    Notifications)."""
+    if category in SETTING_SWITCHES:
+        from .inventory_service import get_setting
+        return get_setting(session, f"notify_{category}:{user.username}", "") != "off"
+    return getattr(user, f"notify_{category}", True) is not False
+
+
+def set_wants(session, user, category: str, on: bool) -> None:
+    if category in SETTING_SWITCHES:
+        from .inventory_service import set_setting
+        set_setting(session, f"notify_{category}:{user.username}", "" if on else "off")
+    else:
+        setattr(user, f"notify_{category}", on)
 MAX_LISTED = 5
 
 
@@ -536,7 +561,7 @@ def send(session, recipient: str, title: str, message: str = "", category: str =
     user = session.scalar(select(UserAccount).where(UserAccount.username == recipient))
     if user is None or user.disabled:
         return False
-    if getattr(user, f"notify_{category}", True) is False:
+    if not wants(session, user, category):
         return False
     from . import i18n
     with i18n.using(i18n.language_for(session, recipient)):
@@ -733,4 +758,43 @@ def daily_experiment_reminder(session, user) -> bool:
             title = gettext("%(title)s · %(n)s overdue, not recorded yet", title=title, n=overdue)
     session.add(NotificationRecord(recipient_username=user.username, title=title[:200], category="experiments",
                                    link=first or "", actor=""))
+    return True
+
+
+def daily_welfare_reminder(session, user, today: date | None = None) -> bool:
+    """Once a day, the first time someone opens the app: how many animals
+    may need a look (app/welfare.py), theirs, or the lab's for animal care,
+    facility managers and admins, as Home's card shows them. Silent when
+    there are none, or they turned it off. Status disagreements wait on
+    Home: they are not a reason to be told."""
+    from . import i18n, lab, welfare
+    if not wants(session, user, "welfare"):
+        return False
+    today = today or date.today()
+    already = session.scalar(select(func.count(NotificationRecord.id)).where(
+        NotificationRecord.recipient_username == user.username, NotificationRecord.category == "welfare",
+        NotificationRecord.actor == "", NotificationRecord.created_at >= welfare.day_start(today)))
+    if already:
+        return False
+    features = lab.features_on(session)
+    if not (features.get("colony", True) or features.get("zebrafish", True)):
+        return False
+    scope = welfare.default_scope(user)
+    found = {c["id"]: c["count"] for c in welfare.checks(
+        session, today, None if scope == "lab" else user.username, features=features)}
+    with i18n.using(i18n.language_for(session, user.username)):
+        parts = []
+        if found.get("weight_loss"):
+            parts.append(ngettext("%(num)s mouse losing weight", "%(num)s mice losing weight", found["weight_loss"]))
+        if found.get("not_weighed"):
+            parts.append(ngettext("%(num)s mouse not weighed in its experiment",
+                                  "%(num)s mice not weighed in their experiments", found["not_weighed"]))
+        if found.get("welfare_notes"):
+            parts.append(ngettext("%(num)s note that may need a look", "%(num)s notes that may need a look",
+                                  found["welfare_notes"]))
+        if not parts:
+            return False
+        title = gettext("Animals that may need a look: %(what)s", what="; ".join(parts))
+    session.add(NotificationRecord(recipient_username=user.username, title=title[:200], category="welfare",
+                                   link=url_for("home_dashboard") + "#welfare", actor=""))
     return True

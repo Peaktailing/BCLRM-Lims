@@ -249,7 +249,7 @@ The page that opens each morning: what needs doing today, in three layouts.
 
 Home is where each day starts: only what needs attention, from every database you can see. Choose how it looks with the **Layout** chips at the top (or in **Settings → Appearance & language → Home layout**); the choice is yours alone.
 
-- **Classic**: Cards, built from the databases your lab keeps and laid out in the sidebar's order: your databases as tiles, then *Counts*, a number for each database (mice, tanks, plasmids, vials or plates, open orders, items running low), and each database's own cards. The mouse colony brings *Mice older than 30 weeks*, *Upcoming weanings* and the *Genotyping queue*; zebrafish the mating tanks to return; Molecular biology *Recent plasmids* (yours first, marked *No sequence* until one is added); and each fly, worm or other animal database a card of its own with what is due in the next two days, so Drosophila and C. elegans are never mixed. *Expiring & low stock*, the *Next 14 days* and *Recent orders* complete it. The button at the top opens the first database in the sidebar.
+- **Classic**: Cards, built from the databases your lab keeps and laid out in the sidebar's order: your databases as tiles, then *Counts*, a number for each database (mice, tanks, plasmids, vials or plates, open orders, items running low), and each database's own cards. The mouse colony brings *Animals that may need a look* (below), *Mice older than 30 weeks*, *Upcoming weanings* and the *Genotyping queue*; zebrafish the mating tanks to return; Molecular biology *Recent plasmids* (yours first, marked *No sequence* until one is added); and each fly, worm or other animal database a card of its own with what is due in the next two days, so Drosophila and C. elegans are never mixed. *Expiring & low stock*, the *Next 14 days* and *Recent orders* complete it. The button at the top opens the first database in the sidebar.
 
 - **Tracks**: Every dated job on one ruler of days, one track per kind of work, coloured overdue, today, within 3 days or scheduled. Choose 1, 2 or 4 weeks. *Needs you now* and *Busy days* sit beside it. On a phone it becomes a list of days.
 
@@ -264,6 +264,20 @@ On every layout:
 - **Getting started**: While you're new, your first steps, each ticked off when it's done. An admin's list sets the lab up — add a rack, bring in your mice, print cage cards, set up your fly database, invite the lab. A member's is their own — find your mice, scan a cage card, request an order, add a plasmid, read this guide. **Hide this list** puts it away.
 
 - **Upcoming weanings**: The same list the calendar shows; each row opens its cage.
+
+### Animals that may need a look
+
+The first card of the mouse colony (or of zebrafish, in a lab without mice) lists the animals whose records suggest someone should look at them. It says what the records show, with the numbers, and never a diagnosis: what to do is yours and your protocol's to decide. Each row opens the animal (or its experiment, or its tank).
+
+- **Losing weight**: A living mouse whose latest weight is 15% or more below its heaviest of the last 30 days (with two weights or more in them), or below its first weight in an experiment that has started: both weights and their days, and the loss. An admin sets the percentage in **Settings → General → Weight loss to flag**.
+
+- **Notes that may need a look**: A mouse, tank or fish whose notes changed in the last 14 days (the change history says when), or a weight taken in that time with a note, that uses one of these words, in any case: hunched, hunching, lethargic, lethargy, moribund, not eating, off food, dehydrated, dehydration, wound, wounds, wounded, ulcer, ulcers, ulcerated, ulceration, weight loss, losing weight, thin, emaciated, labored (laboured) breathing, piloerection, hypothermic, prolapse; 弓背, 消瘦, 精神差, 精神萎靡, 萎靡, 不进食, 拒食, 脱水, 伤口, 溃疡, 呼吸困难, 体重下降, 体重减轻, 濒死, 竖毛, 低体温, 脱垂. The line it is in is shown. A word just after *no*, *not* or *without* (无, 没有, 未, 未见) isn't counted, so *no wound* and 未见溃疡 stay off. It is a word in a note, not a finding.
+
+- **Not weighed in their experiment**: A mouse in an active experiment measuring body weight, not weighed for longer than its regimen's weighing days allow, or 7 days when it plans none ([Experiments](https://biomanager.org/guide/experiments#welfare)).
+
+- **Status and experiment disagree**: A mouse whose status is *experiment* while it is in no experiment (once the lab keeps its mouse experiments here), or something else, such as *geno*, while it is in an active one.
+
+A member sees their own animals and the mice of their experiments; **Show the lab’s** shows everyone's. Animal care, facility managers and admins see the lab's, and **Show only yours** narrows it. Each morning the bell also says how many animals may need a look (not the status ones); turn that off in **Settings → Notifications → Animals that may need a look**. Like any card, **Customize** can put it away.
 
 *The Home page*
 
@@ -363,7 +377,7 @@ Source: https://biomanager.org/guide/undo-and-history
 
 The bell and what it tells you: your animals moved, orders arriving, @mentions and genotyping reminders, and how to choose them.
 
-The bell at the top shows what happened while you were away: someone moved your animals or vials, picked from your breeders, recorded a genotype on your mice, an order you placed was ordered, arrived or was cancelled, stock of yours [ran low](https://biomanager.org/guide/samples-and-orders#low-stock), someone wrote `@you` in a record's notes (a reagent, an order, a plasmid, a cage) or a notebook comment, and lab news such as being made admin. Admins are told of each new order request. A notice about one record opens that record — an order notice opens the order. A daily note reminds you of pups waiting to be genotyped. Choose which kinds you get in **Settings → Notifications**; you're never notified of your own changes.
+The bell at the top shows what happened while you were away: someone moved your animals or vials, picked from your breeders, recorded a genotype on your mice, an order you placed was ordered, arrived or was cancelled, stock of yours [ran low](https://biomanager.org/guide/samples-and-orders#low-stock), someone wrote `@you` in a record's notes (a reagent, an order, a plasmid, a cage) or a notebook comment, and lab news such as being made admin. Admins are told of each new order request. A notice about one record opens that record — an order notice opens the order. A daily note reminds you of pups waiting to be genotyped, and another says how many [animals may need a look](https://biomanager.org/guide/home-page#animals) (losing weight, not weighed in an experiment, a welfare word in their notes): yours, or the lab's for animal care. Choose which kinds you get in **Settings → Notifications**; you're never notified of your own changes.
 
 If your server sends email, a daily digest of what's overdue or coming up — flips, weanings, returns, expiring stock — goes to the email on your profile (**Settings → Notifications → Reminder email**). Clear the email to stop it.
 
@@ -985,6 +999,16 @@ Some readouts are a sum, not a reading: a tumour's volume from the calipers, fol
 ### The regimen
 
 **Regimen** lists what is to be done and on which days: the kind, what, dose, route, solution, group and days (`1`, `2-5`, `2/3/4/5`, `1, 8, 15`). Day 1 is the start date. The days to do are on the calendar, and the experiment's owner gets a notification each morning of what is due (turn it off in **Settings → Notifications → Experiments**). Nothing is done until someone records it on the page. **Save as a regimen…** keeps it to plan the next cohort from.
+
+### Animals that may need a look
+
+Home's card [Animals that may need a look](https://biomanager.org/guide/home-page#animals) reads a mouse experiment's records too. It says what they show, never a diagnosis:
+
+- **Losing weight**: a mouse whose latest weight is the lab's percentage (15% unless an admin sets another in **Settings → General → Weight loss to flag**) or more below its first weight in an experiment that has started, or below its heaviest of the last 30 days.
+
+- **Not weighed in their experiment**: in an active experiment whose readout is body weight, a mouse not weighed for longer than the longest gap between the regimen's weighing days (a *Readout day* on days 1, 4, 7: 3 days), or 7 days when it plans none or its last has passed. Animals left out of the analysis aren't counted.
+
+- **Status and experiment disagree**: a mouse whose status is *experiment* while it is in no planned, active or paused experiment, or *geno*, *breeder* or *transfer* while it is in an active one.
 
 ### Planned experiments, and changes from the plan
 
@@ -1659,7 +1683,7 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 
 ### A weekly review
 
-*Review the lab this week* runs BioManager's checks: overdue jobs, animals losing more than 15% of their weight in an experiment, empty cages still in a rack, breeders past 30 weeks, notebook pages left unsigned, reagents expired, expiring or low, and proposals still waiting. It sums them up by how much they matter and offers one proposal for what can be cleaned up. An admin or lab manager can have their assistant run it every Monday (in Claude, as a scheduled task).
+*Review the lab this week* runs BioManager's checks: overdue jobs, the animals that may need a look (losing weight past the lab's threshold, notes with a welfare word, not weighed in an experiment, status and experiment disagreeing: the same as Home's card, [Home](https://biomanager.org/guide/home-page#animals)), empty cages still in a rack, breeders past 30 weeks, notebook pages left unsigned, reagents expired, expiring or low, and proposals still waiting. It sums them up by how much they matter and offers one proposal for what can be cleaned up (a mouse in an active experiment whose status says *geno* gets its status set to *experiment*). For an animal it says what the records show, with the numbers and the note's own line, never a diagnosis. An admin or lab manager can have their assistant run it every Monday (in Claude, as a scheduled task).
 
 ### Write-ups
 

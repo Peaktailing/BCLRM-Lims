@@ -145,7 +145,7 @@
         <dt>经典（Classic）</dt>
         <dd>卡片式，按实验室实际使用的数据库生成，并按侧边栏的顺序排列：你的数据库以图块显示，然后是 <i>统计</i>，
           每个数据库一个数字（小鼠、鱼缸、质粒、果蝇管或培养皿、未完成的订购、快用完的物品），再是各数据库自己的卡片。
-          鼠群带来 <i>超过 30 周的小鼠</i>、<i>即将断奶</i> 和 <i>基因型鉴定队列</i>；斑马鱼带来待归还的配对缸；
+          鼠群带来 <i>可能需要查看的动物</i>（见下文）、<i>超过 30 周的小鼠</i>、<i>即将断奶</i> 和 <i>基因型鉴定队列</i>；斑马鱼带来待归还的配对缸；
           分子生物学带来 <i>最近的质粒</i>（你的排在前面，还没有序列的标为 <i>没有序列</i>）；每个果蝇、线虫或其他动物数据库
           各有一张自己的卡片，列出未来两天到期的事，果蝇和线虫不会混在一起。最后是 <i>即将过期和库存不足</i>、<i>未来 14 天</i>
           和 <i>最近订购</i>。顶部的按钮打开侧边栏里的第一个数据库。</dd>
@@ -173,6 +173,32 @@
         <dt>即将断奶</dt>
         <dd>和日历上显示的是同一份列表；点每一行会打开对应的笼。</dd>
       </dl>
+      <h2 id="animals">可能需要查看的动物</h2>
+      <p>鼠群的第一张卡片（没有小鼠的实验室则是斑马鱼的）列出记录显示可能需要有人去看一看的动物。它只说记录显示了什么，
+        附上数字，从不做诊断：怎么处理由你和你的动物实验方案决定。点每一行会打开那只动物（或它的实验、它的鱼缸）。</p>
+      <dl class="gdl">
+        <dt>体重下降（Losing weight）</dt>
+        <dd>存活的小鼠最近一次体重比过去 30 天里最重的一次（这段时间里至少称过两次）低了 15% 或更多，或比它在已开始的实验中的
+          第一次体重低这么多：显示两次体重、日期和下降的比例。管理员可以在 <b>设置 → 一般 → 提示的体重下降</b>
+          （Settings → General → Weight loss to flag）里修改这个比例。</dd>
+        <dt>可能需要查看的备注（Notes that may need a look）</dt>
+        <dd>小鼠、鱼缸或鱼的备注在过去 14 天里改过（以修改历史为准），或这段时间里称重时写了备注，并且用到下列词语之一（不分大小写）：
+          hunched、hunching、lethargic、lethargy、moribund、not eating、off food、dehydrated、dehydration、wound、wounds、wounded、
+          ulcer、ulcers、ulcerated、ulceration、weight loss、losing weight、thin、emaciated、labored（laboured）breathing、
+          piloerection、hypothermic、prolapse；弓背、消瘦、精神差、精神萎靡、萎靡、不进食、拒食、脱水、伤口、溃疡、呼吸困难、
+          体重下降、体重减轻、濒死、竖毛、低体温、脱垂。会显示词语所在的那一行。紧跟在 <i>no</i>、<i>not</i>、<i>without</i>
+          或 无、没有、未、未见 之后的词不算，所以 <i>no wound</i> 和 未见溃疡 不会列出。这只是备注里的一个词，不是结论。</dd>
+        <dt>实验中未按时称重（Not weighed in their experiment）</dt>
+        <dd>在观测指标为体重、正在进行的实验里，小鼠超过处理方案的称重日所允许的天数没有称重；方案没有安排称重时为 7 天
+          （<a href="experiments.html#welfare">实验</a>）。</dd>
+        <dt>状态与实验不一致（Status and experiment disagree）</dt>
+        <dd>小鼠的状态是 <i>experiment</i>，却不在任何实验里（在实验室开始在这里记录小鼠实验之后），或者在进行中的实验里，
+          状态却是别的，比如 <i>geno</i>。</dd>
+      </dl>
+      <p>成员看到自己的动物和自己实验里的小鼠；<b>查看全实验室的</b> （Show the lab’s）显示所有人的。动物饲养人员、设施管理员和
+        管理员看到全实验室的，<b>只看你的</b> （Show only yours）可以缩小范围。每天早上，通知铃也会告诉你有多少动物可能需要查看
+        （状态不一致的不算）；可以在 <b>设置 → 通知 → 可能需要查看的动物</b> （Settings → Notifications → Animals that may need a look）
+        里关闭。和其他卡片一样，可以用 <b>自定义</b> 把它收起来。</p>
       <figure class="gshot"><a href="../../assets/screenshots/home.webp" target="_blank" rel="noopener" title="查看原图"><img src="../../assets/screenshots/home.webp" alt="首页" loading="lazy" width="2000" height="1250"></a><figcaption>首页</figcaption></figure>
     <!-- /page -->
       <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="import-from-excel.html"><small>上一页</small>从 Excel 导入</a><a class="next" href="sheets.html"><small>下一页</small>在表格里工作</a></nav>
