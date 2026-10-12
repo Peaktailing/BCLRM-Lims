@@ -30,6 +30,18 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.10.0": {
+        "new": [
+            "**Strain** after **Custom tag** on every mouse: C57BL/6J, BALB/cJ and the other common strains are offered, and the list is on the colony's **Dropdowns** tab.",
+        ],
+        "changed": [
+            "Importing mice, a column called Strain or Background goes into **Strain**, not the genotype.",
+            "The mouse sheet shows every column again: untick under **Columns** any you had hidden.",
+        ],
+        "fixed": [
+            "The ••• menu in a sheet's toolbar opens over the bar below it and the sidebar.",
+        ],
+    },
     "1.9.1": {
         "fixed": [
             "The desktop app joined to a lab server shows its pages styled again on a Mac.",
