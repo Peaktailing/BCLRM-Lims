@@ -88,5 +88,12 @@
   "Died on": "死亡日期",
   "%(n)s waiting": "%(n)s 项待发送",
   "1 change waiting to reach the lab": "1 项更改等待送达实验室",
-  "%(n)s changes waiting to reach the lab": "%(n)s 项更改等待送达实验室"
+  "%(n)s changes waiting to reach the lab": "%(n)s 项更改等待送达实验室",
+  "%(n)s pups": "%(n)s 只幼仔",
+  "Another litter": "另一窝",
+  "Correct the date": "更正日期",
+  "Correct the litter born %(day)s": "更正 %(day)s 出生的那一窝",
+  "This cage has a litter born %(day)s, not yet weaned. This one is:": "这个笼已有一窝 %(day)s 出生、尚未断奶。这一窝是：",
+  "This cage has litters born %(days)s, not yet weaned. This one is:": "这个笼已有 %(days)s 出生、尚未断奶的几窝。这一窝是：",
+  "Which litter": "哪一窝"
 }

@@ -1430,7 +1430,12 @@ pages' own routes. Nothing is merged; the lab keeps one master copy.
   last five weights, their to-dos for 14 days, vials of the stock databases
   they may open, tanks, dropdowns, weaning due) and `GET /api/sync/changes?since=`
   (rows above the cursor, rows they may no longer see as `gone`; `reset`
-  past 20 000).
+  past 20 000). A cage's row carries its litters not yet weaned
+  (`sync.cage_litters`: `born`, `pups`, `dam`, `litter`, `wean_due`,
+  `genotyping_due`), and `sync_clock` counts a change to a `cage_litters`
+  row as one to its cage, so a litter born, corrected or weaned elsewhere
+  reaches the devices. The offline screens ask which litter as the pages
+  do, sending `litter` (a birth date).
 - **The queue.** `POST /api/sync/push`: ops in order, each `{op, made_at,
   cursor, action, target, fields, base, creates}`. A `sync_ops` row claims
   the op id first, so a resend answers the stored result. `_check` compares

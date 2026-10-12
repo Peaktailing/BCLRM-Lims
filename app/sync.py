@@ -43,6 +43,7 @@ from flask import (Blueprint, abort, current_app, flash, g, jsonify, make_respon
                    url_for)
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from . import access, actions, lab, sync_clock
 from .db import SessionLocal
@@ -102,8 +103,17 @@ def cage_row(c: CageRecord, user=None) -> dict:
             "date_give_birth": _d(c.date_give_birth), "card_id": c.card_id or "",
             "genotype_summary": c.genotype_summary or "", "room": c.room or "",
             "location_detail": c.location_detail or "", "rack": c.rack_id_fk, "row": c.rack_row, "col": c.rack_col,
-            "breeding": services.is_breeding_cage(c.purpose),
+            "breeding": services.is_breeding_cage(c.purpose), "litters": cage_litters(c),
             "edit": access.can_edit_cage(c, user) if user is not None else False, "v": c.sync_version}
+
+
+def cage_litters(c: CageRecord) -> list[dict]:
+    """The cage's litters not yet weaned, oldest first: what the phone lists
+    and what its Genotyping and Wean ask between (litter: the birth date)."""
+    from . import services
+    return [{"born": _d(cl.born), "pups": cl.pups, "dam": cl.dam or "", "litter": cl.litter_id_fk,
+             "wean_due": _d(services.litter_wean_due(cl)), "genotyping_due": _d(services.litter_genotyping_due(cl))}
+            for cl in services.open_litters(c)]
 
 
 def litter_row(lt: LitterRecord) -> dict:
@@ -177,7 +187,8 @@ def snapshot():
     with SessionLocal() as s:
         cursor = sync_clock.current(s)          # first: what changes meanwhile comes again with the next changes
         racks = [rack_row(r) for r in s.scalars(select(MouseRack).order_by(MouseRack.position, MouseRack.name))]
-        cages = [cage_row(c, user) for c in s.scalars(select(CageRecord).order_by(CageRecord.cage_id))]
+        cages = [cage_row(c, user) for c in s.scalars(select(CageRecord).options(selectinload(CageRecord.cage_litters))
+                                                      .order_by(CageRecord.cage_id))]
         mice_rows = list(s.scalars(select(MouseRecord).where(
             MouseRecord.date_of_death.is_(None) | (MouseRecord.date_of_death >= today - timedelta(days=DEAD_DAYS)))
             .order_by(MouseRecord.mouse_id)))
