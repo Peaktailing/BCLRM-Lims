@@ -62,6 +62,13 @@ class Relay(AppTestCase):
             status, _, page = ask(base, "GET", "/home", {"Accept": "text/html"})
             self.assertEqual(status, 200)
             self.assertIn(self.who, page)                      # signed in as its person, by the device's token
+            # Each answer has the server's one Content-Type, so the stylesheet applies.
+            host = base.split("//", 1)[1]
+            conn = http.client.HTTPConnection(host, timeout=15)
+            conn.request("GET", "/static/tailwind.css", headers={"Host": host})
+            sheet = conn.getresponse()
+            self.assertEqual(sheet.msg.get_all("Content-Type"), ["text/css; charset=utf-8"])
+            conn.close()
             # A change from the window's own pages goes through; from another site it doesn't.
             cage = uniq("C")
             form = f"cage_id={cage}".encode()

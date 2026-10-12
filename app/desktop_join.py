@@ -25,6 +25,11 @@ from .i18n import gettext
 
 PREF = "joined_lab"
 RELAY_PORT = "relay_port"
+# Raised when the window should start afresh at a new relay address: its
+# browser cache is per address, and 1.8.3's relay sent each stylesheet with a
+# second Content-Type the window refused and may have kept.
+RELAY_ADDRESS = "relay_address"
+RELAY_GENERATION = 2
 
 
 def _platform() -> str:
@@ -148,8 +153,10 @@ def start_relay() -> str:
     store = offline_store.Store(lab["server"], token, version=devices.version())
     offline_store.start_background(store)
     instance = relay.Relay(lab["server"], token=token, version=devices.version(), on_leave=_left, store=store)
-    base = relay.start(instance, int(devices._prefs().get(RELAY_PORT) or 0))
-    devices._save_prefs(**{RELAY_PORT: int(base.rsplit(":", 1)[-1])})
+    prefs = devices._prefs()
+    same = prefs.get(RELAY_ADDRESS) == RELAY_GENERATION
+    base = relay.start(instance, int(prefs.get(RELAY_PORT) or 0) if same else 0)
+    devices._save_prefs(**{RELAY_PORT: int(base.rsplit(":", 1)[-1]), RELAY_ADDRESS: RELAY_GENERATION})
     return base
 
 

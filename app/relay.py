@@ -144,6 +144,10 @@ class Relay:
         resp = conn.getresponse()
         self.jar.extract_cookies(_Headers(resp.msg), cookie_req)
         out = Response(status=resp.status)
+        # The server's own headers only: a default Content-Type left beside the
+        # server's makes a stylesheet two types at once, which the browser
+        # (told nosniff) refuses, and the window shows the page unstyled.
+        out.headers.clear()
         for key, value in resp.getheaders():
             low = key.lower()
             if low in DROPPED_DOWN:
