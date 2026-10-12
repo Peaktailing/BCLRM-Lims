@@ -629,7 +629,7 @@ def _handover_organisms(session, who: str) -> list[dict]:
 
 def _handover_experiments(session, who: str, today: date) -> list[dict]:
     from . import experiments as xp
-    from .experiment_steps import day_date, safe_days
+    from .experiment_steps import day_date, reagent_snapshot, safe_days
     from .models import Experiment, ExperimentSubject
     out = []
     for exp in session.scalars(select(Experiment).where(Experiment.owner_username == who,
@@ -644,13 +644,16 @@ def _handover_experiments(session, who: str, today: date) -> list[dict]:
         if exp.status != "planned" and exp.start_date:
             for step in exp.steps:
                 done = {r.day for r in step.records}
+                # The item it uses, with its lot (experiment_steps.reagent_used).
+                item = reagent_snapshot(session, step.reagent_item_id_fk) if step.reagent_item_id_fk else {}
+                reagent = " ".join(filter(None, [item.get("name"), f"lot {item['lot']}" if item.get("lot") else ""]))
                 for day in safe_days(step):
                     on = day_date(exp.start_date, day)
                     if day in done or on is None or on < today - timedelta(days=7):
                         continue
                     steps.append({"day": day, "date": on.isoformat(), "overdue": on < today,
                                   "what": " ".join(filter(None, [step.agent or step.kind, step.dose, step.route])),
-                                  "group": step.treatment_group or ""})
+                                  "group": step.treatment_group or "", **({"reagent": reagent} if reagent else {})})
         steps.sort(key=lambda s: (s["date"], s["day"]))
         out.append({"experiment": exp.name, "ref": {"kind": "experiment", "id": exp.id}, "status": exp.status,
                     "database": place.label, "start_date": exp.start_date.isoformat() if exp.start_date else None,

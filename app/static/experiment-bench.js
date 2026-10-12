@@ -114,7 +114,7 @@
       const r = await fetch(`/colony/experiments/${D.id}/steps/${stepId}/day/${day}?on=${today()}`);
       const data = await r.json();
       const row = D.schedule.find((x) => `${x.step_id}:${x.day}` === which);
-      task = { kind: 'step', stepId, day, title: row ? titleOf(row) : '', animals: data.animals || [] };
+      task = { kind: 'step', stepId, day, title: row ? titleOf(row) : '', animals: data.animals || [], step: data.step || {} };
       task.animals.forEach((a) => given.set(a.subject, true));
     }
     $('[data-xb-pick]').hidden = true;
@@ -229,10 +229,39 @@
     $('[data-xb-run]').hidden = true;
     done.hidden = false;
     done.innerHTML = `<h2>${esc(task.title || t('Done'))}</h2><p>${t('%(count)s of %(total)s %(nouns)s given.', { count: yes.length, total: task.animals.length, nouns: esc(nouns()) })}</p>
+      ${reagentFields()}
       <label class="xb-note">${t('Note')} <textarea rows="3" data-xb-note placeholder="${esc(t('Anything that differed'))}"></textarea></label>
       <p class="xp-error" data-xb-error hidden></p>
       <div class="xb-buttons"><button type="button" class="btn" data-xb-review>${t('Back')}</button><button type="button" class="btn btn-primary" data-xb-record>${t('Record as done')}</button></div>`;
   }
+
+  // The reagent used and its lot, kept with the day: the step's own item,
+  // or the one named as what is given (the server picks the same).
+  function reagentFields() {
+    const step = task.step || {};
+    if (step.reading) return '';
+    const all = D.reagents || [];
+    const agent = (step.agent || '').trim().toLowerCase();
+    const named = all.filter((r) => agent && r.name.trim().toLowerCase() === agent);
+    let chosen = step.reagent_id;
+    if (!chosen) {
+      const fresh = named.filter((r) => !(r.expires && r.expires < today()));
+      const pool = fresh.length ? fresh : named;
+      if (pool.length === 1) chosen = pool[0].id;
+    }
+    const item = all.find((r) => r.id === Number(chosen));
+    const list = [...named, ...all.filter((r) => !named.includes(r))];
+    return `<label class="xb-note">${t('Reagent used')} <select data-xb-reagent><option value="">${esc(t('None recorded'))}</option>${list.map((r) => `<option value="${r.id}" ${item && item.id === r.id ? 'selected' : ''}>${esc(r.label)}${r.expires && r.expires < today() ? ` ${esc(t('(expired)'))}` : ''}</option>`).join('')}</select></label>
+      <label class="xb-note">${t('Lot')} <input data-xb-lot value="${esc(item ? item.lot : '')}" autocomplete="off"></label>
+      <label class="xp-check"><input type="checkbox" data-xb-take-off> ${t('Take what they got off the inventory')}</label>`;
+  }
+
+  document.addEventListener('change', (event) => {
+    if (!event.target.matches('[data-xb-reagent]')) return;
+    const item = (D.reagents || []).find((r) => String(r.id) === event.target.value);
+    const lot = $('[data-xb-lot]');
+    if (lot) lot.value = item ? item.lot : '';
+  });
 
   document.addEventListener('click', async (event) => {
     const btn = event.target.closest('button');
@@ -250,10 +279,14 @@
     else if (btn.matches('[data-xb-record]')) {
       const subjects = task.animals.filter((a) => given.get(a.subject)).map((a) => a.subject);
       try {
-        const data = await post(`/colony/experiments/${D.id}/steps/${task.stepId}/day/${task.day}/record`,
-          { done_on: today(), subjects, note: ($('[data-xb-note]') || {}).value || '' });
+        const body = { done_on: today(), subjects, note: ($('[data-xb-note]') || {}).value || '' };
+        if ($('[data-xb-reagent]')) {
+          Object.assign(body, { reagent_id: $('[data-xb-reagent]').value, lot: $('[data-xb-lot]').value,
+            take_off: $('[data-xb-take-off]').checked });
+        }
+        const data = await post(`/colony/experiments/${D.id}/steps/${task.stepId}/day/${task.day}/record`, body);
         D.schedule = data.schedule;
-        $('[data-xb-done]').innerHTML = `<h2>${t('Recorded')}</h2><p>${esc(task.title || '')}: ${subjects.length} ${esc(nouns())}.</p>${(data.problems || []).map((p) => `<p class="xp-warn">${esc(p)}</p>`).join('')}
+        $('[data-xb-done]').innerHTML = `<h2>${t('Recorded')}</h2><p>${esc(task.title || '')}: ${subjects.length} ${esc(nouns())}.</p>${data.message ? `<p>${esc(data.message)}</p>` : ''}${(data.problems || []).map((p) => `<p class="xp-warn">${esc(p)}</p>`).join('')}
           <div class="xb-buttons"><a class="btn" href="/experiments/${D.id}">${t('The experiment')}</a><button type="button" class="btn btn-primary" data-xb-again>${t('Something else')}</button></div>`;
       } catch (error) {
         const box = $('[data-xb-error]');

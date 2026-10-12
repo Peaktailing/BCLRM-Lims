@@ -242,8 +242,12 @@
         <p class="xp-sub" data-xp-dose-note></p>
       </div>
       <div class="table-wrap"><table class="dense-table fit-table xp-animals"><thead data-xp-animals-head></thead><tbody data-xp-animals></tbody></table></div>
+      {# The item used and its lot, kept with the day (experiment_steps.reagent_used). #}
       <div class="xp-grid">
-        <label class="xp-wide">{{ _('Reagent used') }} <select name="reagent_id" data-xp-reagents></select></label>
+        <label class="xp-span2">{{ _('Reagent used') }} <select name="reagent_id" data-xp-reagents></select></label>
+        <label>{{ _('Lot') }} <input name="lot" autocomplete="off" data-xp-lot></label>
+        <p class="xp-sub xp-wide" data-xp-reagent-note hidden></p>
+        <label class="xp-check xp-wide" data-xp-take-off><input type="checkbox" name="take_off"> {{ _('Take what they got off the inventory') }}</label>
       </div>
       <div class="xp-samples" data-xp-samples hidden>
         <label class="xp-check"><input type="checkbox" name="make_samples"> {{ _('Make a sample record for each one ticked') }}</label>

@@ -718,6 +718,7 @@ def reagent_choices(session, limit: int = 400) -> list[dict]:
                 continue
             out.append({"id": item.id, "label": " · ".join(filter(None, [item.name, f"lot {item.lot}" if item.lot else "",
                                                                          mv.label])),
+                        "name": item.name or "", "lot": item.lot or "",
                         "expires": item.expires_on.isoformat() if item.expires_on else ""})
     return out[:limit]
 

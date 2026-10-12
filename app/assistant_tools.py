@@ -524,7 +524,7 @@ TOOLS.update({
         lambda api, a: lab_checks(api, a)),
     "experiment_summary": (
         "What the records say about an experiment, for its methods: the animals (species, genotypes, sex, age and "
-        "weight at the start, n per group), procedures (agent, dose, route, days, lots used), the readout, the tests "
+        "weight at the start, n per group), procedures (agent, dose, route, days, lots used and any used after its expiry), the readout, the tests "
         "used and the last day's comparison, dates; and arrive, the ARRIVE 2.0 Essential 10, each with what is "
         "recorded and what is missing. Never fill in what is missing yourself.",
         _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"}},

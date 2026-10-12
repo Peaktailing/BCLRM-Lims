@@ -185,5 +185,11 @@
   "rack": "笼架",
   "The experiment": "实验页面",
   "Add to the regimen": "添加到处理方案",
-  "experiment::Day": "日期"
+  "experiment::Day": "日期",
+  "Take what they got off the inventory": "从库存中扣除给药量",
+  "Reagent used": "所用试剂",
+  "Lot": "批号",
+  "Expired on %(date)s, before this day.": "已于 %(date)s 过期，早于这一天。",
+  "There are %(n)s of %(name)s in the inventory: pick the one used.": "库存里有 %(n)s 个 %(name)s：请选出用的那一个。",
+  "Taken off the inventory: %(what)s": "已从库存扣除：%(what)s"
 }

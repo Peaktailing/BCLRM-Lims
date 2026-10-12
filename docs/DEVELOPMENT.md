@@ -1660,9 +1660,29 @@ animals it starts with.
 
 A `reading` step (`weigh` in the first version) writes the readout when recorded.
 A step may name the inventory item it uses (`reagent_item_id_fk`); a record
-keeps that item as it was then (`reagent`: name, lot, expiry) and any sample
-records the person chose to make with it (`samples`), made through
-`inventory_routes._item_from_form` with the animal as their Source. Subjects
+keeps that item as it was then (`reagent`: id, name, lot, expiry, and
+`taken` once its amounts were taken off) and any sample records the person
+chose to make with it (`samples`), made through
+`inventory_routes._item_from_form` with the animal as their Source.
+Every path that records a day goes through `experiment_steps._record`
+(the page's record dialog and *Record manipulation*, bench mode, and the
+`experiment_step_done` action, which posts to the same route), and
+`reagent_used` picks what it kept: `reagent_id` when sent (blank: none),
+else `default_reagent` (the step's item, else the one available item named
+as the agent, `reagents_named`; with several, none, and the action refuses
+asking which). A `lot` that isn't the item's switches to the item of the
+same name with that lot, or keeps the lot as typed with no expiry. The
+item used becomes the step's, unless a later day is recorded. A lot past
+its expiry on `done_on` is a warning (`problems`, and `warnings` so an
+action's change passes it on). `take_off` (opt-in) adds up the record's
+volumes and amounts (`amounts_given`) and takes them off the item through
+`actions._used`/`_left_after`, so units and pack sizes convert as in
+`inventory_quantity_used`; it needs edit rights on the item, never runs
+twice for a day, and undoing a day does not put it back. The action
+checks a named `reagent` or `lot` before sending and refuses an unknown
+lot in words. `assistant_compute.experiment_summary` lists each step's
+lots and `expired_lots`; the handover's `next_steps` carry the planned
+item and lot (`reagent`). Subjects
 are `mouse`, `fish`, `clutch`, `unit`, `organism` or `cohort`.
 `exp_stats.py` compares the groups on each day (Welch, ANOVA, χ²);
 `/experiments/<id>/export.xlsx` and bench mode (`/experiments/<id>/bench`,

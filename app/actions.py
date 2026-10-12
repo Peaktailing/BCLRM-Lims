@@ -1382,24 +1382,82 @@ def _step_label(s, step) -> str:
     return f"{what} · {exp.name}" if exp else what
 
 
+def _step_reagent(s, step, v):
+    """The inventory item a step done used, which the record keeps with its
+    lot: the reagent named, or the item of that name with the lot named;
+    else the step's own item, or the one item named as its agent. An
+    unknown lot, or several items to choose from, refused in words."""
+    from .experiment_steps import default_reagent, reagents_named
+    from .models import InventoryItem
+    on = date.fromisoformat(v["done_on"]) if v.get("done_on") else date.today()
+    item = find(s, "inventory_item", v["reagent"]) if v.get("reagent") not in (None, "") else None
+    if item is None and not v.get("lot"):
+        item_id, named = default_reagent(s, step, on)
+        if item_id is None and len(named) > 1:
+            raise ActionError(gettext("%(name)s is in the inventory more than once (%(items)s): say which was used, with reagent or lot.", name=step.agent, items="; ".join(_lot_said(s, i) for i in named[:6])))  # noqa: E501
+        return s.get(InventoryItem, item_id) if item_id else None
+    if v.get("lot"):
+        planned = s.get(InventoryItem, step.reagent_item_id_fk) if step.reagent_item_id_fk else None
+        name = (item or planned).name if (item or planned) is not None else step.agent
+        named = reagents_named(s, name)
+        lot = str(v["lot"]).strip().lower()
+        match = next((i for i in ([item] if item is not None else []) + named if (i.lot or "").strip().lower() == lot),
+                     None)
+        if match is None:
+            known = "; ".join(_lot_said(s, i) for i in named[:6])
+            raise ActionError(gettext("There is no %(name)s of lot %(lot)s in the inventory (%(known)s): add the new lot as an item first, or name one there is.", name=name, lot=v["lot"], known=known or gettext("none")))  # noqa: E501
+        item = match
+    return item
+
+
+def _lot_said(s, item) -> str:
+    """"Reagents #3 · Tamoxifen, lot L7, expires 2027-01-31"."""
+    parts = [_item_label(s, item)]
+    if item.lot:
+        parts.append(gettext("lot %(lot)s", lot=item.lot))
+    if item.expires_on:
+        parts.append(gettext("expires %(date)s", date=item.expires_on.isoformat()))
+    return ", ".join(parts)
+
+
+def _step_done_said(s, step, v) -> str:
+    said = gettext("Experiment: %(step)s, day %(day)s done%(on)s%(who)s", step=_step_label(s, step),
+                   day=_step_day(step, s.get(Experiment, step.experiment_id_fk), v), on=_on(v.get("done_on")),
+                   who=gettext(" for %(n)s animals", n=len(v["animals"])) if v.get("animals") else "")
+    item = _step_reagent(s, step, v)
+    if item is not None:
+        said += gettext(", using %(item)s", item=_lot_said(s, item))
+        if v.get("take_off"):
+            said += gettext(", taken off its quantity")
+    return said
+
+
 @action(name="experiment_step_done", area="experiments", title="Mark a step done",
         help="Record a planned step (an injection, a readout day…) as done, for all of its animals or some. "
-             "Steps and their days are in GET /api/v1/experiments/{id} (page.steps).", target="experiment_step",
+             "Steps and their days are in GET /api/v1/experiments/{id} (page.steps). The record keeps the "
+             "inventory item used and its lot: the step's own item (page.steps[].reagent) unless reagent or lot "
+             "says otherwise, or the one item named as the step's agent; with several of that name, say which. "
+             "A lot that expired before the day is warned about; take_off takes what was given off the item.", target="experiment_step",
         fields=(Field("day", "int", "Which day of the plan (found from done_on if left out)"),
                 Field("done_on", "date", "When it was done (today if left out)"),
                 Field("animals", "list", "Only these animals: their keys or labels (all of the step's group if left out)"),
                 Field("values", "object", "For a readout step: each animal's value, by key or label"),
-                Field("note", "text", "A note")),
-        describe=lambda s, st, v: gettext("Experiment: %(step)s, day %(day)s done%(on)s%(who)s",
-                                          step=_step_label(s, st),
-                                          day=_step_day(st, s.get(Experiment, st.experiment_id_fk), v),
-                                          on=_on(v.get("done_on")),
-                                          who=gettext(" for %(n)s animals", n=len(v["animals"]))
-                                          if v.get("animals") else ""))
+                Field("note", "text", "A note"),
+                Field("reagent", "inventory_item", "The inventory item used (reagents:12), when it isn't the step's own"),
+                Field("lot", "text", "The lot used, when it isn't the item's: the item of the same name with this lot"),
+                Field("take_off", "bool", "Also take what the animals got off the item's quantity")),
+        describe=_step_done_said)
 def _experiment_step_done(s, step, v):
     exp = s.get(Experiment, step.experiment_id_fk)
     day = _step_day(step, exp, v)
     body = {"done_on": v.get("done_on") or date.today().isoformat(), "note": v.get("note", "")}
+    item = _step_reagent(s, step, v)
+    if item is not None:
+        body["reagent_id"] = str(item.id)
+    if v.get("take_off"):
+        if item is None:
+            raise ActionError(gettext("take_off needs the reagent used: this step has no inventory item; name it with reagent."))  # noqa: E501
+        body["take_off"] = True
     if v.get("animals"):
         body["subjects"] = _subject_keys(s, exp, v["animals"])
     if v.get("values"):

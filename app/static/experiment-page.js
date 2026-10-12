@@ -213,6 +213,15 @@
     table.innerHTML = `<thead><tr>${head.join('')}</tr></thead><tbody>${body}</tbody>`;
   }
 
+  // The reagent a recorded day used: "Tamoxifen lot L7", "(expired)" when
+  // its lot had expired by that day.
+  function usedText(rec) {
+    const r = rec && rec.reagent;
+    if (!r || !r.name) return '';
+    const expired = r.expires && r.expires < rec.done_on ? ` ${t('(expired)')}` : '';
+    return `${r.name}${r.lot ? ` ${t('lot %(lot)s', { lot: r.lot })}` : ''}${expired}`;
+  }
+
   function treatmentCell(subject, col) {
     if (!inGroup(subject, col.group)) return `<td class="xp-t" data-t="none" title="${esc(t('Not in this group'))}">·</td>`;
     const rec = col.record;
@@ -222,7 +231,7 @@
     }
     const entry = rec.subjects.find((e) => e.subject === subject.key);
     const detail = entry ? [entry.amount, entry.volume].filter(Boolean).join(' · ') : '';
-    const lot = rec.reagent && rec.reagent.name ? ` · ${rec.reagent.name}${rec.reagent.lot ? ` ${t('lot %(lot)s', { lot: rec.reagent.lot })}` : ''}` : '';
+    const lot = usedText(rec) ? ` · ${usedText(rec)}` : '';
     const title = entry ? `${t('Given %(date)s by %(who)s', { date: niceDate(rec.done_on), who: rec.done_by })}${detail ? `: ${detail}` : ''}${lot}`
       : t('Not given (recorded %(date)s)', { date: niceDate(rec.done_on) });
     const inner = entry ? `<span class="xp-tick">✓</span>${detail ? `<span class="xp-amount">${esc(detail)}</span>` : ''}` : '<span class="xp-miss">—</span>';
@@ -459,7 +468,7 @@
       <li class="xp-day" id="day-${day}"><div class="xp-day-head"><b>${t('Day %(n)s', { n: day })}</b><span>${esc(niceDate(rows[0].date, true))}</span></div>
       <ul class="xp-items">${rows.map((r) => {
         const rec = r.record;
-        const extra = rec ? [rec.reagent && rec.reagent.name ? `${rec.reagent.name}${rec.reagent.lot ? ` ${t('lot %(lot)s', { lot: rec.reagent.lot })}` : ''}` : '',
+        const extra = rec ? [usedText(rec),
           rec.samples && rec.samples.length ? t(rec.samples.length === 1 ? '%(n)s sample in %(inventory)s' : '%(n)s samples in %(inventory)s', { n: rec.samples.length, inventory: rec.samples[0].inventory }) : ''].filter(Boolean).map(esc).join(' · ') : '';
         const status = rec ? `${t('Done %(date)s by %(who)s', { date: esc(niceDate(rec.done_on)), who: esc(rec.done_by) })} · ${t('%(count)s of %(total)s', { count: rec.count, total: r.group_size })}${extra ? ` · ${extra}` : ''}` : STATE[r.state];
         const action = r.reading
@@ -487,8 +496,38 @@
     select.innerHTML = [`<option value="">${esc(t('Every %(noun)s', { noun: noun() }))}</option>`, ...D.groups.map((g) => `<option value="${esc(g)}" ${g === chosen ? 'selected' : ''}>${esc(g)}</option>`)].join('');
   }
 
-  function fillReagents(select, chosen) {
-    select.innerHTML = `<option value="">${esc(t('None recorded'))}</option>` + (D.reagents || []).map((r) => `<option value="${r.id}" ${Number(chosen) === r.id ? 'selected' : ''}>${esc(r.label)}${r.expires && r.expires < today() ? ` ${esc(t('(expired)'))}` : ''}</option>`).join('');
+  // The items named as what is given come first; with no item chosen, the
+  // one of them (the one not expired) is, as recording it would.
+  const sameName = (agent) => (D.reagents || []).filter((r) => agent && r.name.trim().toLowerCase() === agent.trim().toLowerCase());
+  function fillReagents(select, chosen, agent) {
+    const named = sameName(agent);
+    if (!chosen && named.length) {
+      const fresh = named.filter((r) => !(r.expires && r.expires < today()));
+      const pool = fresh.length ? fresh : named;
+      if (pool.length === 1) chosen = pool[0].id;
+    }
+    const list = [...named, ...(D.reagents || []).filter((r) => !named.includes(r))];
+    select.innerHTML = `<option value="">${esc(t('None recorded'))}</option>` + list.map((r) => `<option value="${r.id}" ${Number(chosen) === r.id ? 'selected' : ''}>${esc(r.label)}${r.expires && r.expires < today() ? ` ${esc(t('(expired)'))}` : ''}</option>`).join('');
+  }
+
+  // The lot beside the item: the item's own, or the one the day kept; what
+  // to know about it (expired, several of the name, taken off already).
+  function reagentNote(dialog, kept, keepLot) {
+    const f = $('[data-xp-form="record"]').elements;
+    const item = (D.reagents || []).find((r) => String(r.id) === f.reagent_id.value);
+    if (!keepLot) f.lot.value = kept && kept.lot && (!item || kept.id === item.id) ? kept.lot : (item ? item.lot : '');
+    const on = f.done_on.value || today();
+    const agent = recordCtx && recordCtx.adhoc ? f.agent.value : ((recordCtx && recordCtx.data.step && recordCtx.data.step.agent) || '');
+    const named = sameName(agent);
+    const notes = [];
+    if (item && item.expires && item.expires < on && f.lot.value.trim().toLowerCase() === item.lot.toLowerCase()) notes.push(t('Expired on %(date)s, before this day.', { date: niceDate(item.expires) }));
+    if (!item && named.length > 1) notes.push(t('There are %(n)s of %(name)s in the inventory: pick the one used.', { n: named.length, name: agent }));
+    const taken = kept && kept.taken && item && kept.id === item.id ? kept.taken : '';
+    if (taken) notes.push(t('Taken off the inventory: %(what)s', { what: taken }));
+    const note = $('[data-xp-reagent-note]', dialog);
+    note.textContent = notes.join(' ');
+    note.hidden = !notes.length;
+    $('[data-xp-take-off]', dialog).hidden = !item || Boolean(taken) || Boolean(recordCtx && !recordCtx.adhoc && recordCtx.data.step && recordCtx.data.step.reading);
   }
 
   function open(which, arg) {
@@ -666,7 +705,12 @@
       ${weighs ? `<td>${a.grams != null ? `${num(a.grams)} g <span class="xp-muted">${esc(niceDate(a.weighed_on))}</span>` : `<span class="xp-muted">${t('no weight')}</span>`}</td>` : (D.family !== 'mouse' ? `<td>${a.start == null ? '' : a.start}</td>` : '')}
       <td>${a.needs ? `<span class="xp-warn">${t('needs a weight')}</span>` : esc(a.amount || '')}</td><td>${esc(a.volume || '')}</td></tr>`).join('')
       : `<tr><td colspan="6" class="xp-muted">${t('No %(nouns)s in this group.', { nouns: esc(nouns()) })}</td></tr>`;
-    if (!on) fillReagents(f.reagent_id, adhoc ? '' : ((data.record && data.record.reagent && data.record.reagent.id) || (data.step && data.step.reagent_id) || ''));
+    const kept = data.record && data.record.reagent;
+    if (!on) {
+      fillReagents(f.reagent_id, adhoc ? '' : ((kept && kept.id) || (data.step && data.step.reagent_id) || ''), adhoc ? f.agent.value : (data.step && data.step.agent));
+      f.take_off.checked = false;
+    }
+    reagentNote(dialog, kept, Boolean(on));
     const made = (data.record && data.record.samples) || [];
     $('[data-xp-samples-made]', dialog).textContent = made.length ? t('Sample records made: %(list)s in %(inventory)s.', { list: made.map((m) => `#${m.number}`).join(', '), inventory: made[0].inventory }) : '';
     $('.xp-check', dialog).hidden = made.length > 0;
@@ -686,7 +730,10 @@
       const t = event.target;
       if (t.matches('[data-xp-all]')) { $$('[data-xp-animal]', dialog).forEach((b) => { b.checked = t.checked; }); return; }
       if (t.name === 'make_samples') { $('[data-xp-sample-fields]', dialog).hidden = !t.checked; return; }
-      if (['reagent_id', 'sample_inventory', 'sample_name', 'note'].includes(t.name)) return;
+      if (t.name === 'reagent_id') { reagentNote(dialog, recordCtx && recordCtx.data.record && recordCtx.data.record.reagent); return; }
+      if (t.name === 'lot') { reagentNote(dialog, null, true); return; }
+      if (t.name === 'agent' && recordCtx && recordCtx.adhoc) { fillReagents(recordForm.elements.reagent_id, '', t.value); reagentNote(dialog); return; }
+      if (['sample_inventory', 'sample_name', 'note', 'take_off'].includes(t.name)) return;
       if (t.name === 'which') {
         if (t.value === 'adhoc') recordForm.elements.done_on.value = today();   // something done now, usually
         chooseRecord(dialog);
@@ -705,6 +752,7 @@
       const f = recordForm.elements;
       const subjects = $$('[data-xp-animal]:checked', dialog).map((b) => b.dataset.xpAnimal);
       const common = { done_on: f.done_on.value, subjects, note: f.note.value, reagent_id: f.reagent_id.value,
+        lot: f.lot.value, take_off: Boolean(f.take_off.checked && !$('[data-xp-take-off]', dialog).hidden),
         make_samples: Boolean(f.make_samples && f.make_samples.checked), sample_inventory: f.sample_inventory ? f.sample_inventory.value : '',
         sample_name: f.sample_name ? f.sample_name.value : '' };
       try {

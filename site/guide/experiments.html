@@ -201,9 +201,15 @@
           Each animal's group is edited here too.</li>
         <li><b>Record manipulation</b> records what was just done — <i>the HDM group got Tamoxifen 20 mg/kg i.p. today</i> — or a day
           of the regimen. For a dose per body weight it works out each animal's amount from its latest weight, and the volume
-          given the solution (<i>10 mg/mL</i>). Tick the animals it was done to, pick the <b>Reagent used</b> (its lot is kept; an
-          expired one is flagged) and, if you want, <b>make a sample record for each one</b> in Samples, with the animal as its
-          source.</li>
+          given the solution (<i>10 mg/mL</i>). Tick the animals it was done to and, if you want, <b>make a sample record for each
+          one</b> in Samples, with the animal as its source.</li>
+        <li>Each day recorded keeps the <b>Reagent used</b> and its <b>Lot</b>, and the expiry the lot had. It starts as the item
+          picked in the regimen; when the regimen names only what is given (<i>Tamoxifen</i>), the one item of that name in your
+          inventories is picked, and kept on the regimen for next time (with several, they come first in the list: pick the
+          bottle you used). A new bottle is another item, or type its lot. A lot already past its expiry on the day is
+          recorded, with a warning. Tick <b>Take what they got off the inventory</b> to take the amounts (or volumes) the
+          animals got off the item's quantity, turned into its unit (a <b>Pack size</b> turns mL into ampoules); it is taken once, however often the day is saved. The
+          lot shows on the day in the list and the sheet, and in <b>Export</b>.</li>
         <li><b>The chart</b> shows the readout by group over the days (the value, or its % of the first; for a count, % of those at
           the start). Each manipulation day is a dashed line: point at it to see what was done that day, by whom. Stars mark the
           days the groups differ, and <b>Tests by day</b> below lists each test (Welch's t-test for two groups, one-way ANOVA for
@@ -255,10 +261,11 @@
       <h2 id="at-the-bench-and-afterwards">At the bench, and afterwards</h2>
       <ul>
         <li><b>Bench mode</b> (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers —
-          type each weight or count, or give each today's manipulation and tap <b>Given ✓</b>; record it at the end. <b>Scan a card</b> reads a
+          type each weight or count, or give each today's manipulation and tap <b>Given ✓</b>; record it at the end, with the
+          <b>Reagent used</b> and its <b>Lot</b> filled in as on the page. <b>Scan a card</b> reads a
           cage, tank or vial card with the phone's camera and jumps to the animal in it.</li>
-        <li><b>Export</b> downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations, and
-          the tests by day.</li>
+        <li><b>Export</b> downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations
+          with the reagent and lot it got, and the tests by day.</li>
         <li><b>Add to notebook</b> makes your notebook page for the experiment, with a live view of its manipulations and readout
           (<code>/experiment</code> adds one to any page; <b>Freeze a copy</b> keeps it as it is now).</li>
       </ul>
@@ -271,7 +278,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 8 min read</p>
+      <p>On this page · 9 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your week</a></li>
         <li class="lvl2"><a href="#derived">Readouts worked out from what you measure</a></li>

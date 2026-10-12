@@ -170,15 +170,20 @@ never what you may edit.
     left out of the analysis aren't counted), and a mouse whose status
     says *experiment* while it is in no experiment, or something else
     (geno, breeder) while it is in an active one.
-  - **What was used**: pick the reagent from your inventories and its lot
-    is kept with the day (an expired lot is flagged). When a day is a
-    sampling, you can choose to **make a sample record for each mouse** in
-    Samples, its source that mouse.
+  - **What was used**: every day recorded keeps the reagent and its lot,
+    however it is recorded (the page, bench mode, an AI assistant): the
+    bottle the regimen names, or the one in your inventories named as what
+    is given, unless you pick another bottle or type another lot. A lot
+    already expired that day is recorded with a warning. Tick **Take what
+    they got off the inventory** to take the amounts given off the
+    bottle's quantity. When a day is a sampling, you can choose to **make
+    a sample record for each mouse** in Samples, its source that mouse.
   - **Tests by day**: stars on the chart where the groups differ (Welch's
     t-test for two groups, one-way ANOVA for more, χ² for survival
     counts), with each test in a table below it.
   - **Export** gives an Excel workbook: the readout (long, for Prism or R,
-    and wide), each animal's manipulations, and the tests.
+    and wide), each animal's manipulations with the reagent and lot, and
+    the tests.
   - **Planned, then started.** An experiment an AI assistant designs with
     you arrives as **Planned**: nothing is due until you press **Start**,
     which keeps a copy of the plan (the groups, the **Main readout day**,

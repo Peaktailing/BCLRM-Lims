@@ -187,5 +187,10 @@
   "Each button opens the app, which asks before adding BioManager. Then sign in: BioManager opens in your browser, and you press Allow.": "每个按钮会打开对应的应用，添加 BioManager 前它会先问你。然后登录：BioManager 会在浏览器里打开，按“允许”。",
   "Add to %(app)s": "添加到 %(app)s",
   "Or in Codex": "或者在 Codex 里",
-  "Run these in a terminal. BioManager opens in your browser: press Allow.": "在终端里运行这两条命令。BioManager 会在浏览器里打开：按“允许”。"
+  "Run these in a terminal. BioManager opens in your browser: press Allow.": "在终端里运行这两条命令。BioManager 会在浏览器里打开：按“允许”。",
+  "%(name)s is in the inventory more than once (%(items)s): say which was used, with reagent or lot.": "库存里有不止一个 %(name)s（%(items)s）：请用 reagent 或 lot 说明用的是哪一个。",
+  "There is no %(name)s of lot %(lot)s in the inventory (%(known)s): add the new lot as an item first, or name one there is.": "库存里没有批号 %(lot)s 的 %(name)s（%(known)s）：请先把新批号添加为一条记录，或说明一个已有的批号。",
+  ", using %(item)s": "，使用 %(item)s",
+  ", taken off its quantity": "，并从其数量中扣除",
+  "take_off needs the reagent used: this step has no inventory item; name it with reagent.": "take_off 需要知道所用试剂：这一步没有库存记录，请用 reagent 说明。"
 }
