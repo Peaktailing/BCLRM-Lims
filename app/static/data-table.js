@@ -131,8 +131,9 @@
 
     // The toolbar's rarer actions (Print, Import from Excel: data-dt-more)
     // go into a ••• menu beside the page's New button, so the toolbar keeps
-    // to one line. They stay inside the sheet, with their own handlers; the
-    // menu is placed on the screen (fixed) so a short sheet can't clip it.
+    // to one line. They keep their own handlers. While open, the menu is on
+    // the page itself (fixed), like the Columns and sort menus: inside the
+    // sticky toolbar, the bottom bar and the sidebar covered it.
     _wireMore() {
       const toolbar = this.card.querySelector(':scope > .dt-toolbar');
       const items = toolbar ? toolbar.querySelectorAll(':scope > [data-dt-more]') : [];
@@ -162,18 +163,23 @@
         if (menu.hidden) return;
         menu.hidden = true;
         button.setAttribute('aria-expanded', 'false');
+        wrap.appendChild(menu);
       };
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         if (!menu.hidden) { close(); return; }
+        document.body.appendChild(menu);
         menu.hidden = false;
         button.setAttribute('aria-expanded', 'true');
         const r = button.getBoundingClientRect();
+        const width = menu.offsetWidth;
         menu.style.top = (r.bottom + 6) + 'px';
-        menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+        menu.style.left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)) + 'px';
       });
       menu.addEventListener('click', () => setTimeout(close));
-      document.addEventListener('click', (event) => { if (!wrap.contains(event.target)) close(); });
+      document.addEventListener('click', (event) => {
+        if (!wrap.contains(event.target) && !menu.contains(event.target)) close();
+      });
       document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
       document.addEventListener('scroll', close, true);
       window.addEventListener('resize', close);
