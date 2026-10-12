@@ -126,5 +126,6 @@
   "Working offline, the phone lists each litter of a Breeding cage, and **Genotyping** and **Wean** ask **Which litter**.": "离线时，手机会列出繁殖笼的每一窝，**基因型鉴定** 和 **断奶** 会问 **哪一窝**。",
   "**Plate layout** on an experiment: put its animals in a plate's wells, then **Read a plate →** turns a plate reader's or qPCR export into each animal's readout.": "实验里的 **孔板布局**：把动物放进板上的孔，然后用 **读取孔板 →** 把酶标仪或 qPCR 的导出文件变成每只动物的观测值。",
   "Every injection keeps the lot of the reagent it used, however it is recorded; **Take what they got off the inventory** takes the amounts off the bottle.": "每次注射都会记下所用试剂的批号，不管在哪里记录；**从库存中扣除给药量** 会把用量从那瓶里扣掉。",
-  "Deleting an experiment from the colony's list also removes its readings.": "从鼠群列表删除实验时，会把它的读数一起删除。"
+  "Deleting an experiment from the colony's list also removes its readings.": "从鼠群列表删除实验时，会把它的读数一起删除。",
+  "The anonymous counts sent to BioManager's makers once a day are switched in **Settings → General**, and a new lab's setup no longer asks: they are on until an admin switches them off.": "每天发给 BioManager 开发者的匿名统计改在 **设置 → 一般** 里开关，新实验室设置时也不再询问：统计默认开启，直到管理员关闭。"
 }

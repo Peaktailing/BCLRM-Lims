@@ -136,9 +136,6 @@ def setup():
             if zone and not lab.valid_timezone(zone):
                 flash(gettext("“%(zone)s” is not a time zone BioManager knows; the time zone was left as it was. Pick one from the list, such as America/New_York.", zone=zone), "error")
             switched_on = lab.apply_survey(db_session, request.form, g.user.username)
-            if first_run and not telemetry.off_by_env():
-                # The first survey asks about the anonymous daily counts; afterwards it's on the Usage report.
-                telemetry.set_lab_on(db_session, request.form.get("heartbeat") == "1")
             if switched_on and not first_run:
                 notify.tell_lab(db_session, g.user.username, "%(who)s added %(what)s for the lab",
                                 link=url_for("home_dashboard"),

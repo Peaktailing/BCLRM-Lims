@@ -34,9 +34,10 @@ project key (`PROJECT_KEY`, or `BIOMANAGER_TELEMETRY_KEY`): a build without
 one sends nothing at all. A failed send is logged at debug level only and
 tried again the next hour; nothing is ever raised into the app.
 
-Turning it off: admins, in the first setup survey or on the Usage report
-(`telemetry:enabled` in app_settings, `on` unless switched off); or for the
-whole server, `BIOMANAGER_TELEMETRY=0` or `DO_NOT_TRACK=1`.
+Turning it off: admins, in Settings → General or on the Usage report
+(`telemetry:enabled` in app_settings, `on` unless switched off; the first
+setup survey says so, without asking); or for the whole server,
+`BIOMANAGER_TELEMETRY=0` or `DO_NOT_TRACK=1`.
 
 app_settings keys: `telemetry:enabled`, `telemetry:install_id`,
 `telemetry:last_sent` (UTC, ISO 8601).

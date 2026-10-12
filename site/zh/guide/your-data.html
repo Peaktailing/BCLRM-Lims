@@ -223,8 +223,8 @@
         绝不会变成公式。<b>导出我的数据</b> （Export my data，在 <b>设置 → 你的数据</b> 里）会把你自己的小鼠、笼、体重、
         实验和质粒（CSV）、每个质粒带特征的 GenBank 序列文件和与它一起保存的文件、你的实验记录本页面和个人资料打包成一个 zip 下载。</p>
       <h2 id="counts">BioManager 会向开发者发送什么</h2>
-      <p>你的记录永远不会离开你的电脑或实验室服务器。为了让 BioManager 的开发者知道有多少实验室在用，每个
-        安装每天发送一条简短的消息，只有计数：</p>
+      <p>你的记录永远不会离开你的电脑或实验室服务器。BioManager 是免费的，开发者靠几项匿名统计说明有实验室在依靠它，
+        并知道该先改进哪些部分。每个安装每天发送一条简短的消息，只有计数：</p>
       <ul>
         <li>版本号、是桌面版还是服务器、操作系统和数据库类型；</li>
         <li>有多少成员，以及本周有多少人修改过内容，以区间表示（1、2–5、6–15、16–50、51+）；</li>
@@ -232,7 +232,8 @@
         <li>一个随机的安装 ID，让每个实验室只算一次。</li>
       </ul>
       <p>绝不包括姓名、邮箱地址、任何人写的任何内容、你的数据库叫什么，以及电脑的名称或地址。
-        数据发送到 PostHog，并要求它不要推断来源位置。管理员可以在 <b>使用报告</b> （Usage report，<b>帮助 → 发送反馈 → 使用报告</b> （Help → Send feedback → Usage report））里看到发送的确切内容，并可以在那里 <b>关闭</b> （Switch off）；设置问卷会先询问。在
+        数据发送到 PostHog，并要求它不要推断来源位置。管理员可以在 <b>使用报告</b> （Usage report，<b>帮助 → 发送反馈 → 使用报告</b> （Help → Send feedback → Usage report））里看到发送的确切内容。统计默认开启，管理员可以在 <b>设置 → 一般</b> （Settings → General）
+        关闭 <b>与 BioManager 开发者分享匿名统计</b> （Share anonymous counts with BioManager's makers），或在使用报告里点 <b>关闭</b> （Switch off）。在
         服务器上，在 <code>.env</code> 里设置 <code>BIOMANAGER_TELEMETRY=0</code>（或 <code>DO_NOT_TRACK=1</code>）可以永久关闭。</p>
     <!-- /page -->
       <nav class="pager" aria-label="上一页 / 下一页"><a class="prev" href="lab-setup.html"><small>上一页</small>实验室设置</a><a class="next" href="restore-a-backup.html"><small>下一页</small>从备份恢复</a></nav>

@@ -41,6 +41,11 @@ NOTES: dict[str, dict[str, list[str]]] = {
             "Deleting an experiment from the colony's list also removes its readings.",
         ],
     },
+    "1.10.2": {
+        "changed": [
+            "The anonymous counts sent to BioManager's makers once a day are switched in **Settings → General**, and a new lab's setup no longer asks: they are on until an admin switches them off.",
+        ],
+    },
     "1.10.1": {
         "fixed": [
             "Working offline, the phone lists each litter of a Breeding cage, and **Genotyping** and **Wean** ask **Which litter**.",

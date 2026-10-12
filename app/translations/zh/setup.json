@@ -30,8 +30,6 @@
   "What may members do?": "成员可以做什么？",
   "Admins can always add databases for the whole lab. Everyone sees every lab database's records; each person edits what they own, and shared cages are everyone's.": "管理员始终可以为全实验室添加数据库。每个人都能看到所有实验室数据库的记录；每人编辑自己负责的内容，共享的笼大家都可以编辑。",
   "Anonymous counts for BioManager's makers are switched off where BioManager runs, so nothing is sent.": "运行 BioManager 的地方已关闭发给 BioManager 开发者的匿名统计，因此不会发送任何内容。",
-  "Send BioManager's makers anonymous counts once a day": "每天向 BioManager 开发者发送一次匿名统计",
-  "So they know how many labs use it: the version, how many members (as a range) and which databases are on. Never names or anything anyone wrote.\n                <a href=\"%(report)s#heartbeat\" target=\"_blank\" rel=\"noopener\">See exactly what is sent</a>; switch it off any time on the Usage report.": "让他们知道有多少实验室在用：版本、成员人数（一个范围）以及开启了哪些数据库。绝不包括姓名或任何人写的内容。<a href=\"%(report)s#heartbeat\" target=\"_blank\" rel=\"noopener\">查看具体发送的内容</a>；随时可以在使用报告中关闭。",
   "Set up the lab": "完成实验室设置",
   "Save lab setup": "保存实验室设置",
   "You can change every answer later.": "每个回答以后都可以修改。",
@@ -322,5 +320,6 @@
   "%(column)s: %(num)s blank cells took the value above them.": "%(column)s：%(num)s 个空白单元格沿用了上方的值。",
   "Its blank cell takes the value above it": "空白单元格沿用上方的值",
   "Its %(num)s blank cells take the value above them": "%(num)s 个空白单元格沿用上方的值",
-  "Weaning day": "断奶日"
+  "Weaning day": "断奶日",
+  "BioManager is free. Once a day it sends its makers a few anonymous counts, so they can show that labs rely on it and see which parts to improve first: the version, how many members (as a range) and which databases are on. Never a name, nor anything anyone wrote. <a href=\"%(report)s#heartbeat\" target=\"_blank\" rel=\"noopener\">See exactly what is sent</a>; switch it off any time in Settings → General.": "BioManager 是免费的。它每天向开发者发送几项匿名统计，让他们能说明有实验室在依靠它，并知道该先改进哪些部分：版本、成员人数（一个范围）以及开启了哪些数据库。绝不包括姓名，也不包括任何人写的内容。<a href=\"%(report)s#heartbeat\" target=\"_blank\" rel=\"noopener\">查看发送的确切内容</a>；随时可以在 设置 → 一般 里关闭。"
 }
