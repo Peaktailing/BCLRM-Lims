@@ -833,6 +833,13 @@ class Experiment(Base):
         back_populates="experiment", cascade="all, delete-orphan",
         order_by="ExperimentDeviation.id",
     )
+    # Plate layouts and the plates read onto them (app/plates.py, revision 0040).
+    plate_reads: Mapped[list["PlateRead"]] = relationship(
+        back_populates="experiment", cascade="all, delete-orphan", order_by="PlateRead.id",
+    )
+    plate_layouts: Mapped[list["PlateLayout"]] = relationship(
+        back_populates="experiment", cascade="all, delete-orphan", order_by="PlateLayout.id",
+    )
 
 
 class ExperimentDeviation(Base):
@@ -859,6 +866,60 @@ class ExperimentDeviation(Base):
     @property
     def audit_label(self) -> str:
         return f"{self.what}: {self.reason}"[:200]
+
+
+class PlateLayout(Base):
+    """Which of an experiment's animals is in which well of a plate, kept
+    to read the next plate onto (app/plates.py): `wells` is JSON
+    {"A1": {"role": "sample", "subject": "mouse:9"}, "H1": {"role": "blank"},
+    "G1": {"role": "standard", "conc": 10}}; a well not named is empty."""
+    __tablename__ = "plate_layouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    experiment_id_fk: Mapped[int] = mapped_column(ForeignKey("experiments.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    format: Mapped[int] = mapped_column(Integer, default=96)          # 24, 48, 96 or 384 wells
+    wells: Mapped[str] = mapped_column(Text, default="{}")
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # last read onto: Same as last plate
+
+    experiment: Mapped[Experiment] = relationship(back_populates="plate_layouts")
+
+    @property
+    def audit_label(self) -> str:
+        return f"Plate layout {self.name}"[:200]
+
+
+class PlateRead(Base):
+    """A plate reader's or qPCR machine's export, read onto a layout and
+    saved as an experiment's readings (app/plates.py): the layout as it was,
+    each well's values, the choices made, each animal's value, and the
+    file it came from (an upload, served as its experiment is)."""
+    __tablename__ = "plate_reads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    experiment_id_fk: Mapped[int] = mapped_column(ForeignKey("experiments.id"), index=True)
+    layout_id_fk: Mapped[int | None] = mapped_column(ForeignKey("plate_layouts.id"), nullable=True, index=True)
+    layout_name: Mapped[str] = mapped_column(String(120), default="")
+    format: Mapped[int] = mapped_column(Integer, default=96)
+    wells: Mapped[str] = mapped_column(Text, default="{}")             # the layout, as it was read onto
+    readout_key: Mapped[str] = mapped_column(String(40), default="")
+    read_on: Mapped[date] = mapped_column(Date, index=True)
+    options: Mapped[str] = mapped_column(Text, default="{}")           # target, reference, blank, standard curve, wells left out
+    data: Mapped[str] = mapped_column(Text, default="{}")              # {target: {well: value as exported}}
+    results: Mapped[str] = mapped_column(Text, default="{}")           # {subject: value saved}
+    file_path: Mapped[str] = mapped_column(String(500), default="")    # uploads/<name>, or blank for pasted text
+    file_name: Mapped[str] = mapped_column(String(255), default="")
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    experiment: Mapped[Experiment] = relationship(back_populates="plate_reads")
+
+    @property
+    def audit_label(self) -> str:
+        return f"Plate {self.layout_name} {self.read_on}"[:200]
 
 
 class ExperimentSubject(Base):

@@ -132,6 +132,7 @@
       <button type="button" class="dt-toolbar-btn" data-xp-open="add">{{ icon('plus') }} {{ _('Add %(nouns)s', nouns=place.nouns|tr) }}</button>
       <button type="button" class="dt-toolbar-btn" data-xp-open="plan" title="{{ _('What is to be done, and on which days') }}">{{ icon('calendar') }} {{ _('Regimen') }}</button>
       <button type="button" class="dt-toolbar-btn" data-xp-open="reading">{{ icon('chart') }} <span data-xp-reading-verb>{{ readout.verb|tr("readout") }}</span></button>
+      <button type="button" class="dt-toolbar-btn" data-plate-open title="{{ _("Which animal is in which well, and a plate reader's or qPCR machine's export read onto it") }}">{{ icon('well-plate') }} {{ _('Plate layout') }}</button>
       <button type="button" class="btn btn-primary h-8 gap-1.5 px-2.5 text-[12px]" data-xp-open="record">{{ icon('syringe') }} {{ _('Record manipulation') }}</button>
     {% endif %}
   </div>
@@ -267,6 +268,58 @@
   </form>
 </dialog>
 
+{# Plate layouts: which animal is in which well, and a plate's export read onto it (static/plate-layout.js, app/plates.py) #}
+<dialog class="xp-dialog pl-dialog" id="xp-plate" aria-labelledby="xp-plate-title">
+  <form method="dialog" class="xp-form" data-plate-form>
+    <header class="xp-dialog-head"><div><h3 id="xp-plate-title">{{ _('Plate layout') }}</h3>
+      <p class="xp-sub">{{ _("Which animal is in which well. Then read a plate reader's or qPCR machine's export onto it: each animal's wells are averaged, and nothing is saved until you press Save readings.") }}</p></div>
+      <button type="button" class="csv-modal-close" data-xp-close aria-label="{{ _('Close') }}">×</button></header>
+    <div class="xp-dialog-body">
+      <section class="pl-step" data-plate-step="layout">
+        <div class="pl-bar">
+          <label>{{ _('Layout') }} <select data-plate-layouts></select></label>
+          <label class="pl-grow">{{ _('Name') }} <input data-plate-name maxlength="120" placeholder="{{ _('e.g. ELISA, plate 1') }}" autocomplete="off"></label>
+          <label>{{ _('Wells') }}
+            <select data-plate-format>{% for n in (24, 48, 96, 384) %}<option value="{{ n }}" {% if n == 96 %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+        </div>
+        <div class="pl-work">
+          <div class="pl-palette" data-plate-palette role="radiogroup" aria-label="{{ _('Put in the wells') }}"></div>
+          <div class="pl-plate-wrap"><table class="pl-plate" data-plate-grid></table></div>
+        </div>
+        <div class="pl-bar pl-fill">
+          <label>{{ _('Wells for each animal') }} <input type="number" class="xp-num" min="1" max="24" value="2" data-plate-reps></label>
+          <label>{{ _('Filled') }}
+            <select data-plate-dir><option value="rows">{{ _('across the rows') }}</option><option value="cols">{{ _('down the columns') }}</option></select></label>
+          <button type="button" class="dt-bottom-action" data-plate-fill title="{{ _('Each animal not yet on the plate, in the order of the sheet, from the first empty well') }}">{{ _('Fill in order') }}</button>
+          <button type="button" class="dt-bottom-action" data-plate-clear>{{ _('Clear the plate') }}</button>
+        </div>
+        <p class="xp-sub">{{ _('Pick an animal, Blank or Standard, then click a well or drag across several; a row letter or column number takes the whole row or column. Several wells for one animal are its replicates.') }}</p>
+        <div class="pl-reads" data-plate-reads hidden></div>
+      </section>
+      <section class="pl-step" data-plate-step="read" hidden>
+        <div class="pl-bar">
+          <label class="pl-grow">{{ _('Paste the export') }}
+            <textarea rows="3" data-plate-text placeholder="{{ _("From the instrument's file: the grid of A–H and 1–12, or the list of wells and values (Well, Target, Ct)") }}"></textarea></label>
+          <label>{{ _('Or its file') }} <input type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm" data-plate-file></label>
+          <label>{{ pgettext('experiment', 'Day') }} <input type="date" data-plate-on></label>
+        </div>
+        <div class="pl-bar" data-plate-options></div>
+        <div class="pl-preview" data-plate-preview></div>
+      </section>
+      <p class="xp-error" data-xp-error hidden></p>
+    </div>
+    <footer class="csv-modal-foot">
+      <button type="button" class="dt-bottom-action xp-undo" data-plate-delete data-plate-for="layout" hidden>{{ _('Delete layout') }}</button>
+      <button type="button" class="dt-bottom-action" data-plate-back data-plate-for="read" hidden>{{ _('← Layout') }}</button>
+      <span class="xp-spacer"></span>
+      <button type="button" class="dt-bottom-action" data-xp-close>{{ _('Cancel') }}</button>
+      <button type="button" class="dt-bottom-action" data-plate-save-layout data-plate-for="layout">{{ _('Save layout') }}</button>
+      <button type="button" class="dt-bottom-action is-primary" data-plate-next data-plate-for="layout">{{ _('Read a plate →') }}</button>
+      <button type="button" class="dt-bottom-action is-primary" data-plate-save data-plate-for="read" hidden disabled>{{ _('Save readings') }}</button>
+    </footer>
+  </form>
+</dialog>
+
 {# A readout day for every animal #}
 <dialog class="xp-dialog" id="xp-reading" aria-labelledby="xp-reading-title">
   <form method="dialog" class="xp-form" data-xp-form="reading">
@@ -306,4 +359,5 @@
 
 <script type="application/json" id="xp-data">{{ data | tojson }}</script>
 <script src="{{ url_for('static', filename='experiment-page.js') }}?v={{ asset_version('experiment-page.js') }}" defer></script>
+{% if experiment.editable %}<script src="{{ url_for('static', filename='plate-layout.js') }}?v={{ asset_version('plate-layout.js') }}" defer></script>{% endif %}
 {% endblock %}

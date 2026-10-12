@@ -988,6 +988,27 @@ Some readouts are a sum, not a reading: a tumour's volume from the calipers, fol
 
 - A number left out, below zero, a width longer than the length, a Ct of 60 or *Undetermined* is refused, saying why, rather than saved.
 
+### Plates from a plate reader or qPCR machine
+
+An ELISA, a viability assay or a qPCR run gives one number per well, and the work is knowing which well was which animal. Lay the plate out once, and each export goes straight into the readout.
+
+1. **Plate layout**, above the sheet, opens the plate: 24, 48, 96 or 384 wells (**Wells**). Pick an animal on the left, or **Blank**, or **Standard** with its concentration, then click a well or drag across several; a row letter or column number takes the whole row or column, and **Empty** clears. **Fill in order** puts every animal not yet on the plate into the next empty wells, two or three each, across the rows or down the columns. Several wells for one animal are its replicates.
+
+2. Give it a name and **Save layout**. It is kept with the experiment, and the next time the plate opens on the layout you last read onto (*Same as last plate*); change it, or start a **New layout**.
+
+3. **Read a plate →**, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.
+
+4. Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD over 10, a Ct over 50, *OVRFLW*) in red, and left out, as is *Undetermined*. Click any well to leave it out, and again to put it back.
+
+5. Below the plate, each animal's wells, their mean and spread (CV), and the value it gets. Set the **Day**, then **Save readings**.
+
+| A readout of your own | (**Readout → Something else…**, such as IL-6 in pg/mL.) The mean of each animal's wells, less the blank's mean (**Take off the blank**). With standards of two or more concentrations, **Read each value off the standard curve** turns each into a concentration from a straight line through the standards; the line and its r² are shown, and a value past the highest or lowest standard is marked. |
+|---|---|
+| Absorbance, blank subtracted | The mean OD less the blank's, kept with both. |
+| ΔCt, ΔΔCt, fold change | Choose the **Target gene** and the **Reference gene** from the run; each animal's mean Ct of each is used, and ΔΔCt and fold change are against the **Control group** as when you type them. |
+
+Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment: **Plates read**, under the layout, lists each with its day, layout and file. Only the experiment's owner (or an admin) lays out and reads plates, as with the rest of the experiment.
+
 ### The page
 
 - **The experiment** on top: name, status, start (day 1), end, readout and description, saved as you type.
@@ -1682,6 +1703,8 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 - **When stock runs out**: from how fast each item has been used.
 
 - **Readouts from raw numbers**: a caliper sheet, a qPCR export or a plate-reader file becomes tumour volumes, ΔΔCt and fold change, or blank-subtracted ODs, worked out by BioManager and shown to you before it proposes them ([Experiments](https://biomanager.org/guide/experiments#derived)).
+
+- **A plate on its layout**: give it the plate reader's or qPCR machine's export (or a capture of its file), and it is read onto the experiment's plate layout: each animal's wells averaged, the replicates far from the others and the wells past what the instrument reads named, and the readings proposed for you to approve ([Experiments](https://biomanager.org/guide/experiments#plates)).
 
 **Designing an experiment.** Tell it the question (*does deleting Il33 in airway epithelium reduce inflammation in our HDM model? Start in about six weeks*). It proposes the groups and controls, the main readout, how many animals and which, the regimen from your saved regimens, and the test, and says what it assumed. Doses for something the lab hasn't used come with a source, and checking the design against your animal protocol is yours. Approved, it is a **planned** experiment: nothing is due until you press **Start**, and after that, changes to the plan ask why ([Experiments](https://biomanager.org/guide/experiments#planned)).
 

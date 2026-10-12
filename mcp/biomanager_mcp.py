@@ -37,7 +37,7 @@ from app.assistant_tools import (INSTRUCTIONS, PROMPTS, Api, ApiError, call_tool
 from app.assistant_tools import (availability, breeding_plan, derive, experiment_summary, history,  # noqa: E402,F401
                                  lab_checks, lineage, power_analysis, randomize, reorder_forecast, search)
 from app.assistant_tools import animal_use, handover  # noqa: E402,F401
-from app.assistant_tools import verify_sequencing  # noqa: E402,F401
+from app.assistant_tools import plate_readout, verify_sequencing  # noqa: E402,F401
 
 
 def with_content(out: dict):
@@ -176,6 +176,17 @@ def build_server(api: Api):
     @server.tool(name="derive", description=description(api, "derive"))
     def derive_tool(formula: str | None = None, rows: list[dict] | None = None, control: str | None = None) -> dict:
         return call_tool(api, "derive", given(formula=formula, rows=rows, control=control))
+
+    @server.tool(name="plate_readout", description=description(api, "plate_readout"))
+    def plate_readout_tool(experiment_id: int, layout: str | None = None, wells: dict | None = None,
+                           format: int | None = None, text: str | None = None, capture: int | None = None,
+                           target: str | None = None, reference: str | None = None,
+                           subtract_blank: bool | None = None, standard_curve: bool | None = None,
+                           skip: list[str] | None = None, date: str | None = None) -> dict:
+        return call_tool(api, "plate_readout", given(
+            experiment_id=experiment_id, layout=layout, wells=wells, format=format, text=text, capture=capture,
+            target=target, reference=reference, subtract_blank=subtract_blank, standard_curve=standard_curve,
+            skip=skip, date=date))
 
     @server.tool(name="verify_sequencing", description=description(api, "verify_sequencing"))
     def verify_sequencing_tool(plasmid: str | None = None, ref: dict | None = None, captures: list[int] | None = None,

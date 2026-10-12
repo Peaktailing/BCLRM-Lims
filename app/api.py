@@ -64,7 +64,8 @@ SCOPES = {"read": "Read", "write": "Read and change", "propose": "Read and propo
 PROPOSING = {"api.proposal_create", "api.proposal_discard", "api.mcp"}
 # POSTs that only work something out from what they are sent and change
 # nothing (app/assistant_compute.py): any token may send them.
-COMPUTING = {"api.breeding_plan", "api.randomize", "api.power", "api.derive", "api.plasmid_verify"}
+COMPUTING = {"api.breeding_plan", "api.randomize", "api.power", "api.derive", "api.plasmid_verify",
+             "api.experiment_plate"}
 EXPIRY_DAYS = {"30": "In 30 days", "90": "In 90 days", "365": "In a year", "": "Never"}
 PER_MINUTE = 600
 MAX_LIMIT = 1000
@@ -1325,6 +1326,42 @@ def power():
             experiment=_whole(data.get("experiment")), day=data.get("day")))
 
 
+@bp.post("/experiments/<int:experiment_id>/plate")
+def experiment_plate(experiment_id: int):
+    """A plate reader's or qPCR machine's export laid on one of the
+    experiment's plate layouts (app/plates.py), changing nothing: {layout
+    (its id or name) or wells and format, text or capture (a capture's
+    file), target, reference, subtract_blank, standard_curve, skip, date}.
+    Answers each animal's wells, mean and value, the wells flagged, and the
+    experiment_reading change to propose."""
+    from . import captures, plates
+    from . import experiments as xp
+    data = _json()
+    with SessionLocal() as s:
+        exp = s.get(Experiment, experiment_id)
+        place = xp.place_for(s, exp.db or "colony") if exp is not None else None
+        if exp is None or place is None:
+            abort(404, f"There is no experiment {experiment_id}.")
+        export = None
+        if data.get("capture") not in (None, ""):
+            ident = str(data.get("capture")).strip()
+            c = captures.mine(s, int(ident), g.user.username) if ident.isdigit() else None
+            path = captures.file_on_disk(c) if c is not None else None
+            if c is None or (path is None and not c.text):
+                abort(404, f"You have no capture {data.get('capture')} with an export in it.")
+            try:
+                export = (plates.read_export(filename=c.file_name or path.name, data=path.read_bytes()) if path
+                          else plates.read_export(text=c.text))
+            except plates.PlateError as e:
+                abort(400, str(e))
+        try:
+            return jsonify(plates.for_assistant(s, exp, place, data, export))
+        except plates.PlateError as e:
+            abort(400, str(e))
+        finally:
+            s.rollback()
+
+
 @bp.route("/derive", methods=["GET", "POST"])
 def derive():
     """GET: the formulas (app/derived.py). POST {formula, rows, control}:
@@ -1570,6 +1607,9 @@ ENDPOINTS = [
      ()),
     ("POST", "/api/v1/power", "read",
      "Animals per group: {groups, difference, sd, means, d, alpha, power, attrition, experiment, day}", ()),
+    ("POST", "/api/v1/experiments/{experiment_id}/plate", "read",
+     "Lay a plate reader's or qPCR export on one of the experiment's plate layouts, changing nothing: {layout, "
+     "text or capture, target, reference, subtract_blank, standard_curve, skip, date}", ()),
     ("GET", "/api/v1/derive", "read", "The formulas BioManager works readouts out with", ()),
     ("POST", "/api/v1/derive", "read", "Work out a derived readout for rows, changing nothing: {formula, rows, control}",
      ()),

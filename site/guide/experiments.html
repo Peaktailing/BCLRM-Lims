@@ -193,6 +193,40 @@
         <li>A number left out, below zero, a width longer than the length, a Ct of 60 or <i>Undetermined</i> is refused,
           saying why, rather than saved.</li>
       </ul>
+      <h2 id="plates">Plates from a plate reader or qPCR machine</h2>
+      <p>An ELISA, a viability assay or a qPCR run gives one number per well, and the work is knowing which well was which
+        animal. Lay the plate out once, and each export goes straight into the readout.</p>
+      <ol>
+        <li><b>Plate layout</b>, above the sheet, opens the plate: 24, 48, 96 or 384 wells (<b>Wells</b>). Pick an animal on the
+          left, or <b>Blank</b>, or <b>Standard</b> with its concentration, then click a well or drag across several; a row
+          letter or column number takes the whole row or column, and <b>Empty</b> clears. <b>Fill in order</b> puts every
+          animal not yet on the plate into the next empty wells, two or three each, across the rows or down the columns.
+          Several wells for one animal are its replicates.</li>
+        <li>Give it a name and <b>Save layout</b>. It is kept with the experiment, and the next time the plate opens on the
+          layout you last read onto (<i>Same as last plate</i>); change it, or start a <b>New layout</b>.</li>
+        <li><b>Read a plate →</b>, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with
+          row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen
+          between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.</li>
+        <li>Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a
+          cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD
+          over 10, a Ct over 50, <i>OVRFLW</i>) in red, and left out, as is <i>Undetermined</i>. Click any well to leave it
+          out, and again to put it back.</li>
+        <li>Below the plate, each animal's wells, their mean and spread (CV), and the value it gets. Set the <b>Day</b>, then
+          <b>Save readings</b>.</li>
+      </ol>
+      <table class="gtable">
+        <tr><th>A readout of your own</th><td>(<b>Readout → Something else…</b>, such as IL-6 in pg/mL.) The mean of each
+          animal's wells, less the blank's mean (<b>Take off the blank</b>). With standards of two or more concentrations,
+          <b>Read each value off the standard curve</b> turns each into a concentration from a straight line through the
+          standards; the line and its r² are shown, and a value past the highest or lowest standard is marked.</td></tr>
+        <tr><th>Absorbance, blank subtracted</th><td>The mean OD less the blank's, kept with both.</td></tr>
+        <tr><th>ΔCt, ΔΔCt, fold change</th><td>Choose the <b>Target gene</b> and the <b>Reference gene</b> from the run;
+          each animal's mean Ct of each is used, and ΔΔCt and fold change are against the <b>Control group</b> as when you type
+          them.</td></tr>
+      </table>
+      <p>Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment:
+        <b>Plates read</b>, under the layout, lists each with its day, layout and file. Only the experiment's owner (or an
+        admin) lays out and reads plates, as with the rest of the experiment.</p>
       <h2 id="the-page">The page</h2>
       <ul>
         <li><b>The experiment</b> on top: name, status, start (day 1), end, readout and description, saved as you type.</li>
@@ -278,10 +312,11 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 9 min read</p>
+      <p>On this page · 12 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your week</a></li>
         <li class="lvl2"><a href="#derived">Readouts worked out from what you measure</a></li>
+        <li class="lvl2"><a href="#plates">Plates from a plate reader or qPCR machine</a></li>
         <li class="lvl2"><a href="#the-page">The page</a></li>
         <li class="lvl2"><a href="#the-regimen">The regimen</a></li>
         <li class="lvl2"><a href="#welfare">Animals that may need a look</a></li>
