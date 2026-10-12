@@ -2402,8 +2402,9 @@ to that, and `tests/test_telemetry.py` checks names don't leak.
   use, `--author`) are kept but summed apart from everyone else's;
   `--csv` writes it out.
 - **app_settings**: `telemetry:enabled` (`on`/`off`, default on; the first
-  survey's checkbox, and **Switch on/off** on the Usage report,
-  `POST /feedback/usage/heartbeat`), `telemetry:install_id` (a `uuid4`,
+  survey only says so, without a checkbox. Switched in Settings → General,
+  `POST /settings/lab` with `section=heartbeat`, and with **Switch on/off**
+  on the Usage report, `POST /feedback/usage/heartbeat`), `telemetry:install_id` (a `uuid4`,
   made on first use; the Usage report's preview makes it too, so the JSON
   shown is exact), `telemetry:last_sent` (UTC ISO).
 - **Environment**: `BIOMANAGER_TELEMETRY_KEY` (the project's public

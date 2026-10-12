@@ -111,7 +111,7 @@ The first time the desktop app opens, it asks **Does your lab already use BioMan
 
 4. **What may members do?** Whether members may create databases of their own, whether they may add databases for the whole lab, whether they may keep a copy of the lab on their computers, and whether they may make [API tokens](https://biomanager.org/guide/scripts-and-api).
 
-Below the questions, **Send BioManager's makers anonymous counts once a day** is ticked; untick it if you'd rather not ([what is sent](https://biomanager.org/guide/your-data#counts)).
+Below the questions, a note says BioManager sends its makers a few anonymous counts once a day, which helps keep it free and going ([what is sent](https://biomanager.org/guide/your-data#counts)). To stop them, switch off **Share anonymous counts with BioManager's makers** in **Settings → General**, then or any time later.
 
 BioManager then makes those databases, the racks and incubators too, and shows the lab ready, with the address people join at. Everyone who joins later gets a one-page welcome tour of the lab's databases on first sign-in (**Settings → Your data → See the welcome tour again** brings it back).
 
@@ -1518,7 +1518,7 @@ Every computer, phone and browser you are signed in on is one of your devices, l
 
 ### What BioManager sends its makers
 
-Your records never leave your computer or your lab's server. So that BioManager's makers know how many labs use it, each installation sends one short message a day, with counts only:
+Your records never leave your computer or your lab's server. BioManager is free, and a few anonymous counts are how its makers can show that labs rely on it and see which parts to improve first. Each installation sends one short message a day, with counts only:
 
 - the version, whether it is the desktop app or a server, the operating system and the kind of database;
 
@@ -1528,7 +1528,7 @@ Your records never leave your computer or your lab's server. So that BioManager'
 
 - a random id for the installation, so a lab counts once.
 
-Never names, email addresses, anything anyone wrote, what your databases are called, or the computer's name or address. It goes to PostHog, which is asked not to work out where it came from. Admins see exactly what is sent on the **Usage report** (**Help → Send feedback → Usage report**) and can **Switch off** there; the setup survey asks first. On a server, `BIOMANAGER_TELEMETRY=0` (or `DO_NOT_TRACK=1`) in `.env` turns it off for good.
+Never names, email addresses, anything anyone wrote, what your databases are called, or the computer's name or address. It goes to PostHog, which is asked not to work out where it came from. Admins see exactly what is sent on the **Usage report** (**Help → Send feedback → Usage report**). The counts are on unless an admin switches off **Share anonymous counts with BioManager's makers** in **Settings → General** (or **Switch off** on the Usage report). On a server, `BIOMANAGER_TELEMETRY=0` (or `DO_NOT_TRACK=1`) in `.env` turns it off for good.
 
 Source: https://biomanager.org/guide/your-data
 

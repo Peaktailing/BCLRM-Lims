@@ -63,6 +63,7 @@
     {% endif %}
   </header>
   <div class="flex flex-col gap-3 p-4">
+    <p class="text-[12.5px] leading-snug">{{ _('BioManager is free. These counts are how its makers can show that labs rely on it, and see which parts to improve first. Leaving them on is a small way to help keep it going.') }}</p>
     <p class="text-[12.5px] leading-snug text-muted">
       {% if config.get('LOCAL_SETUP') %}{% trans %}Once a day, BioManager tells its makers that this lab uses it: the version, how many members and how many
       were active this week (as ranges), and which databases and functions are on. No names, no email addresses,

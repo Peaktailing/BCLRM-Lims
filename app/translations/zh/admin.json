@@ -211,5 +211,6 @@
   "Change an item": "修改物品",
   "Experiments, in every database": "所有数据库中的实验",
   "One experiment: animals, readout table, manipulations": "一个实验：动物、观测指标表、处理",
-  "Record the readout": "记录观测指标"
+  "Record the readout": "记录观测指标",
+  "BioManager is free. These counts are how its makers can show that labs rely on it, and see which parts to improve first. Leaving them on is a small way to help keep it going.": "BioManager 是免费的。开发者靠这些统计说明有实验室在依靠它，并知道该先改进哪些部分。保持开启，就是帮它继续做下去的一点小小支持。"
 }
