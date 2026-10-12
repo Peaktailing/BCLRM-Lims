@@ -121,7 +121,13 @@ never what you may edit.
   starts filled with the cage's pups, females and males apart, and sends
   each row to a new or existing cage; weaning before P18 asks first, and
   a weaned litter leaves every list. Birth dates in the future are
-  refused.
+  refused. A cage can have two litters at once (a trio's second female
+  gives birth before the first litter is weaned): **Litter born** then
+  asks whether it is **Another litter**, kept beside the first with its
+  own weaning and genotyping dates, or **Correct the date** of the first.
+  The cage lists each litter with its age, Home and the calendar show
+  each one ("Wean Cage 101 (born Sep 29)"), and **Genotyping** and
+  **Wean** ask which litter, the oldest first.
 - **Breeders** — the Breeder cages, the lab's breeding stock, at a glance,
   with the breeders counted by genotype and those past 30 weeks flagged;
   **Pick** takes a breeder as yours to set up a mating, and its owner is
@@ -1219,6 +1225,9 @@ Open the breeding cage, choose **Litter born** and confirm the date of birth
 (today unless you change it). The weaning and
 genotyping dates appear on Home and the calendar when they come due. At
 weaning, add the pups with **Add many** and move them to their new cages.
+If the cage's last litter isn't weaned yet, say whether this is
+**Another litter** (both are kept, each with its own dates) or
+**Correct the date**.
 </details>
 
 <details>

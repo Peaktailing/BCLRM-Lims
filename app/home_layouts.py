@@ -26,7 +26,7 @@ from . import i18n, inventory_service, organism_service, positions, stock_servic
 from .i18n import gettext, translate_value
 from .icons import resolve as resolve_icon
 from .models import CageRecord, CalendarEvent, InventoryItem, LitterRecord, MouseRack, MouseRecord, StockRack, StockUnit
-from .services import is_breeding_cage, weaning_offset, weaning_due, weaning_title
+from .services import cage_litter_json, is_breeding_cage, weaning_offset, weaning_due, weaning_title
 
 LAYOUTS = {
     "classic": ("Classic", "columns"),
@@ -429,14 +429,23 @@ def _colony_items(session, today, until) -> list[dict]:
                          owner=cage.owner if cage is not None else "", ref=_ref("cage", cage),
                          # Weaning is a Breeding cage's (app.py _not_breeding):
                          # elsewhere the litter is weaned by hand.
-                         propose=_done("wean", _ref("cage", cage))
+                         propose=_done("wean", _ref("cage", cage),
+                                       **({"litter": wean["born"].isoformat()} if wean["several"] else {}))
                          if cage is not None and is_breeding_cage(cage.purpose) else None))
+        if wean["cage_litter"] is not None:
+            # Which of the cage's litters (a cage can have two): for
+            # /api/v1/due, and the assistant's due list.
+            out[-1]["litter"] = cage_litter_json(wean["cage_litter"])
 
     # Waiting on genotyping: due now.
     geno = session.scalars(
         select(MouseRecord).options(selectinload(MouseRecord.cage).selectinload(CageRecord.rack))
         .where(MouseRecord.date_of_death.is_(None), MouseRecord.status == "geno")).all()
-    for group in _by_cage(geno):
+    # One item a litter: a cage with two litters genotypes each on its own.
+    by_litter = defaultdict(list)
+    for m in geno:
+        by_litter[(m.cage_id_fk, m.litter_id_fk)].append(m)
+    for group in by_litter.values():
         out.append(_item("colony:geno", today, gettext("Genotype %(mice)s", mice=_mouse_ids(group)), today, mice_url,
                          loc=_cage_loc(group[0].cage), owner=group[0].owner, ref=_ref("cage", group[0].cage)))
         out[-1]["mice"] = _mouse_refs(group)

@@ -504,54 +504,128 @@ def _cage_said(s, key, value) -> str:
     return find(s, "rack", value).name if key == "rack" and value else (str(value) if value != "" else "-")
 
 
+def _open_litters(cage) -> list:
+    from .services import open_litters
+    return open_litters(cage)
+
+
+def _days(litters) -> str:
+    return ", ".join(cl.born.isoformat() for cl in litters)
+
+
+def _cage_litter(s, cage, ref, what: str):
+    """The cage's litter not yet weaned that `ref` names: its birth date
+    (2026-09-29), or the litter its pups were made at Genotyping (a
+    reference or its ID). None when not given: the page's default then."""
+    if ref in (None, ""):
+        return None
+    still = _open_litters(cage)
+    text = str(ref).strip()[:10] if not isinstance(ref, dict) else ""
+    if DATE.match(text):
+        found = next((cl for cl in still if cl.born.isoformat() == text), None)
+    else:
+        litter = find(s, "litter", ref)
+        found = next((cl for cl in still if cl.litter_id_fk == litter.id), None) \
+            or next((cl for cl in still if cl.born == litter.date_of_birth), None)
+    if found is None:
+        raise ActionError(gettext("Cage %(cage)s has no litter %(litter)s waiting; its litters not yet weaned were born %(born)s.", cage=cage.cage_id, litter=_show(ref),
+                                  born=_days(still) or "-"))
+    return found
+
+
+def _which_said(s, cage, v, what: str) -> str:
+    """Which litter a change on a cage with two litters is about, in words
+    ("" for a cage with one): the one named, or the page's default."""
+    from .services import waiting_litters
+    still = _open_litters(cage)
+    if len(still) < 2:
+        return ""
+    chosen = _cage_litter(s, cage, v.get("litter"), what)
+    if chosen is None:
+        waiting = waiting_litters(cage) or still
+        chosen = (next((cl for cl in waiting if cl.litter_id_fk is None), waiting[0]) if what == "genotyping"
+                  else waiting[0])
+    return gettext(" (the litter born %(born)s)", born=chosen.born.isoformat())
+
+
+def _litter_born_said(_s, c, v) -> str:
+    if v.get("another") is False:
+        return gettext("Litter in cage %(cage)s corrected: born %(day)s", cage=c.cage_id,
+                       day=v.get("date") or date.today().isoformat())
+    if "pups" in v:
+        said = ngettext("Litter of %(num)s pup born in cage %(cage)s%(on)s",
+                        "Litter of %(num)s pups born in cage %(cage)s%(on)s", v["pups"],
+                        cage=c.cage_id, on=_on(v.get("date")))
+    else:
+        said = gettext("Litter born in cage %(cage)s%(on)s", cage=c.cage_id, on=_on(v.get("date")))
+    if v.get("another"):
+        said = gettext("%(what)s, another litter beside the one not yet weaned", what=said)
+    return said
+
+
 @action(name="litter_born", area="mice", title="Litter born",
-        help="A litter was born in this mating (Breeding) cage (the cage keeps one birth date; weaning is due from it). "
-             "To add only a count to a birth already recorded, give the cage's own birth date with pups.",
+        help="A litter was born in this mating (Breeding) cage; weaning and genotyping are due from its birth date. "
+             "A cage can have more than one litter at a time (a trio's two females): when it has a litter not yet "
+             "weaned, say another: true for a second litter (both are kept, each with its own reminders) or "
+             "another: false to correct that litter's date (with litter, its birth date, when there are two). "
+             "The cage's own birth date again with pups only adds the count.",
         target="cage",
         fields=(Field("date", "date", "The day they were born (today if left out)"),
-                Field("pups", "int", "How many pups were born (1–40): added to the cage's notes until the litter is "
-                      "made at genotyping")),
-        describe=lambda _s, c, v: (ngettext("Litter of %(num)s pup born in cage %(cage)s%(on)s",
-                                            "Litter of %(num)s pups born in cage %(cage)s%(on)s", v["pups"],
-                                            cage=c.cage_id, on=_on(v.get("date"))) if "pups" in v else
-                                   gettext("Litter born in cage %(cage)s%(on)s", cage=c.cage_id,
-                                           on=_on(v.get("date")))))
+                Field("pups", "int", "How many pups were born (1–40), if counted"),
+                Field("mother", "text", "The mother, if known (a mouse number or a note)"),
+                Field("another", "bool", "true: a second litter beside the one not yet weaned (both kept); "
+                                         "false: this corrects that litter's date"),
+                Field("litter", "date", "Correcting on a cage with two litters: the birth date of the one to "
+                                        "correct")),
+        describe=_litter_born_said)
 def _litter_born(_s, cage, v):
-    calls = [Call("POST", f"/colony/cages/{cage.id}/give-birth", form=[("date_give_birth", v.get("date", ""))])]
-    if "pups" in v:
-        # The cage keeps a birth date only; the count is the litter's once it
-        # is made at genotyping, so until then it goes in the cage's notes.
-        if not 1 <= v["pups"] <= MAX_REPEAT:
-            raise ActionError(gettext("pups is a whole number from 1 to %(max)s.", max=MAX_REPEAT))
-        line = ngettext("%(date)s: litter born, %(num)s pup", "%(date)s: litter born, %(num)s pups", v["pups"],
-                        date=v.get("date") or date.today().isoformat())
-        calls.append(Call("POST", f"/colony/cages/{cage.id}/update", form=[("notes", _added(cage.notes, line))]))
-    return calls
+    if "pups" in v and not 1 <= v["pups"] <= MAX_REPEAT:
+        raise ActionError(gettext("pups is a whole number from 1 to %(max)s.", max=MAX_REPEAT))
+    born = v.get("date") or date.today().isoformat()
+    still = _open_litters(cage)
+    if still and "another" not in v and all(cl.born.isoformat() != born for cl in still):
+        raise ActionError(gettext("Cage %(cage)s already has a litter not yet weaned (born %(born)s). Say another: true if this is a second litter (both are kept), or another: false if it corrects that date.", cage=cage.cage_id,
+                                  born=_days(still)))
+    choice = "" if "another" not in v else ("another" if v["another"] else "correct")
+    form = [("date_give_birth", v.get("date", "")), ("pups", str(v.get("pups", ""))),
+            ("dam", v.get("mother", "")), ("litter_choice", choice), ("litter", v.get("litter", ""))]
+    return [Call("POST", f"/colony/cages/{cage.id}/give-birth", form=form)]
 
 
 @action(name="litter_genotyping", area="mice", title="Create the litter at genotyping",
-        help="Make the litter for this cage's pups and one mouse per pup (status geno), in the cage.",
+        help="Make the litter for this cage's pups and one mouse per pup (status geno), in the cage. On a cage with "
+             "two litters, litter says whose pups (its birth date); the oldest not yet genotyped otherwise.",
         target="cage",
         fields=(Field("pups", "int", "How many pups (1–40)", required=True),
                 Field("father", "text", "The father, as the lab writes it (a mouse number or a note)"),
-                Field("mother", "text", "The mother, or mothers")),
-        describe=lambda _s, c, v: gettext("Litter of %(pups)s pups made in cage %(cage)s, a mouse for each",
-                                          pups=v["pups"], cage=c.cage_id))
-def _litter_genotyping(_s, cage, v):
+                Field("mother", "text", "The mother, or mothers"),
+                Field("litter", "litter", "Which of the cage's litters: its birth date (2026-09-29)")),
+        describe=lambda s, c, v: gettext("Litter of %(pups)s pups made in cage %(cage)s, a mouse for each",
+                                         pups=v["pups"], cage=c.cage_id) + _which_said(s, c, v, "genotyping"))
+def _litter_genotyping(s, cage, v):
+    chosen = _cage_litter(s, cage, v.get("litter"), "genotyping")
     return [Call("POST", f"/colony/cages/{cage.id}/genotyping",
                  form=[("total_pups", str(v["pups"])), ("father_info", v.get("father", "")),
-                       ("mother_info", v.get("mother", ""))])]
+                       ("mother_info", v.get("mother", "")),
+                       ("litter", chosen.born.isoformat() if chosen is not None else "")])]
 
 
 @action(name="wean", area="mice", title="Wean a cage",
         help="Wean this cage. With rows, move its pups out: each row is some of its mice, their sex, and an "
-             "existing cage or a new one (new_card). Pups younger than P18 are refused unless early is true.",
+             "existing cage or a new one (new_card). Pups younger than P18 are refused unless early is true. "
+             "On a cage with two litters, litter says which is weaned (its birth date, or the litter its pups "
+             "are); the oldest otherwise.",
         target="cage",
         fields=(Field("rows", "rows", "Where the pups go: [{mice, sex, cage | new_card}]"),
-                Field("early", "bool", "Wean although the pups are younger than usual")),
-        describe=lambda s, c, v: _wean_said(s, c, v))
+                Field("early", "bool", "Wean although the pups are younger than usual"),
+                Field("litter", "litter", "Which of the cage's litters: its birth date (2026-09-29) or its "
+                                          "litter")),
+        describe=lambda s, c, v: _wean_said(s, c, v) + _which_said(s, c, v, "wean"))
 def _wean(s, cage, v):
+    chosen = _cage_litter(s, cage, v.get("litter"), "wean")
     early = [("early", "1")] if v.get("early") else []
+    if chosen is not None:
+        early.append(("litter", chosen.born.isoformat()))
     if not v.get("rows"):
         return [Call("POST", f"/colony/cages/{cage.id}/wean", form=early)]
     form = list(early)

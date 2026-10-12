@@ -36,12 +36,15 @@ class APreview(AppTestCase):
         self.assertEqual((count("mice"), count("batches"), count("audit_log")), (mice, batches, entries))
         self.assertIsNone(one("select date_give_birth from mouse_cages where id=?", cage))
 
-    def test_the_pages_warning_comes_through(self):
+    def test_the_pages_note_comes_through(self):
+        # A cage can have two litters: another one is kept beside the first,
+        # and the page says so (tests/test_second_litters.py has the rest).
         cage = self.make_cage(self.m, purpose="Breeding", date_give_birth=days_ago(40))
         out = actions.run(app, self.member, [{"action": "litter_born", "target": cage_ref(cage),
-                                              "fields": {"date": days_ago(1)}}])
+                                              "fields": {"date": days_ago(1), "another": True}}])
         self.assertTrue(out.ok, out.errors)
-        self.assertTrue(any("replaces the litter born" in w for w in out.changes[0].warnings), out.changes[0])
+        self.assertIn("another litter", out.changes[0].summary)
+        self.assertEqual(str(one("select date_give_birth from mouse_cages where id=?", cage))[:10], days_ago(40))
 
     def test_the_pages_refusal_comes_through_and_the_next_change_still_runs(self):
         cage = self.make_cage(self.m, purpose="Breeding")

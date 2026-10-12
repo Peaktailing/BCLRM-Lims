@@ -317,6 +317,39 @@ class CageRecord(Base):
 
     mice: Mapped[list["MouseRecord"]] = relationship(back_populates="cage")
     rack: Mapped["MouseRack | None"] = relationship()
+    # Each litter born here (a trio's two females give two, a week or two
+    # apart), oldest first; date_give_birth is the oldest not yet weaned.
+    cage_litters: Mapped[list["CageLitter"]] = relationship(
+        back_populates="cage", cascade="all, delete-orphan", order_by="[CageLitter.born, CageLitter.id]")
+
+
+class CageLitter(Base):
+    """A litter born in a cage (Litter born on a Breeding cage): its birth
+    date, how many pups if counted, its dam if known, and its own weaning
+    and genotyping days, until it is weaned. Genotyping makes its pups a
+    litter of mice (`litter`). The cage's date_give_birth is its oldest
+    litter not yet weaned (services.refresh_birth_date), so everything that
+    read one date per cage reads the same as before (revision 0037)."""
+
+    __tablename__ = "cage_litters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cage_id_fk: Mapped[int] = mapped_column(ForeignKey("mouse_cages.id"), index=True)
+    born: Mapped[date] = mapped_column(Date)
+    pups: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dam: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    litter_id_fk: Mapped[int | None] = mapped_column(ForeignKey("litters.id"), nullable=True, index=True)
+    weaned_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    cage: Mapped[CageRecord] = relationship(back_populates="cage_litters")
+    litter: Mapped["LitterRecord | None"] = relationship()
+
+    @property
+    def audit_label(self) -> str:
+        cage = self.__dict__.get("cage")
+        born = self.born.isoformat() if self.born else ""
+        return f"{cage.cage_id} · {born}" if cage is not None else born
 
 
 @event.listens_for(CageRecord.purpose, "set")

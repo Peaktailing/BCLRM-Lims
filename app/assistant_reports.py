@@ -437,7 +437,7 @@ def handover(session, username: str = "", days: int = AGENDA_DAYS, today: date |
         ref = item.get("ref") or {}
         if ref.get("kind"):
             due_by_ref.setdefault((ref["kind"], ref.get("id")), []).append(
-                {k: item[k] for k in ("due", "status", "title", "detail") if k in item})
+                {k: item[k] for k in ("due", "status", "title", "detail", "litter") if k in item})
 
     if features.get("colony", True):
         out.update(_handover_colony(session, who, due_by_ref))
@@ -485,7 +485,7 @@ def handover(session, username: str = "", days: int = AGENDA_DAYS, today: date |
 def _handover_colony(session, who: str, due_by_ref: dict) -> dict:
     from sqlalchemy.orm import selectinload
     from .models import CageRecord, MouseRecord
-    from .services import is_breeding_cage, mouse_is_active
+    from .services import cage_litter_json, is_breeding_cage, mouse_is_active, open_litters
     theirs_living = select(MouseRecord.cage_id_fk).where(MouseRecord.owner == who, MouseRecord.date_of_death.is_(None))
     cages, breeding = [], []
     for c in session.scalars(select(CageRecord).options(selectinload(CageRecord.mice), selectinload(CageRecord.rack))
@@ -509,6 +509,8 @@ def _handover_colony(session, who: str, due_by_ref: dict) -> dict:
             breeding.append({"cage": c.cage_id, "ref": ref, "rack": entry["rack"], "position": entry["position"],
                              "mice": sorted(m.mouse_id for m in living),
                              "litter_born": c.date_give_birth.isoformat() if c.date_give_birth else None,
+                             # Each litter not yet weaned (a trio's two females give two).
+                             "litters": [cage_litter_json(cl) for cl in open_litters(c)],
                              "due": entry["due"], "url": entry["url"]})
     cages.sort(key=lambda e: e.pop("_order"))
     breeding.sort(key=lambda b: next(i for i, c in enumerate(cages) if c["ref"] == b["ref"]))
