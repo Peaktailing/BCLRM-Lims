@@ -16,7 +16,7 @@ from app.uploads import NOT_OWNERS, names_in
 from migrations.helpers import create_table
 
 revision = "0038_upload_owners"
-down_revision = "0036_pack_size"
+down_revision = "0037_cage_litters"
 branch_labels = None
 depends_on = None
 
