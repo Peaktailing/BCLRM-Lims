@@ -291,6 +291,36 @@ With a **checkout**: `git pull`, then `docker compose up -d --build`.
 (`--build` rebuilds the backup service, so updated backup and restore
 scripts are used; it takes no second backup while the one above is fresh.)
 
+**Moving a checkout to the server bundle**, once, so that **Update now**
+works: a checkout builds its own image and knows no version, so the updater
+leaves it alone. Move on the version the checkout runs (`git describe
+--tags`), so nothing in the database changes; BioManager is away for a
+minute or two.
+
+```bash
+# server
+cd /opt/biomanager/Biomanager/deploy && docker compose exec backup backup.sh
+cd /opt/biomanager
+curl -fsSLO https://github.com/gaspolymerase/biomanager/releases/download/v<version>/biomanager-server.tar.gz
+sha256sum biomanager-server.tar.gz         # the same as the release page shows
+mv Biomanager Biomanager-checkout          # keep it until you are sure
+tar -xzf biomanager-server.tar.gz -C /opt/biomanager
+cp -p Biomanager-checkout/deploy/.env Biomanager/deploy/
+sudo cp -a Biomanager-checkout/deploy/control Biomanager/deploy/ 2>/dev/null || true
+cd Biomanager/deploy
+host/load-image.sh
+docker compose up -d --build --force-recreate
+sudo host/install.sh
+```
+
+Bring along anything else that lives in the old `deploy/` folder: `certs/`
+with `TLS=files`, and `backups/` if `BACKUP_DIR` is not set. The database,
+the files and the lab's key are in Docker volumes named for the stack, so
+they stay. Then check: `https://DOMAIN/healthz` answers `ok`, **Settings →
+Devices & copies → Updates** offers **Update now**, and `sudo
+host/update.sh` says this version is the newest. Delete
+`Biomanager-checkout` once you are sure.
+
 Then check it: `curl -fsS https://DOMAIN/healthz` answers `ok`, and
 `docker compose logs app` shows it started. Start-up brings the database
 schema up to date by itself; when it does, the log says
