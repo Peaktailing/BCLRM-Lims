@@ -518,6 +518,18 @@
         </label>
         <datalist id="lab-timezones">{% for zone in timezones %}<option value="{{ zone }}"></option>{% endfor %}</datalist>
       </form>
+      {% if heartbeat and heartbeat.state != 'no-key' %}
+        {# The anonymous daily counts (app/telemetry.py): on unless an admin switches them off. #}
+        <form method="post" action="{{ url_for('settings_lab_save') }}" class="set-group mt-3" id="heartbeat" {% if admin %}data-autosave-form{% endif %}>
+          <input type="hidden" name="section" value="heartbeat">
+          <label class="set-row">
+            <span class="set-label"><b>{{ _("Share anonymous counts with BioManager's makers") }}</b>
+              <small>{% if heartbeat.state == 'server-off' %}{{ _("Anonymous counts for BioManager's makers are switched off where BioManager runs, so nothing is sent.") }}{% else %}{{ _('BioManager is free. Once a day it sends its makers a few anonymous counts, so they can show that labs rely on it and see which parts to improve first: the version, how many members (as a range) and which databases are on. Never a name, nor anything anyone wrote.') }}{% endif %}
+                {% if admin %}<a href="{{ url_for('feedback.usage_report') }}#heartbeat">{{ _('See exactly what is sent') }}</a>{% endif %}</small></span>
+            <input type="checkbox" class="set-switch" name="enabled" value="1" {% if heartbeat.lab_on and heartbeat.state != 'server-off' %}checked{% endif %} {% if not admin or heartbeat.state == 'server-off' %}disabled{% endif %}>
+          </label>
+        </form>
+      {% endif %}
       {% if admin and this_computer() %}
         {# The desktop app: start over, and the way back (app.py start_new_lab, restore_lab). #}
         <div class="set-group mt-3" id="start-over">

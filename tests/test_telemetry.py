@@ -207,12 +207,26 @@ class Heartbeat(AppTestCase):
                 mock.patch.object(telemetry, "PROJECT_KEY", ""):
             self.assertIn("Not set up in this build", self.get_ok(self.a, "/feedback/usage"))
 
-    def test_asked_in_the_first_survey(self):
+    def test_told_in_the_first_survey_and_on_by_default(self):
         with mock.patch("app.lab.setup_done", return_value=False):
             html = self.get_ok(self.a, "/setup")
-            self.assertIn("Send BioManager's makers anonymous counts once a day", html)
-            self.assertIn('name="heartbeat" value="1" checked', html)
+            self.assertIn("switch it off any time in Settings → General", html)
+            self.assertNotIn('name="heartbeat"', html)
             with mock.patch("app.lab.apply_survey", return_value=[]):
-                self.a.post("/setup", data={})               # unticked
+                self.a.post("/setup", data={})
+        self.assertIsNone(one("select value from app_settings where key='telemetry:enabled'"))
+        self.assertTrue(self.send())
+
+    def test_the_switch_in_settings(self):
+        html = self.get_ok(self.a, "/settings")
+        self.assertIn("Share anonymous counts with BioManager's makers", html)
+        self.m.post("/settings/lab", data={"section": "heartbeat"})                       # not an admin
+        self.assertIsNone(one("select value from app_settings where key='telemetry:enabled'"))
+        r = self.a.post("/settings/lab", data={"section": "heartbeat"}, headers={"X-Autosave": "1"})   # unticked
+        self.assertEqual(r.get_json(), {"ok": True})
         self.assertEqual(one("select value from app_settings where key='telemetry:enabled'"), "off")
         self.assertFalse(self.send())
+        self.a.post("/settings/lab", data={"section": "heartbeat", "enabled": "1"}, headers={"X-Autosave": "1"})
+        self.assertTrue(self.send())
+        with mock.patch.dict(os.environ, {"BIOMANAGER_TELEMETRY": "0"}):
+            self.assertIn("switched off where BioManager runs", self.get_ok(self.a, "/settings"))

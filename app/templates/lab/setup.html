@@ -207,14 +207,7 @@
         {% if heartbeat_off_by_server %}
           <p class="setup-note">{{ _("Anonymous counts for BioManager's makers are switched off where BioManager runs, so nothing is sent.") }}</p>
         {% else %}
-          <label class="flex items-start gap-2 text-[13px] text-ink">
-            <input type="checkbox" name="heartbeat" value="1" checked class="accent-brand-600">
-            <span class="flex flex-col gap-1">
-              <span class="font-medium">{{ _("Send BioManager's makers anonymous counts once a day") }}</span>
-              <span class="setup-note">{% trans report=url_for('feedback.usage_report') %}So they know how many labs use it: the version, how many members (as a range) and which databases are on. Never names or anything anyone wrote.
-                <a href="{{ report }}#heartbeat" target="_blank" rel="noopener">See exactly what is sent</a>; switch it off any time on the Usage report.{% endtrans %}</span>
-            </span>
-          </label>
+          <p class="setup-note">{% trans report=url_for('feedback.usage_report') %}BioManager is free. Once a day it sends its makers a few anonymous counts, so they can show that labs rely on it and see which parts to improve first: the version, how many members (as a range) and which databases are on. Never a name, nor anything anyone wrote. <a href="{{ report }}#heartbeat" target="_blank" rel="noopener">See exactly what is sent</a>; switch it off any time in Settings → General.{% endtrans %}</p>
         {% endif %}
       </section>
     {% endif %}

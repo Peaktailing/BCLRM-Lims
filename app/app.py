@@ -2362,11 +2362,12 @@ def settings():
     with SessionLocal() as db_session:
         lab_data = settings_lab.panes(db_session) if not g.user.expires_at else None
         updates = server_updates.state(db_session) if g.user.role == "admin" else None
+        heartbeat = telemetry.status(db_session) if lab_data else None
     from . import whats_new
     from .stocks import PRESETS as STOCK_PRESETS
     return render_template(
         "settings.html",
-        lab_data=lab_data, updates=updates, version_info=whats_new.version_info(), lab_features=lab.FEATURES, stock_choices=lab.STOCK_CHOICES,
+        lab_data=lab_data, updates=updates, heartbeat=heartbeat, version_info=whats_new.version_info(), lab_features=lab.FEATURES, stock_choices=lab.STOCK_CHOICES,
         inventory_choices=lab.INVENTORY_CHOICES, member_permissions=lab.MEMBER_PERMISSIONS,
         date_styles=lab.DATE_STYLES, timezones=lab.timezone_names(), server_timezone=lab.server_timezone(),
         wean_offset_days=weaning_offset(), roles=access.ROLES, group_switches=project_groups.SWITCHES,
@@ -2388,14 +2389,22 @@ def settings():
 @admin_required
 def settings_lab_save():
     """Settings → Lab: one pane's form (General, Databases, What members may
-    do, or one other database switched on or off), saved as it changes."""
+    do, one other database switched on or off, or the anonymous counts),
+    saved as it changes."""
     section = request.form.get("section", "")
     autosave = request.headers.get("X-Autosave") == "1"
     anchor = {"general": "general", "databases": "databases", "permissions": "member-rights",
-              "module": "databases"}.get(section)
+              "module": "databases", "heartbeat": "general"}.get(section)
     if anchor is None:
         abort(400)
     with SessionLocal() as db_session:
+        if section == "heartbeat":
+            # The anonymous daily counts (app/telemetry.py), also on the Usage report.
+            telemetry.set_lab_on(db_session, request.form.get("enabled") == "1")
+            db_session.commit()
+            if autosave:
+                return jsonify({"ok": True})
+            return redirect(url_for("settings", _anchor=anchor))
         if section == "module":
             module = lab.set_module_enabled(db_session, request.form.get("kind", ""), request.form.get("key", ""),
                                             request.form.get("enabled") == "1")
