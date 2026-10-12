@@ -91,9 +91,6 @@
 
   // ================================================================ colour
 
-  function cssVar(name, fallback) {
-    return (getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || fallback;
-  }
   function parseColor(value) {
     const v = String(value || '').trim();
     let m = v.match(/^#([0-9a-f]{3})$/i);
@@ -104,27 +101,25 @@
     if (m) return m[1].split(',').slice(0, 3).map((n) => parseFloat(n));
     return [142, 142, 147];
   }
-  function mix(a, b, t) {
-    const x = parseColor(a), y = parseColor(b);
-    return '#' + x.map((c, i) => Math.round(c * (1 - t) + y[i] * t).toString(16).padStart(2, '0')).join('');
-  }
   function luminance(color) {
     const [r, g, b] = parseColor(color).map((c) => c / 255);
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   }
-  function isDark() { return luminance(cssVar('--color-surface', '#ffffff')) < 0.4; }
+  // The app's own colours, as CSS: the calendar follows light and dark as
+  // the page switches (and a recording of it, on the website, does too).
+  const SURFACE = 'var(--color-surface, #ffffff)';
+  const INK = 'var(--color-ink, #1d1d1f)';
+  function tone(color, share, rest) { return `color-mix(in srgb, ${color} ${share}, ${rest})`; }
 
   /* A chip is a tint of its colour with a solid edge in the colour itself,
-     and text in the page's ink, so pastel and saturated colours both read. */
+     and text in the page's ink, so pastel and saturated colours both read.
+     How strong the tint is, light or dark, is in calendar.css (--cal-chip). */
   function paint(item) {
-    const surface = cssVar('--color-surface', '#ffffff');
-    const ink = cssVar('--color-ink', '#1d1d1f');
     const base = item.backgroundColor || LAYER_COLORS[layerOf(item)] || '#8e8e93';
-    const dark = isDark();
-    const edge = !dark && luminance(base) > 0.72 ? mix(base, ink, 0.28) : base;
-    const fill = mix(base, surface, dark ? 0.68 : item.kind === 'away' ? 0.88 : 0.8);
+    const edge = luminance(base) > 0.72 ? tone(base, 'var(--cal-chip-edge, 72%)', INK) : base;
+    const fill = tone(base, item.kind === 'away' ? 'var(--cal-chip-away, 12%)' : 'var(--cal-chip, 20%)', SURFACE);
     const out = Object.assign({}, item, {
-      backgroundColor: fill, dragBackgroundColor: fill, borderColor: edge, color: ink,
+      backgroundColor: fill, dragBackgroundColor: fill, borderColor: edge, color: INK,
     });
     // The month grid draws no "task" category (it's the week view's to-do
     // strip): there a to-do is an all-day chip on the day it's due.
@@ -181,13 +176,15 @@
   }
 
   function tuiTheme() {
-    const line = `1px solid ${cssVar('--color-hairline', '#e5e5ea')}`;
-    const surface = cssVar('--color-surface', '#ffffff');
-    const recess = cssVar('--color-recess', '#f5f5f7');
-    const ink = cssVar('--color-ink', '#1d1d1f');
-    const muted = cssVar('--color-muted', '#86868b');
-    const brand = cssVar('--color-brand-600', '#17a38f');
-    const tint = mix(brand, surface, 0.88);
+    const hairline = 'var(--color-hairline, #e5e5ea)';
+    const line = `1px solid ${hairline}`;
+    const surface = SURFACE;
+    const recess = 'var(--color-recess, #f5f5f7)';
+    const ink = INK;
+    const muted = 'var(--color-muted, #86868b)';
+    const brand = 'var(--color-brand-600, #17a38f)';
+    const tint = tone(brand, '12%', surface);
+    const sand = 'var(--color-sand-400, #c7c7cc)';
     return {
       common: {
         backgroundColor: surface, border: line,
@@ -196,10 +193,10 @@
       },
       month: {
         dayName: { borderLeft: 'none', backgroundColor: surface },
-        dayExceptThisMonth: { color: cssVar('--color-sand-400', '#c7c7cc') },
-        holidayExceptThisMonth: { color: cssVar('--color-sand-400', '#c7c7cc') },
-        weekend: { backgroundColor: mix(recess, surface, 0.35) },
-        moreView: { backgroundColor: surface, border: line, boxShadow: cssVar('--shadow-lg', 'none') },
+        dayExceptThisMonth: { color: sand },
+        holidayExceptThisMonth: { color: sand },
+        weekend: { backgroundColor: tone(recess, '65%', surface) },
+        moreView: { backgroundColor: surface, border: line, boxShadow: 'var(--shadow-lg, none)' },
         moreViewTitle: { backgroundColor: surface },
       },
       week: {
@@ -210,10 +207,10 @@
         timeGridLeft: { borderRight: line, backgroundColor: surface },
         timeGridLeftAdditionalTimezone: { backgroundColor: surface },
         timeGridHourLine: { borderBottom: line },
-        timeGridHalfHourLine: { borderBottom: `1px dotted ${mix(cssVar('--color-hairline', '#e5e5ea'), surface, 0.4)}` },
-        today: { color: brand, backgroundColor: mix(brand, surface, 0.95) },
+        timeGridHalfHourLine: { borderBottom: `1px dotted ${tone(hairline, '60%', surface)}` },
+        today: { color: brand, backgroundColor: tone(brand, '5%', surface) },
         pastDay: { color: muted }, pastTime: { color: muted },
-        weekend: { backgroundColor: mix(recess, surface, 0.35) },
+        weekend: { backgroundColor: tone(recess, '65%', surface) },
         nowIndicatorLabel: { color: brand },
         nowIndicatorPast: { border: `1px dashed ${brand}` },
         nowIndicatorBullet: { backgroundColor: brand },

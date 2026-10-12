@@ -13,6 +13,9 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 CHOSEN: dict = {}
 
@@ -77,8 +80,10 @@ def offline_phone(d):
         return answer(route, {"online": False, "store": status()})
 
     d.page.context.route(f"{base}/_relay/**", relay)
+    zh = getattr(d, "lang", "en") == "zh"
+    words = json.loads((ROOT / "app/translations/zh/js-offline.json").read_text(encoding="utf-8")) if zh else {}
     d.page.context.route(f"{base}/_offline/strings.json",
-                         lambda route: answer(route, {"lang": "en", "words": {}}))
+                         lambda route: answer(route, {"lang": "zh" if zh else "en", "words": words}))
     d.goto("/static/offline/index.html", settle=1.0)
     d.start()
     d.wait(0.8)

@@ -35,8 +35,17 @@ def post_json(api, url, body):
 # Notebook pages, and the lab mates who sign and book alongside alex
 # ---------------------------------------------------------------------------
 
+def same_lab(base) -> None:
+    """What was learnt belongs to one demo lab (scripts/live-clips.py makes
+    one for each language)."""
+    if LAB.get("base") != base:
+        LAB.clear()
+        LAB["base"] = base
+
+
 def topic(api, base) -> int:
     """alex's notebook topic for these clips, made once."""
+    same_lab(base)
     if "topic" not in LAB:
         r = api.post(f"{base}/notebook/tabs/create", form={"title": "Bench work"})
         LAB["topic"] = r.json()["id"]
@@ -61,6 +70,7 @@ def demo_password(api, base, page: int) -> str:
     check that changes nothing: amending a page that isn't signed says the
     password is right (409) or wrong (403), and isn't a sign-in attempt, so
     nobody is locked out."""
+    same_lab(base)
     if "password" in LAB:
         return LAB["password"]
     files = []
@@ -391,13 +401,13 @@ def flies(d):
     d.zoom(box=(560, 205, 700, 50), scale=1.8)
     d.move("text=overdue", 0.8)
     d.wait(1.6)
-    d.click("button:has-text('Flipped today'):visible", after=1.2)
+    d.click("[data-rack-action] button:visible", after=1.2)      # Flipped today, in the lab's own words
     d.unzoom()
     d.zoom(box=(240, 100, 1020, 200), scale=1.4)
     d.wait(2.2)
     d.unzoom()
     d.click("a:has-text('Schedule') >> nth=0", after=1.8)
-    d.move("text=Flip Crosses", 0.8)
+    d.move("text=/Flip Crosses|转管 Crosses/", 0.8)      # the rack keeps its own name in Chinese
     d.wait(1.2)
 
 
@@ -558,7 +568,7 @@ def looks(d):
     d.click("a[data-label=Home]", after=1.4)
     d.page.emulate_media(color_scheme="dark")
     d.wait(1.8)
-    d.click("a[data-label='Mouse colony']", after=1.6)
+    d.click("a[data-label][href^='/colony']", after=1.6)
     d.click("a[data-label=Calendar]", after=1.8)
     # Put the lab's look back for the clips recorded after this one.
     d.page.request.post(f"{d.base}/settings", form={"action": "appearance", "glyph": "helix", "color": "mint"},
@@ -578,7 +588,7 @@ def phone(d):
     d.scroll(420, seconds=1.2)
     d.wait(0.8)
     d.click("[data-drawer-toggle]", after=0.8)
-    d.click("a[data-label='Mouse colony']", after=1.4)
+    d.click("a[data-label][href^='/colony']", after=1.4)
     d.scroll(380, seconds=1.2)
     d.wait(1.0)
     d.scroll(520, seconds=1.4)
