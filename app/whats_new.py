@@ -30,6 +30,11 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.9.1": {
+        "fixed": [
+            "The desktop app joined to a lab server shows its pages styled again on a Mac.",
+        ],
+    },
     "1.9.0": {
         "new": [
             "A Breeding cage can have more than one litter: **Litter born** asks **Another litter** or **Correct the date**, and **Genotyping** and **Wean** ask which litter.",
