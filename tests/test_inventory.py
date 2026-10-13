@@ -1174,11 +1174,25 @@ class SampleSourceTests(InventoryCase):
             "id": "", "name": name, "attr_source_kind": "mouse", "attr_source_ref": mouse_id})
         html = self.get_ok(self.a, f"/inventory/{self.key}")
         self.assertIn('title="Custom tag RF"', html)
-        self.assertIn(f"Open mouse {mouse_id} (custom tag RF) in the colony", html)
+        # Hovering the link shows the mouse's brief, its tag among it (static/mouse-peek.js).
+        self.assertIn(f'data-mouse-peek="{mouse_id}" data-mouse-peek-tag="RF"', html)
+        self.assertIn("mouse-peek.js", html)
         # Re-tag the mouse: every sample of it says the new mark, with
         # nothing to update here.
         self.autosave(self.a, f"/colony/mice/{mouse_row}/update", {"ear_tag": "LB"})
         self.assertIn('title="Custom tag LB"', self.get_ok(self.a, f"/inventory/{self.key}"))
+
+    def test_the_brief_on_hovering_the_link_gives_the_mouse_s_age(self):
+        """The card over a sample's mouse (static/mouse-peek.js, the
+        notebook's @mouse card too) reads its age from its litter's birth."""
+        colony = self.make_colony(self.a, self.admin, n_mice=1, dob=days_ago(60))
+        mouse_id = one("select mouse_id from mice where id=?", colony["mice"][0])
+        data = self.a.get(f"/notebook/lookup/mouse/{mouse_id}").get_json()
+        self.assertEqual((data["age_days"], data["age_weeks"]), (60, 8))
+        # A mouse with no birth date has no age, not a wrong one.
+        bare = one("select mouse_id from mice where id=?", self.make_mouse(self.a, self.admin))
+        data = self.a.get(f"/notebook/lookup/mouse/{bare}").get_json()
+        self.assertEqual((data["age_days"], data["age_weeks"]), (None, None))
 
     def test_the_custom_tag_is_a_column_after_the_source(self):
         """Read from the colony, next to the mouse it belongs to; and the
@@ -1263,7 +1277,7 @@ class SampleSourceTests(InventoryCase):
         # The cell is editable in place: the colony chosen, the ID beside it.
         self.assertIn('<option value="mouse" data-list="inv-src-0" selected>', html)
         self.assertIn('name="attr_source_ref"', html)
-        self.assertIn(f'title="Open mouse {mouse_id} in the colony"', html)
+        self.assertIn(f'aria-label="Open mouse {mouse_id} in the colony"', html)
 
     def test_a_mouse_number_too_big_for_the_database_is_no_mouse_not_an_error(self):
         name = uniq("S-big")
