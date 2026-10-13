@@ -1,66 +1,68 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>方言 TTS 盲听</title>
 <style>
+/* One listening column: a card per line, clips as rows, a fixed bar for the whole test. */
 :root {
-  --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e3e1da;
-  --accent: #2f5bd3; --accent-ink: #ffffff; --soft: #eef2fc; --good: #2e7d4f;
-  color-scheme: light;
+  --bg: #f4f5f8; --card: #ffffff; --ink: #1b1d24; --muted: #646876; --line: #dfe2ea;
+  --accent: #2f5bd3; --accent-ink: #ffffff; --good: #2e7d4f;
+  --body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #151514; --card: #1f1f1d; --ink: #ecebe6; --muted: #9b9a94; --line: #34332f;
-    --accent: #7c9cf5; --accent-ink: #10131c; --soft: #232a3d; --good: #6cc792;
+    --bg: #14151a; --card: #1e2027; --ink: #e9eaf0; --muted: #9a9eab; --line: #33363f;
+    --accent: #7c9cf5; --accent-ink: #10131c; --good: #6cc792;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #151514; --card: #1f1f1d; --ink: #ecebe6; --muted: #9b9a94; --line: #34332f;
-  --accent: #7c9cf5; --accent-ink: #10131c; --soft: #232a3d; --good: #6cc792;
+  --bg: #14151a; --card: #1e2027; --ink: #e9eaf0; --muted: #9a9eab; --line: #33363f;
+  --accent: #7c9cf5; --accent-ink: #10131c; --good: #6cc792;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--ink);
-  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
-}
-main { max-width: 860px; margin: 0 auto; padding: 28px 16px 120px; }
-h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
-.lede { color: var(--muted); margin: 0 0 20px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--body); }
+main { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 140px; }
+h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0 0 18px; max-width: 65ch; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-input[type=text] {
+.status { font-size: 13px; color: var(--muted); }
+.status.ok { color: var(--good); }
+input[type=text], textarea {
   font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line);
-  border-radius: 8px; padding: 7px 10px; min-width: 0; flex: 1 1 180px; max-width: 260px;
+  border-radius: 8px; padding: 7px 10px; min-width: 0;
 }
+input[type=text] { flex: 1 1 180px; max-width: 260px; }
+textarea { width: 100%; min-height: 90px; font-size: 13px; }
 button, .btn {
   font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line);
   border-radius: 8px; padding: 6px 12px; cursor: pointer;
 }
 button:hover, .btn:hover { border-color: var(--accent); }
+button:focus-visible, .btn:focus-within, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.warn { border-color: var(--accent); color: var(--accent); }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 22px 0 14px; }
-.tabs .count { opacity: .7; font-size: 12px; margin-left: 4px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-.card h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+.tabs .count { opacity: .7; font-size: 12px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; min-width: 0; }
+.card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 4px; letter-spacing: .04em; }
 .say { font-size: 17px; margin: 0 0 12px; }
-.clip { display: grid; grid-template-columns: 34px 1fr; gap: 6px 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.clip { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px 10px; padding: 10px 0; border-top: 1px solid var(--line); }
 .letter { font-weight: 700; font-size: 18px; color: var(--accent); align-self: center; text-align: center; }
 audio { width: 100%; height: 36px; }
-.scores { grid-column: 2; display: flex; gap: 16px; flex-wrap: wrap; }
+.scores { grid-column: 2; display: flex; gap: 8px 16px; flex-wrap: wrap; }
 .scale { display: flex; align-items: center; gap: 4px; }
 .scale span { color: var(--muted); font-size: 13px; margin-right: 2px; }
 .scale button { width: 32px; padding: 4px 0; text-align: center; }
 .who { grid-column: 2; font-size: 13px; color: var(--good); }
 .empty { color: var(--muted); font-style: italic; }
+details.card summary { cursor: pointer; font-weight: 600; }
+details.card[open] summary { margin-bottom: 10px; }
 .bar {
   position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
-  padding: 10px 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
 }
-.bar .note { color: var(--muted); font-size: 13px; align-self: center; }
-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.bar .note { color: var(--muted); font-size: 13px; align-self: center; font-variant-numeric: tabular-nums; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
 th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; white-space: normal; }
 th { font-weight: 600; color: var(--muted); font-size: 12px; }
@@ -68,43 +70,84 @@ td.best { color: var(--good); font-weight: 700; }
 .scroll { overflow-x: auto; }
 .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 </style>
-</head>
-<body>
 <main>
   <h1>方言 TTS 盲听</h1>
-  <p class="lede">每句话由几个模型各读一遍，顺序已打乱，只标 A、B、C……。请会说这种方言的人逐条听，给两项打分（1 很差，5 像本地人）：<b>地道</b>是像不像这种方言，<b>自然</b>是像不像真人说话。打完点下面的“导出评分”，把文件发回来。</p>
+  <p class="lede">每句话由几个模型各读一遍，顺序已打乱，只标 A、B、C……。请会说这种方言的人逐条听，打两项分（1 很差，5 像本地人）：<b>地道</b>是像不像这种方言，<b>自然</b>是像不像真人说话。</p>
   <div class="row">
     <label for="rater">你的名字</label>
     <input id="rater" type="text" placeholder="例如：阿珍（上海）">
+    <span class="status" id="saving"></span>
   </div>
   <div class="tabs" id="tabs"></div>
   <div id="view"></div>
   <div id="summary"></div>
+  <details class="card" id="merge">
+    <summary>交换评分</summary>
+    <p class="hint" id="merge-hint">评分没能自动保存时，点下面的“复制我的评分”，把复制的内容发给发起人；发起人把收到的内容粘贴到这里，点“加进结果”。</p>
+    <div class="row" style="margin-top:8px">
+      <button id="copy">复制我的评分</button>
+      <span class="status" id="copied"></span>
+    </div>
+    <textarea id="paste" placeholder="粘贴别人复制给你的评分" style="margin-top:10px"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="add">加进结果</button>
+      <label class="btn">或者选评分文件<input id="import" type="file" accept=".json,.txt" multiple hidden></label>
+      <span class="status" id="added"></span>
+    </div>
+  </details>
 </main>
 <div class="bar">
   <span class="note" id="progress"></span>
   <button id="reveal">揭晓</button>
-  <button id="export">导出评分</button>
-  <label class="btn">导入评分<input id="import" type="file" accept=".json" multiple hidden></label>
   <button id="clear">清空我的评分</button>
 </div>
 <script>
 const DATA = /*DATA*/null;
 const KEY = "dialect-bakeoff";
-const store = {
+const local = {
   get() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } },
   set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} },
 };
-const saved = store.get();
+const saved = local.get();
 const state = {
   rater: saved.rater || "",
   seed: saved.seed || Math.random().toString(36).slice(2),
-  ratings: saved.ratings || {},          // clip id → {auth, nat}
-  others: [],                             // imported files: {rater, ratings}
+  ratings: saved.ratings || {},     // clip id → {auth, nat}
+  shared: {},                       // listener id → {rater, ratings}, from the artifact's store
+  pasted: [],                       // {rater, ratings} added by hand
   dialect: saved.dialect || (DATA.dialects[0] && DATA.dialects[0].name),
   revealed: false,
+  armed: null,                      // the bar button waiting for its second click
 };
-const save = () => store.set({ rater: state.rater, seed: state.seed, ratings: state.ratings, dialect: state.dialect });
+const remote = { doc: null, uid: null, writing: false, again: false, timer: 0 };
+
+const $ = id => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+
+function save() {
+  local.set({ rater: state.rater, seed: state.seed, ratings: state.ratings, dialect: state.dialect });
+  if (!remote.doc) return;
+  clearTimeout(remote.timer);
+  remote.timer = setTimeout(push, 700);
+}
+// One write at a time to this listener's document; a change made meanwhile is written after it.
+async function push() {
+  if (remote.writing) { remote.again = true; return; }
+  remote.writing = true;
+  $("saving").textContent = "保存中…";
+  try {
+    await remote.doc.set({ rater: state.rater, ratings: JSON.parse(JSON.stringify(state.ratings)), seed: state.seed });
+    $("saving").textContent = "已保存，发起人能看到你的评分";
+    $("saving").className = "status ok";
+  } catch (e) {
+    remote.doc = null;
+    $("saving").textContent = "没能自动保存。打完分后，请在页面底部“交换评分”里复制评分发给发起人。";
+    $("saving").className = "status";
+    $("merge").open = true;
+  }
+  remote.writing = false;
+  if (remote.again) { remote.again = false; push(); }
+}
 
 // A shuffle that stays the same for one listener, so the letters don't move between visits.
 function hash(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619); return h >>> 0; }
@@ -116,7 +159,7 @@ function shuffled(list, key) {
   return out;
 }
 const clipsOf = (dialect, line) => DATA.clips.filter(c => c.dialect === dialect && c.line === line);
-const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const done = id => (state.ratings[id] || {}).auth && state.ratings[id].nat;
 
 function scale(clip, field, label) {
   const box = el("div", { className: "scale" }, el("span", { textContent: label }));
@@ -124,8 +167,8 @@ function scale(clip, field, label) {
     const b = el("button", { textContent: n, title: `${label} ${n}` });
     if ((state.ratings[clip.id] || {})[field] === n) b.classList.add("on");
     b.onclick = () => {
-      const r = state.ratings[clip.id] = state.ratings[clip.id] || {};
-      r[field] = r[field] === n ? undefined : n;
+      const r = state.ratings[clip.id] = { ...(state.ratings[clip.id] || {}) };
+      if (r[field] === n) delete r[field]; else r[field] = n;
       save(); render();
     };
     box.append(b);
@@ -134,12 +177,10 @@ function scale(clip, field, label) {
 }
 
 function renderTabs() {
-  const tabs = document.getElementById("tabs");
-  tabs.replaceChildren(...DATA.dialects.map(d => {
+  $("tabs").replaceChildren(...DATA.dialects.map(d => {
     const ids = DATA.clips.filter(c => c.dialect === d.name).map(c => c.id);
-    const done = ids.filter(id => (state.ratings[id] || {}).auth && state.ratings[id].nat).length;
     const b = el("button", { className: d.name === state.dialect ? "on" : "" }, d.name,
-                 el("span", { className: "count", textContent: `${done}/${ids.length}` }));
+                 el("span", { className: "count", textContent: `${ids.filter(done).length}/${ids.length}` }));
     b.onclick = () => { state.dialect = d.name; save(); render(); };
     return b;
   }));
@@ -147,8 +188,7 @@ function renderTabs() {
 
 function renderView() {
   const d = DATA.dialects.find(x => x.name === state.dialect);
-  const view = document.getElementById("view");
-  if (!d) { view.replaceChildren(el("p", { className: "empty", textContent: "还没有生成任何音频。" })); return; }
+  if (!d) { $("view").replaceChildren(el("p", { className: "empty", textContent: "还没有生成任何音频。" })); return; }
   const cards = [["shared", "普通话写的句子，让模型自己说成" + d.name, DATA.shared],
                  ["local", "用" + d.name + "的词写的句子", d.local]].map(([line, title, text]) => {
     const clips = shuffled(clipsOf(d.name, line), d.name + line);
@@ -165,82 +205,119 @@ function renderView() {
     });
     return card;
   });
-  view.replaceChildren(...cards);
+  $("view").replaceChildren(...cards);
 }
 
-function allRatings() {
-  const mine = { rater: state.rater || "我", ratings: state.ratings };
-  return [mine, ...state.others];
+function listeners() {
+  const all = [{ rater: state.rater || "我", ratings: state.ratings }];
+  for (const [id, r] of Object.entries(state.shared)) if (id !== remote.uid) all.push(r);
+  return all.concat(state.pasted);
 }
 
 function renderSummary() {
-  const box = document.getElementById("summary");
-  if (!state.revealed) { box.replaceChildren(); return; }
+  if (!state.revealed) { $("summary").replaceChildren(); return; }
   const byId = Object.fromEntries(DATA.clips.map(c => [c.id, c]));
-  const sums = {};   // system → dialect → {auth:[..], nat:[..]}
-  const raters = allRatings();
-  for (const r of raters) for (const [id, s] of Object.entries(r.ratings || {})) {
-    const c = byId[id]; if (!c) continue;
+  const sums = {};   // system → dialect → {auth: [], nat: []}
+  const people = listeners();
+  for (const r of people) for (const [id, s] of Object.entries(r.ratings || {})) {
+    const c = byId[id]; if (!c || !s) continue;
     const cell = ((sums[c.system] = sums[c.system] || {})[c.dialect] = sums[c.system][c.dialect] || { auth: [], nat: [] });
-    if (s.auth) cell.auth.push(s.auth);
-    if (s.nat) cell.nat.push(s.nat);
+    if (s.auth >= 1 && s.auth <= 5) cell.auth.push(+s.auth);
+    if (s.nat >= 1 && s.nat <= 5) cell.nat.push(+s.nat);
   }
   const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
   const fmt = v => v == null ? "–" : v.toFixed(1);
   const systems = Object.keys(DATA.systems).filter(s => DATA.clips.some(c => c.system === s));
   const dialects = DATA.dialects.map(d => d.name);
+  const val = (s, d) => { const c = (sums[s] || {})[d]; return c ? [mean(c.auth), mean(c.nat)] : [null, null]; };
+  const best = Object.fromEntries(dialects.map(d => [d, Math.max(...systems.map(s => val(s, d)[0] ?? -1))]));
   const head = el("tr", {}, el("th", { textContent: "模型（地道 / 自然）" }),
                   ...dialects.map(d => el("th", { textContent: d })), el("th", { textContent: "平均" }));
-  const cellVal = (s, d) => { const c = (sums[s] || {})[d]; return c ? [mean(c.auth), mean(c.nat)] : [null, null]; };
-  const best = Object.fromEntries(dialects.map(d => [d, Math.max(...systems.map(s => cellVal(s, d)[0] ?? -1))]));
   const rows = systems.map(s => {
-    const all = Object.values(sums[s] || {});
-    const avg = [mean(all.flatMap(c => c.auth)), mean(all.flatMap(c => c.nat))];
+    const cells = Object.values(sums[s] || {});
+    const avg = [mean(cells.flatMap(c => c.auth)), mean(cells.flatMap(c => c.nat))];
     return el("tr", {}, el("td", { textContent: DATA.systems[s] }),
-      ...dialects.map(d => { const [a, n] = cellVal(s, d);
+      ...dialects.map(d => { const [a, n] = val(s, d);
         return el("td", { className: a != null && a === best[d] ? "best" : "", textContent: a == null ? "–" : `${fmt(a)} / ${fmt(n)}` }); }),
       el("td", { textContent: `${fmt(avg[0])} / ${fmt(avg[1])}` }));
   });
-  box.replaceChildren(el("section", { className: "card" },
-    el("h2", { textContent: `结果 · ${raters.length} 位听者：` + raters.map(r => r.rater).join("、") }),
+  $("summary").replaceChildren(el("section", { className: "card" },
+    el("h2", { textContent: `结果 · ${people.length} 位听者：` + people.map(r => r.rater || "匿名").join("、") }),
     el("div", { className: "scroll" }, el("table", {}, el("thead", {}, head), el("tbody", {}, ...rows))),
     el("p", { className: "hint", textContent: "每格是“地道 / 自然”的平均分，两句话合在一起算；绿色是这种方言里最地道的。只该看会说这种方言的人给的分。" })));
 }
 
-function renderProgress() {
-  const n = DATA.clips.filter(c => (state.ratings[c.id] || {}).auth && state.ratings[c.id].nat).length;
-  document.getElementById("progress").textContent = `已打分 ${n} / ${DATA.clips.length}`;
-  document.getElementById("reveal").textContent = state.revealed ? "隐藏" : "揭晓";
+function renderBar() {
+  const n = DATA.clips.filter(c => done(c.id)).length;
+  $("progress").textContent = `已打分 ${n} / ${DATA.clips.length}`;
+  $("reveal").textContent = state.armed === "reveal" ? "再点一次揭晓（之后就不是盲听了）" : state.revealed ? "隐藏" : "揭晓";
+  $("reveal").className = state.armed === "reveal" ? "warn" : "";
+  $("clear").textContent = state.armed === "clear" ? "再点一次清空" : "清空我的评分";
+  $("clear").className = state.armed === "clear" ? "warn" : "";
 }
 
-function render() { renderTabs(); renderView(); renderSummary(); renderProgress(); }
+function render() { renderTabs(); renderView(); renderSummary(); renderBar(); }
 
-const rater = document.getElementById("rater");
-rater.value = state.rater;
-rater.oninput = () => { state.rater = rater.value.trim(); save(); };
-document.getElementById("reveal").onclick = () => {
-  if (!state.revealed && !confirm("揭晓后就能看到每条是哪个模型做的，之后的打分就不再是盲听了。确定吗？")) return;
-  state.revealed = !state.revealed; render();
+// Buttons that undo something ask for a second click instead of a dialog.
+function arm(name, act) {
+  if (state.armed === name) { state.armed = null; act(); }
+  else { state.armed = name; setTimeout(() => { if (state.armed === name) { state.armed = null; renderBar(); } }, 4000); }
+  render();
+}
+$("reveal").onclick = () => state.revealed ? (state.revealed = false, render()) : arm("reveal", () => { state.revealed = true; });
+$("clear").onclick = () => arm("clear", () => { state.ratings = {}; save(); });
+
+$("rater").value = state.rater;
+$("rater").oninput = () => { state.rater = $("rater").value.trim(); save(); };
+
+const mine = () => JSON.stringify({ rater: state.rater || "匿名", ratings: state.ratings });
+$("copy").onclick = () => {
+  const text = mine();
+  const fallback = () => { $("paste").value = text; $("paste").select(); $("copied").textContent = "已选中，请按 ⌘C / Ctrl+C 复制"; };
+  try {
+    navigator.clipboard.writeText(text).then(() => { $("copied").textContent = "已复制，发给发起人即可"; }, fallback);
+  } catch { fallback(); }
 };
-document.getElementById("export").onclick = () => {
-  const blob = new Blob([JSON.stringify({ rater: state.rater || "匿名", ratings: state.ratings, at: new Date().toISOString() }, null, 1)],
-                        { type: "application/json" });
-  const a = el("a", { href: URL.createObjectURL(blob), download: `方言盲听-${state.rater || "匿名"}.json` });
-  document.body.append(a); a.click(); a.remove();
-};
-document.getElementById("import").onchange = async e => {
-  for (const f of e.target.files) {
-    try {
-      const r = JSON.parse(await f.text());
-      if (r && r.ratings) state.others.push({ rater: r.rater || f.name, ratings: r.ratings });
-    } catch { alert(`${f.name} 不是导出的评分文件。`); }
-  }
-  e.target.value = ""; render();
-};
-document.getElementById("clear").onclick = () => {
-  if (confirm("清空你在这个页面上打的所有分？")) { state.ratings = {}; save(); render(); }
-};
+function addText(text, from) {
+  try {
+    const r = JSON.parse(text);
+    if (!r || typeof r.ratings !== "object") throw 0;
+    state.pasted.push({ rater: String(r.rater || from || "匿名").slice(0, 40), ratings: r.ratings });
+    $("added").textContent = `已加入 ${r.rater || from}的评分，点“揭晓”看结果`;
+    render();
+    return true;
+  } catch { $("added").textContent = `${from || "这段内容"}不是复制出来的评分。`; return false; }
+}
+$("add").onclick = () => { if (addText($("paste").value.trim())) $("paste").value = ""; };
+$("import").onchange = async e => { for (const f of e.target.files) addText(await f.text(), f.name); e.target.value = ""; };
+
 render();
+
+// On claude.ai each listener's scores go to the artifact's store, where the results table reads everyone's.
+(async () => {
+  if (!window.claude || !window.claude.use) return;
+  const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+  if (!db || !user) return;
+  const uid = await user.id();
+  if (!uid) return;
+  remote.uid = uid;
+  remote.doc = db.doc("ratings/" + uid);
+  $("merge-hint").textContent = "你的评分会自动保存到这个页面。若上面显示没能自动保存，点“复制我的评分”把内容发给发起人；发起人粘贴到这里，点“加进结果”。";
+  try {
+    const snap = await remote.doc.get();
+    const body = snap.exists ? snap.data() : null;
+    if (body && body.ratings) {
+      state.ratings = { ...body.ratings, ...state.ratings };
+      if (!state.rater && body.rater) { state.rater = body.rater; $("rater").value = body.rater; }
+      if (body.seed && !saved.seed) state.seed = body.seed;
+    }
+  } catch {}
+  db.collection("ratings").onSnapshot(q => {
+    state.shared = {};
+    for (const d of q.docs) { const b = d.data(); if (b && b.ratings) state.shared[d.id] = { rater: b.rater, ratings: b.ratings }; }
+    if (state.revealed) renderSummary();
+  }, () => {});
+  render();
+  if (Object.keys(state.ratings).length) save();
+})();
 </script>
-</body>
-</html>

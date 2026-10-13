@@ -12,8 +12,10 @@ the clips are levelled to the same loudness, and
 promo/out/dialect-bakeoff/index.html is a page to listen to them blind:
 the clips of a line come in a shuffled order as A, B, C…, each is scored
 1–5 for how authentic and how natural it sounds, and 揭晓 shows which
-system made which. Each listener exports their scores; importing several
-files on the page averages them.
+system made which. Published as an artifact on claude.ai (artifact.html with
+clips/), each listener's scores are kept in the page and the results table
+averages everyone's; where that can't save, a listener copies their scores
+and the organiser pastes them in.
 
 Systems:
     qwen-clone      Qwen3-TTS Base copying promo/voices/zh-a.wav: what the videos use now
@@ -201,14 +203,14 @@ def level(audio: np.ndarray) -> np.ndarray:
 
 def save(job: dict, audio: np.ndarray, rate: int):
     wav = OUT / "wav" / f"{job['id']}.wav"
-    m4a = OUT / "clips" / f"{job['id']}.m4a"
+    clip = OUT / "clips" / f"{job['id']}.mp4"   # AAC in MP4, a type artifacts serve
     wav.parent.mkdir(parents=True, exist_ok=True)
-    m4a.parent.mkdir(parents=True, exist_ok=True)
+    clip.parent.mkdir(parents=True, exist_ok=True)
     sf.write(wav, level(audio), rate)
-    subprocess.run(["afconvert", "-f", "m4af", "-d", "aac", str(wav), str(m4a)],
+    subprocess.run(["afconvert", "-f", "mp4f", "-d", "aac", str(wav), str(clip)],
                    check=True, capture_output=True)
     return {"id": job["id"], "dialect": job["dialect"], "line": job["line"], "system": job["system"],
-            "file": f"clips/{m4a.name}", "seconds": round(len(audio) / rate, 2)}
+            "file": f"clips/{clip.name}", "seconds": round(len(audio) / rate, 2)}
 
 
 def build_page(lines: dict):
@@ -223,7 +225,12 @@ def build_page(lines: dict):
     }
     page = (HERE / "page.html").read_text(encoding="utf-8")
     page = page.replace("/*DATA*/null", json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))
-    (OUT / "index.html").write_text(page, encoding="utf-8")
+    # artifact.html is the page as published on claude.ai, which adds the document around it
+    (OUT / "artifact.html").write_text(page, encoding="utf-8")
+    (OUT / "index.html").write_text(
+        '<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n</head>\n<body>\n'
+        f"{page}</body>\n</html>\n", encoding="utf-8")
     return len(data["clips"])
 
 
@@ -273,7 +280,7 @@ def main():
             en = lines["dialects"][d]["en"].lower()
             for line, text in (("shared", lines["shared"]), ("local", lines["dialects"][d]["local"])):
                 cid = f"{en}-{line}-{system}"
-                if args.again or not (OUT / "clips" / f"{cid}.m4a").exists():
+                if args.again or not (OUT / "clips" / f"{cid}.mp4").exists():
                     jobs.append({"id": cid, "dialect": d, "line": line, "system": system, "text": text})
         if not jobs:
             continue
