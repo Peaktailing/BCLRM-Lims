@@ -1200,7 +1200,15 @@ crossing the origin keeps `start > end`.
   (`confident` at Q20 or more), the map's features (not primers or parts)
   and, in a CDS (`codon_start` honoured, joins followed, either strand),
   `_substitution_effect` with the mismatches of one codon taken together
-  (the standard code, `CODE`) or a frameshift / in-frame indel. `verify`
+  (the standard code, `CODE`) or a frameshift / in-frame indel. An .ab1's
+  trace (`_abif_trace`: DATA9–12 in FWO_'s order, PLOC2 peaks, kept only
+  when they line up with the bases) gives each difference a `trace`
+  (`trace_window`: ±`TRACE_FLANK` bases, at most `TRACE_POINTS` samples a
+  dye) and the read a `mixed` when `second_peaks` (another dye at
+  `MIXED_RATIO` of the called one) marks `MIXED_SHARE` of its good bases,
+  with `from_read`/`from_plasmid` when `mixed_from` finds them starting at
+  one place; the API and the assistants get the report `without_traces`
+  (`has_trace`). `verify`
   adds the clone: coverage runs, features covered whole or in part, the
   differences merged across reads (`reads`, `strands`, `reads_covering`)
   and one `verdict` sentence, in the page's language. Three ways in, none

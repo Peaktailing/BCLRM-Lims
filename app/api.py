@@ -763,7 +763,8 @@ def plasmid_verify(plasmid_id: int):
             annotations = json.loads(p.features_json) if p.features_json else []
         except (TypeError, ValueError):
             annotations = []
-        report = seqverify.verify(p.full_sequence, bool(p.is_circular), annotations, reads, name=p.name or "")
+        report = seqverify.without_traces(
+            seqverify.verify(p.full_sequence, bool(p.is_circular), annotations, reads, name=p.name or ""))
         report["plasmid"]["plasmid_id"] = p.plasmid_id
         report["problems"] = problems
         return jsonify(report)

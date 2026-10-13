@@ -636,7 +636,9 @@ TOOLS.update({
         "in and what it does to a coding sequence's amino acid; then a verdict for each read and for the clone. "
         "Give the reads as captures (ids from list_captures: an .ab1 chromatogram or a FASTA the person uploaded) "
         "or as reads (their bases, FASTA or plain). Changes nothing. Give its verdict and differences as they are; "
-        "a difference marked not confident is at low quality and likely the read's error.",
+        "a difference marked not confident is at low quality and likely the read's error. A read's mixed says "
+        "its chromatogram has second peaks under many good bases (a mix of two clones; from_plasmid, when they "
+        "start at one place: two clones differing by an indel there): tell the person to pick a single colony.",
         _obj({"plasmid": {"type": "string", "description": "The plasmid's number, e.g. 14"},
               "ref": {"type": "object", "description": "Instead of plasmid: its reference from resolve"},
               "captures": {"type": "array", "items": {"type": "integer"},
