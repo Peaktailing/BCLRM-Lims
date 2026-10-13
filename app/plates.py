@@ -405,6 +405,16 @@ def _read(raw: str, mode: str, ct_like: bool) -> tuple[float | None, list[str]]:
     return value, []
 
 
+
+# Genes labs usually normalise qPCR to, written as exports name them.
+REFERENCE_GENES = {"gapdh", "actb", "bactin", "b2m", "hprt", "hprt1", "18s", "rn18s", "18srrna", "rplp0", "36b4",
+                   "ppia", "tbp", "ubc", "ywhaz", "gusb", "pgk1", "hmbs", "sdha", "eef1a1", "rpl13a", "tubb", "polr2a"}
+
+
+def _is_reference_gene(name: str) -> bool:
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum()) in REFERENCE_GENES
+
+
 def analyse(layout: dict[str, dict], fmt: int, export: dict, readout: dict, subjects: list[dict],
             options: dict | None = None, group_values=None) -> dict:
     """The plate laid on the layout, changing nothing. `subjects` are the
@@ -427,7 +437,10 @@ def analyse(layout: dict[str, dict], fmt: int, export: dict, readout: dict, subj
             raise PlateError(gettext("%(readout)s needs the Ct of a target gene and of a reference gene: this export has one value per well. Export the run's results with each well's target (a Target or Detector column).",  # noqa: E501
                                      readout=i18n.translate_value(readout.get("label") or "")))
         if target is None or reference is None:
-            target = target or targets[0]
+            # A housekeeping gene on the run is the reference unless chosen.
+            usual = next((t for t in targets if t != target and _is_reference_gene(t)), None)
+            reference = reference or (usual if usual is not None else None)
+            target = target or next(t for t in targets if t != reference)
             reference = reference or next(t for t in targets if t != target)
         if target == reference:
             raise PlateError(gettext("The target gene and the reference gene are the same: choose two."))

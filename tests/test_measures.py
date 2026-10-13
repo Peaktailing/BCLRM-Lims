@@ -201,6 +201,18 @@ class ACtMeasure(MeasureBase):
         self.assertEqual(one("select value from experiment_readings where readout_key='tumour_volume' and subject=?",
                              keys[0]), 120)
 
+    def test_the_notebook_block_gets_a_delta_ct_measure_s_values(self):
+        exp, keys = self.experiment(readout={"readout": "tumour_volume"})
+        layout = self.qpcr_layout(exp, keys)
+        self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": QPCR, "measure": "new",
+                                                             "measure_label": "Il6 ΔCt", "measure_kind": "delta_ct",
+                                                             "target": "Il6", "reference": "Gapdh", "on": YESTERDAY})
+        block = self.m.get(f"/colony/experiments/{exp}/notebook.json").get_json()["experiment"]
+        measure = block["measures"][0]
+        self.assertEqual((measure["key"], measure["formula"], measure["label"]), ("measure:1", "delta_ct", "Il6 ΔCt"))
+        row = next(r for r in measure["table"]["rows"] if r["key"] == keys[0])
+        self.assertEqual(row["values"], [6.95])
+
     def test_a_fold_change_measure_against_the_control_group(self):
         exp, keys = self.experiment(groups=("Vehicle", "Drug", "Drug"), readout={"readout": "tumour_volume"})
         layout = self.qpcr_layout(exp, keys)
