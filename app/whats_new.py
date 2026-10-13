@@ -30,6 +30,11 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.14.1": {
+        "new": [
+            "Kimi Code takes the BioManager plugin too; the guide's **Connect an AI assistant** has the one command that adds it.",
+        ],
+    },
     "1.14.0": {
         "new": [
             "A measure can be ΔCt, ΔΔCt or fold change, chosen under **Kind** in **Another measure…**.",

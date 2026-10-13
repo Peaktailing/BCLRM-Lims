@@ -139,5 +139,6 @@
   "Rename or delete a measure from the **•••** beside it on the sheet; **Undo** brings a deleted one back with its readings.": "在表格上指标旁边的 **•••** 里可以改名或删除指标；**撤销** 会把删掉的指标连同读数一起恢复。",
   "**Bench mode** records other measures too.": "**实验台模式** 也能记录其他指标。",
   "The notebook's experiment block is in Chinese on a Chinese page, and can show any of the experiment's measures.": "笔记本里的实验块在中文页面上显示中文，并且可以显示实验的任何一个指标。",
-  "Reading a qPCR plate, a housekeeping gene such as Gapdh starts as the reference gene.": "读取 qPCR 板时，Gapdh 这类管家基因默认作为内参基因。"
+  "Reading a qPCR plate, a housekeeping gene such as Gapdh starts as the reference gene.": "读取 qPCR 板时，Gapdh 这类管家基因默认作为内参基因。",
+  "Kimi Code takes the BioManager plugin too; the guide's **Connect an AI assistant** has the one command that adds it.": "Kimi Code 也能添加 BioManager 插件了；用户指南的 **连接 AI 助手** 里有添加它的那一条命令。"
 }
