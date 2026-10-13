@@ -3,7 +3,7 @@
 
     python scripts/assistant-packages.py           # writes them
     python scripts/assistant-packages.py --check   # lists files out of date, exits 1 if any
-    python scripts/assistant-packages.py --zips dist    # the two downloads: BioManager-plugin-Claude.zip and -ChatGPT.zip
+    python scripts/assistant-packages.py --zips dist    # the downloads: BioManager-plugin-Claude.zip, -ChatGPT.zip, -Kimi.zip
 
 A person adds the plugin once, in their assistant app; from then on "I
 want to change something in BioManager" is enough. It carries a skill (how
@@ -15,9 +15,10 @@ assistant.
 
 One folder, plugins/biomanager/, with a manifest for each family of apps:
 
-    .claude-plugin/plugin.json   Claude (chat, Cowork, Claude Code); Kimi and Qwen Code convert it
+    .claude-plugin/plugin.json   Claude (chat, Cowork, Claude Code); Qwen Code converts it
     plugin.json                  Agent Plugins 1.0: ChatGPT and Codex, VS Code (GitHub Copilot)
     .cursor-plugin/plugin.json   Cursor
+    kimi.plugin.json             Kimi Code, from its own download (it installs a zip by its link)
 
 and three marketplaces that list it: .claude-plugin/marketplace.json
 (Claude Code, VS Code, Qwen Code; Codex reads it too),
@@ -195,6 +196,30 @@ def cursor_json() -> dict:
                                                 "homepage", "repository", "license", "keywords")}
 
 
+def kimi_json() -> dict:
+    """Kimi Code's manifest (kimi.plugin.json): the skill and the commands,
+    which it lists as /biomanager:<command>. No MCP server, as for ChatGPT:
+    Kimi Code can't ask for the lab's address when the plugin is added."""
+    return {
+        "name": "biomanager",
+        "version": VERSION,
+        "description": DESCRIPTION,
+        "keywords": plugin_json()["keywords"],
+        "author": {"name": "BioManager"},
+        "homepage": f"{SITE}/guide/ai-assistants",
+        "license": "MIT",
+        "skills": "./skills/",
+        "commands": "./commands/",
+        "interface": {
+            "displayName": "BioManager",
+            "shortDescription": "Lab records from your words",
+            "longDescription": LONG_DESCRIPTION,
+            "developerName": "BioManager",
+            "websiteURL": SITE,
+        },
+    }
+
+
 def marketplace_json() -> dict:
     return {
         "name": "biomanager",
@@ -226,6 +251,7 @@ def files() -> dict[Path, str]:
         PLUGIN / ".claude-plugin" / "plugin.json": _json(plugin_json()),
         PLUGIN / "plugin.json": _json(portable_json()),
         PLUGIN / ".cursor-plugin" / "plugin.json": _json(cursor_json()),
+        PLUGIN / "kimi.plugin.json": _json(kimi_json()),
         PLUGIN / "skills" / "biomanager" / "SKILL.md": skill(),
         PLUGIN / "icon.svg": (ROOT / "app" / "static" / "icon.svg").read_text(encoding="utf-8"),
         PLUGIN / "assets" / "icon.svg": (ROOT / "app" / "static" / "icon.svg").read_text(encoding="utf-8"),
@@ -258,9 +284,17 @@ def plugin_files() -> list[str]:
     return sorted(names + ["README.md"])
 
 
-# The downloads each release carries (.github/workflows/release.yml), and the
-# website links to: the plugin for Claude, and the skills-only one for ChatGPT.
-ZIPS = {"BioManager-plugin-Claude.zip": plugin_files, "BioManager-plugin-ChatGPT.zip": lambda: list(OPENAI_FILES)}
+def kimi_files() -> list[str]:
+    """What Kimi Code takes: its manifest at the root, the skill and the commands."""
+    return sorted(name for name in plugin_files()
+                  if name in ("kimi.plugin.json", "README.md") or name.startswith(("skills/", "commands/")))
+
+
+# The downloads each release carries (.github/workflows/release.yml): the
+# plugin for Claude and the skills-only one for ChatGPT, which the website
+# links to, and Kimi Code's, which its /plugins install takes by its link.
+ZIPS = {"BioManager-plugin-Claude.zip": plugin_files, "BioManager-plugin-ChatGPT.zip": lambda: list(OPENAI_FILES),
+        "BioManager-plugin-Kimi.zip": kimi_files}
 
 
 def write_zips(folder: Path) -> list[Path]:

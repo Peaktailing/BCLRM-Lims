@@ -25,7 +25,7 @@ class AssistantPackages(unittest.TestCase):
                          f"CONTENT = \"{packages.content_digest()}\"")
 
     def test_every_manifest_names_the_same_plugin(self):
-        for manifest in (".claude-plugin/plugin.json", "plugin.json", ".cursor-plugin/plugin.json"):
+        for manifest in (".claude-plugin/plugin.json", "plugin.json", ".cursor-plugin/plugin.json", "kimi.plugin.json"):
             data = json.loads((packages.PLUGIN / manifest).read_text(encoding="utf-8"))
             self.assertEqual((data["name"], data["version"]), ("biomanager", packages.VERSION), manifest)
 
@@ -47,11 +47,11 @@ class AssistantPackages(unittest.TestCase):
         for name in packages.OPENAI_FILES:
             self.assertTrue((packages.PLUGIN / name).is_file(), name)
 
-    def test_the_two_downloads_hold_what_each_app_takes(self):
+    def test_the_downloads_hold_what_each_app_takes(self):
         import tempfile
         import zipfile
         with tempfile.TemporaryDirectory() as folder:
-            claude, chatgpt = packages.write_zips(Path(folder))
+            claude, chatgpt, kimi = packages.write_zips(Path(folder))
             with zipfile.ZipFile(claude) as z:
                 names = set(z.namelist())
             self.assertTrue({".claude-plugin/plugin.json", "skills/biomanager/SKILL.md", "README.md"} <= names)
@@ -59,6 +59,17 @@ class AssistantPackages(unittest.TestCase):
             with zipfile.ZipFile(chatgpt) as z:
                 self.assertEqual(sorted(z.namelist()), sorted(packages.OPENAI_FILES))
             self.assertNotIn(".claude-plugin/plugin.json", packages.OPENAI_FILES)  # one manifest, skills only
+            with zipfile.ZipFile(kimi) as z:
+                names = set(z.namelist())
+            self.assertTrue({"kimi.plugin.json", "skills/biomanager/SKILL.md", "commands/log-today.md"} <= names)
+            self.assertFalse({n for n in names if n.endswith("plugin.json")} - {"kimi.plugin.json"})
+
+    def test_kimi_code_finds_the_skill_and_the_commands(self):
+        manifest = json.loads((packages.PLUGIN / "kimi.plugin.json").read_text(encoding="utf-8"))
+        for field, inside in (("skills", "biomanager/SKILL.md"), ("commands", "log-today.md")):
+            self.assertTrue(manifest[field].startswith("./"), field)                 # Kimi Code takes only ./ paths
+            self.assertTrue((packages.PLUGIN / manifest[field] / inside).is_file(), field)
+        self.assertNotIn("mcpServers", manifest)                        # each lab adds its own address
 
     def test_the_skill_carries_the_instructions_and_says_how_to_connect(self):
         text = (packages.PLUGIN / "skills" / "biomanager" / "SKILL.md").read_text(encoding="utf-8")

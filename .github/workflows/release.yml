@@ -307,6 +307,7 @@ jobs:
           | `biomanager-image-arm64.tar.gz` | The same for ARM machines, such as Oracle Cloud's free Ampere VMs |
           | `BioManager-plugin-Claude.zip` | The plugin that teaches Claude to work with BioManager: Customize → Plugins → Add → Upload plugin. [Connecting an assistant](https://biomanager.org/guide/connect-an-ai-assistant) |
           | `BioManager-plugin-ChatGPT.zip` | The same for ChatGPT, to upload at platform.openai.com/plugins and share with your lab |
+          | `BioManager-plugin-Kimi.zip` | The same for Kimi Code: `/plugins install` with this file's link |
 
           **First launch:** on a Mac, right-click BioManager and choose **Open**; on Windows, choose **More info → Run anyway**. The apps are not signed by Apple or Microsoft, so the system asks once. On Android, allow your browser to install apps when asked.
 

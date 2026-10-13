@@ -2423,8 +2423,9 @@ What an assistant app installs once to know BioManager: the skill
 `commands/` (`PROMPTS`), with a manifest per family of apps:
 `.claude-plugin/plugin.json` (Claude; it also asks Claude Code for the
 lab's MCP address, `userConfig.mcp_address`, which chat and Cowork ignore),
-`plugin.json` (Agent Plugins 1.0: ChatGPT, Codex, VS Code) and
-`.cursor-plugin/plugin.json`. `.claude-plugin/marketplace.json`,
+`plugin.json` (Agent Plugins 1.0: ChatGPT, Codex, VS Code),
+`.cursor-plugin/plugin.json` and `kimi.plugin.json` (Kimi Code: the skill
+and the commands, no MCP server). `.claude-plugin/marketplace.json`,
 `.agents/plugins/marketplace.json` and `.cursor-plugin/marketplace.json` at
 the repository root list it, so `gaspolymerase/biomanager` is a marketplace
 for Claude, Codex, VS Code and Qwen Code (Cursor takes plugins only from its
@@ -2433,13 +2434,17 @@ written by `scripts/assistant-packages.py`; `tests/test_assistant_packages.py`
 fails while a file is out of date, and when the skill or a command changed
 without a new `VERSION` (apps keep people on the version they have).
 `claude plugin validate ./plugins/biomanager` checks it as Anthropic's
-directory will. `--zips <folder>` writes the two downloads every release carries
+directory will. `--zips <folder>` writes the downloads every release carries
 (`.github/workflows/release.yml`'s publish job runs it) and the Download page
 links to: `BioManager-plugin-Claude.zip` (the whole folder, for **Add → Upload
 plugin**) and `BioManager-plugin-ChatGPT.zip` (skills only, `OPENAI_FILES`, to
 upload at platform.openai.com/plugins and share: each lab's MCP address is
 its own, and ChatGPT's public directory takes no skills-only plugins for
-now). The test keeps the ChatGPT listing within the directory's limits (a
+now). `BioManager-plugin-Kimi.zip` (`kimi_files()`: `kimi.plugin.json`, the
+skill and the commands) is for Kimi Code's `/plugins install <link>`, by its
+`releases/latest/download/` link: Kimi Code reads only its own manifest, and
+installing from the repository would fetch all of it, as it takes no
+subfolder. The test keeps the ChatGPT listing within the directory's limits (a
 30-character short description, a square logo).
 
 ### The local MCP server (`mcp/`)

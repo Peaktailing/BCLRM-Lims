@@ -836,7 +836,7 @@ database has a name of its own (one another database has is refused), so
       it whole in BioManager, or <b>Discard</b> it. It never changes
       anything itself, and an approved proposal can be undone like any batch.
       Add the <b>BioManager plugin</b> once (Claude, Codex, VS Code, Qwen Code,
-      or download it for Claude and ChatGPT from the Download page) and "I want
+      or download it for Claude, ChatGPT and Kimi Code) and "I want
       to change something in BioManager" is all you need to say.
       At the bench, a <b>Capture</b> (words, dictation or a photo) waits
       for it until later. It can also plan with you: breeding, animals per
@@ -1490,7 +1490,8 @@ track.
   the Claude phone apps and ChatGPT add the same address as a custom
   connector and sign in with a one-time connection code. The **BioManager
   plugin** (`plugins/biomanager/`, added from the `gaspolymerase/biomanager`
-  marketplace in Claude, Codex, VS Code or Qwen Code) teaches an
+  marketplace in Claude, Codex, VS Code or Qwen Code, or from each
+  release's `BioManager-plugin-Kimi.zip` in Kimi Code) teaches an
   assistant how to work with BioManager, so nobody has to explain it first.
   Changes are in the change history
   under your name, marked with the token's name. The reference, with

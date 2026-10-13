@@ -1,0 +1,29 @@
+{
+  "name": "biomanager",
+  "version": "1.4.0",
+  "description": "Tell your assistant what you did in the lab, in your words or with a photo of your notes; it proposes the records in your lab's BioManager, and you approve them there.",
+  "keywords": [
+    "lab",
+    "laboratory",
+    "mouse colony",
+    "zebrafish",
+    "drosophila",
+    "lab notebook",
+    "animal facility",
+    "LIMS"
+  ],
+  "author": {
+    "name": "BioManager"
+  },
+  "homepage": "https://biomanager.org/guide/ai-assistants",
+  "license": "MIT",
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "interface": {
+    "displayName": "BioManager",
+    "shortDescription": "Lab records from your words",
+    "longDescription": "BioManager keeps a lab's animals, stocks and notebook in one place: mice, zebrafish, flies, worms, plasmids, samples, reagents and experiments. It is open source, and each lab runs its own, on a desktop or a lab server.\n\nThis plugin teaches the assistant to work with your lab's BioManager. Tell it what you did, in your words or with a photo of your notes, and it looks up each record and sends one proposal, which you approve in BioManager; it never changes anything itself. It can also answer questions about your records, and plan with numbers BioManager works out from them: breeding, animals per group, random groups, a whole experiment.\n\nConnect your own BioManager too: Help → Connect an AI assistant in BioManager shows its address, which you add as a custom MCP server.",
+    "developerName": "BioManager",
+    "websiteURL": "https://biomanager.org"
+  }
+}

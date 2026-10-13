@@ -262,8 +262,15 @@
         <li><b>Qwen Code</b>：用 <code>qwen extensions install
           https://github.com/gaspolymerase/biomanager:biomanager</code> 添加插件，再用 <code>qwen mcp add --transport http
           biomanager &lt;地址&gt;</code> 连接。它会自己在浏览器里登录。</li>
-        <li><b>Kimi Code</b>：<code>kimi mcp add -t http biomanager &lt;地址&gt; --auth oauth</code>，然后
-          <code>kimi mcp auth biomanager</code>。</li>
+        <li><b>Kimi Code</b>：用 <code>/plugins install
+          https://github.com/gaspolymerase/biomanager/releases/latest/download/BioManager-plugin-Kimi.zip</code> 添加插件，它问时确认。然后输入 <code>/mcp-config</code>，添加一个名为
+          <code>biomanager</code> 的 HTTP 服务器，填入地址（或在 <code>~/.kimi-code/mcp.json</code> 里写
+          <code>{"mcpServers": {"biomanager": {"url": "&lt;地址&gt;"}}}</code>）。用 <code>/mcp-config login
+          biomanager</code> 登录：BioManager 会在浏览器里打开：按 <b>允许</b>。再输入 <code>/new</code>，说
+          <i>我想在 BioManager 里改点东西</i>。插件里的提示词在 <code>/biomanager:</code> 下，比如
+          <code>/biomanager:log-today</code>。</li>
+        <li>旧版 <b>kimi-cli</b> 不支持插件：用 <code>kimi mcp add -t http biomanager &lt;地址&gt; --auth oauth</code>
+          连接，然后 <code>kimi mcp auth biomanager</code>。</li>
       </ul>
 
       <h3 id="deepseek">用 DeepSeek 或 GLM 运行 Claude Code</h3>

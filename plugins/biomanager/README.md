@@ -56,6 +56,9 @@ Each lab's BioManager has its own address, shown in BioManager under
   `codex mcp login biomanager`.
 - **Cursor**, **VS Code** and **Cherry Studio**: the **Add to …** buttons on
   BioManager's Connect page.
+- **Kimi Code**: type `/mcp-config` and add an HTTP server named
+  *biomanager* with that address, then `/mcp-config login biomanager` and
+  press **Allow** in the browser that opens.
 
 The [AI assistants guide](https://biomanager.org/guide/ai-assistants) has
 the details, including the BioManager desktop app and servers that are only
@@ -68,7 +71,8 @@ instructions for the assistant, plus, in Claude Code, the address of your
 own BioManager. When you use it, the assistant reads your lab's records from
 your BioManager, as you and with your permissions, and sends proposals back
 to it. What the assistant sees is handled under your agreement with the
-company that makes it (Anthropic for Claude, OpenAI for ChatGPT and Codex).
+company that makes it (Anthropic for Claude, OpenAI for ChatGPT and Codex,
+Moonshot AI for Kimi).
 BioManager's makers never see your records. Revoke the connection at any
 time under **Settings → AI assistant & tokens** in BioManager. The full
 policy is at [biomanager.org/privacy](https://biomanager.org/privacy), and the

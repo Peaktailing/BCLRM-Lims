@@ -287,8 +287,15 @@
         <li><b>Qwen Code</b>: add the plugin with <code>qwen extensions install
           https://github.com/gaspolymerase/biomanager:biomanager</code>, then connect with <code>qwen mcp add --transport
           http biomanager &lt;address&gt;</code>. It signs in by itself in your browser.</li>
-        <li><b>Kimi Code</b>: <code>kimi mcp add -t http biomanager &lt;address&gt; --auth oauth</code>, then
-          <code>kimi mcp auth biomanager</code>.</li>
+        <li><b>Kimi Code</b>: add the plugin with <code>/plugins install
+          https://github.com/gaspolymerase/biomanager/releases/latest/download/BioManager-plugin-Kimi.zip</code>, and confirm when it asks. Then type <code>/mcp-config</code> and add an HTTP server
+          named <code>biomanager</code> with the address (or put <code>{"mcpServers": {"biomanager": {"url":
+          "&lt;address&gt;"}}}</code> in <code>~/.kimi-code/mcp.json</code>). Sign in with <code>/mcp-config login
+          biomanager</code>: BioManager opens in your browser, press <b>Allow</b>. Then type <code>/new</code> and say
+          <i>I want to change something in BioManager</i>. The plugin's prompts are under <code>/biomanager:</code>, such
+          as <code>/biomanager:log-today</code>.</li>
+        <li>The older <b>kimi-cli</b> takes no plugins: connect with <code>kimi mcp add -t http biomanager
+          &lt;address&gt; --auth oauth</code>, then <code>kimi mcp auth biomanager</code>.</li>
       </ul>
 
       <h3 id="deepseek">Claude Code on DeepSeek or GLM</h3>
@@ -341,7 +348,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 9 min read</p>
+      <p>On this page · 10 min read</p>
       <ol>
         <li class="lvl2"><a href="#reach">Can your app reach BioManager?</a></li>
         <li class="lvl2"><a href="#claude">Claude</a></li>

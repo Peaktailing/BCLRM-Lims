@@ -1671,7 +1671,7 @@ BioManager has no AI inside it. If you already use an assistant (Claude, ChatGPT
 
 Open **Help → Connect an AI assistant** (also under **Settings → AI assistant & tokens**). It shows the ways in for your BioManager, with its address filled in. Step by step for each app, with what to check first: [Connect an AI assistant](https://biomanager.org/guide/connect-an-ai-assistant).
 
-Add the **BioManager plugin** to your assistant too, once (Claude, Codex, VS Code, Qwen Code; from `gaspolymerase/biomanager`). It teaches the assistant how to work with BioManager, so you never have to explain it: say what you did, or just *I want to change something in BioManager*, and it shows you what's due today and asks what you did.
+Add the **BioManager plugin** to your assistant too, once (Claude, Codex, VS Code, Qwen Code; from `gaspolymerase/biomanager`; Kimi Code from its own download). It teaches the assistant how to work with BioManager, so you never have to explain it: say what you did, or just *I want to change something in BioManager*, and it shows you what's due today and asks what you did.
 
 ### What to say
 
@@ -1910,7 +1910,9 @@ The token is shown once: keep it in the app, not in a note. Revoke it under **Se
 
 - **Qwen Code**: add the plugin with `qwen extensions install https://github.com/gaspolymerase/biomanager:biomanager`, then connect with `qwen mcp add --transport http biomanager <address>`. It signs in by itself in your browser.
 
-- **Kimi Code**: `kimi mcp add -t http biomanager <address> --auth oauth`, then `kimi mcp auth biomanager`.
+- **Kimi Code**: add the plugin with `/plugins install https://github.com/gaspolymerase/biomanager/releases/latest/download/BioManager-plugin-Kimi.zip`, and confirm when it asks. Then type `/mcp-config` and add an HTTP server named `biomanager` with the address (or put `{"mcpServers": {"biomanager": {"url": "<address>"}}}` in `~/.kimi-code/mcp.json`). Sign in with `/mcp-config login biomanager`: BioManager opens in your browser, press **Allow**. Then type `/new` and say *I want to change something in BioManager*. The plugin's prompts are under `/biomanager:`, such as `/biomanager:log-today`.
+
+- The older **kimi-cli** takes no plugins: connect with `kimi mcp add -t http biomanager <address> --auth oauth`, then `kimi mcp auth biomanager`.
 
 #### Claude Code on DeepSeek or GLM
 
