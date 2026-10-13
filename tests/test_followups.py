@@ -125,7 +125,10 @@ class PackSizes(Base):
         self.assertEqual(one("select quantity from inventory_items where id=?", item), "4.95")
         out = run(self.member, {"action": "inventory_quantity_used", "target": item_ref(item),
                                 "fields": {"amount": "1 ampoules"}})
-        self.assertIn("1 ampoules used (4.95 → 3.95)", out.changes[0].summary)
+        self.assertIn("1 ampoule used (4.95 → 3.95)", out.changes[0].summary)
+        out = run(self.member, {"action": "inventory_quantity_used", "target": item_ref(item),
+                                "fields": {"amount": "1 ampoule"}})
+        self.assertIn("1 ampoule used (4.95 → 3.95)", out.changes[0].summary)
         out = run(self.member, {"action": "inventory_quantity_used", "target": item_ref(item),
                                 "fields": {"amount": "5 mg"}})
         self.assertIn("comes in packs of 10 mL, and 5 mg can't be turned into that", errors_of(out))

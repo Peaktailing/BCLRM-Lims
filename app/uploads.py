@@ -76,6 +76,12 @@ def note_uploader(session, saved_path: str, username: str) -> None:
         session.add(UploadOwner(name=stored_name(saved_path), source=UPLOADER, username=username))
 
 
+def note_record(session, saved_path: str, source: str, record_id: int) -> None:
+    """A record owns a file before its text names it: a picture uploaded
+    into a notebook page the uploader may edit (app.notebook_upload_image)."""
+    session.add(UploadOwner(name=stored_name(saved_path), source=source, record_id=record_id, username=""))
+
+
 # ---------------------------------------------------------------- noting what names a file
 
 # Tables whose text never makes a file anyone's: the change history keeps

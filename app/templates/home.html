@@ -147,7 +147,7 @@
           </p>
           {% for it in group.rows %}
             <a class="row-line" href="{{ it.url }}">
-              <span class="ident shrink-0">{% if it.mouse %}#{{ it.mouse }}{% else %}{{ it.tank }}{% if it.fish %} · {{ it.fish }}{% endif %}{% endif %}</span>
+              <span class="ident shrink-0">{% if it.mouse %}#{{ it.mouse }}{% elif it.label %}{{ it.label }}{% else %}{{ it.tank }}{% if it.fish %} · {{ it.fish }}{% endif %}{% endif %}</span>
               <span class="min-w-0 flex-1 truncate text-ink-soft">
                 {% if group.id == 'weight_loss' %}
                   {% if it.basis == 'experiment_start' %}{{ _('%(peak)s g on %(peak_on)s, its first weight in %(experiment)s → %(latest)s g on %(latest_on)s', peak='%g'|format(it.peak_g), peak_on=it.peak_on|day, experiment=it.experiment, latest='%g'|format(it.latest_g), latest_on=it.latest_on|day) }}{% else %}{{ _('peak %(peak)s g on %(peak_on)s → %(latest)s g on %(latest_on)s', peak='%g'|format(it.peak_g), peak_on=it.peak_on|day, latest='%g'|format(it.latest_g), latest_on=it.latest_on|day) }}{% endif %}

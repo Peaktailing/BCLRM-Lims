@@ -1344,6 +1344,8 @@ def bulk_fields(mv) -> list[dict]:
     for name, label in labels.items():
         if mv.has(BULK_FIELD_NEEDS[name]):
             out.append({"name": name, "label": label, "type": "date" if name.endswith("_on") else "text", "options": []})
+        if name == "unit" and svc.has_pack_size(mv):
+            out.append({"name": "pack_size", "label": "Pack size", "type": "text", "options": []})
     derived = svc.PRIMER_DERIVED if mv.row.kind == "primers" else ()
     for field in mv.fields:
         if field["key"] in derived:

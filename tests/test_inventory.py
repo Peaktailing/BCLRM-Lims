@@ -1079,6 +1079,16 @@ class BulkTests(InventoryCase):
         self.post(self.a, f"/batches/{batch_id}/undo")                  # one batch, undoable
         self.assertEqual({item(i)["lot"] for i in ids}, {""})
 
+    def test_set_field_sets_the_pack_size(self):
+        ids = self.reagents(2)
+        r = self.post(self.a, f"/inventory/{self.key}/items/bulk", data={
+            "action": "field", "field": "pack_size", "value": "10mL", "selected_ids": [str(i) for i in ids]})
+        self.assertFlash(r, "Set Pack size on 2 reagents", "success")
+        self.assertEqual({one("select pack_size from inventory_items where id=?", i) for i in ids}, {"10 mL"})
+        r = self.post(self.a, f"/inventory/{self.key}/items/bulk", data={
+            "action": "field", "field": "pack_size", "value": "lots", "selected_ids": [str(i) for i in ids]})
+        self.assertEqual({one("select pack_size from inventory_items where id=?", i) for i in ids}, {"10 mL"})          # not a pack size: kept
+
     def test_set_field_refuses_a_value_the_column_doesnt_take(self):
         ids = self.reagents(1)
         r = self.post(self.a, f"/inventory/{self.key}/items/bulk", data={

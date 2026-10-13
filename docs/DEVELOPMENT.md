@@ -293,7 +293,11 @@ any case, skipping a word right after no/not/without/non or 无/没有/未见/�
 with the first matching line); `not_weighed` (active colony experiments
 whose readout is body weight: a mouse not left out, not weighed since
 `max(last weight, start)` for more than `weigh_every()`, the longest gap
-between the regimen's reading days while they last, else 7); and
+between the regimen's reading days while they last, else 7; any other
+database's active experiment whose readout is body weight, by
+`_others_not_weighed`: a fish, stock unit or organism, alive and not left
+out, by its `ExperimentReading` body weights, its item a `label` in place
+of `mouse`); and
 `status_experiment` (`no_experiment`: status "experiment" in no
 planned/active/paused experiment, checked once the lab has any colony
 experiment; `other_status`: a non-blank other status in an active one,

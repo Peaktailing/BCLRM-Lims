@@ -7083,9 +7083,17 @@ def notebook_upload_image():
 
 def _note_uploader(saved_path: str) -> None:
     """Its uploader may open the picture or file before the page naming it
-    is saved (app/uploads.py)."""
+    is saved (app/uploads.py). Uploaded into a page they may edit (the live
+    editor sends page_id), the page owns it at once, so whoever else has the
+    page open sees the picture now, not after autosave."""
     with SessionLocal() as db_session:
         _uploads.note_uploader(db_session, saved_path, g.user.username)
+        page_id = request.form.get("page_id", "")
+        page = db_session.get(NotebookPage, int(page_id)) if page_id.isdigit() else None
+        if page is not None and lab_notebook.can_edit_role(lab_notebook.role_for(db_session, page)):
+            from . import signatures
+            if not signatures.is_signed(db_session, page.id):
+                _uploads.note_record(db_session, saved_path, "notebook_pages", page.id)
         db_session.commit()
 
 

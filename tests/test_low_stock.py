@@ -32,6 +32,9 @@ class AmountTests(InventoryCase):
         for raw in ("", "half a box", "2 boxes", "12 mL", "-1", "1,2,3", "nan", "inf", None):
             self.assertIsNone(svc.amount(raw), raw)
         self.assertEqual((svc.number_text(2.0), svc.number_text(2.5), svc.number_text(None)), ("2", "2.5", ""))
+        self.assertEqual([svc.amount_text(n, u) for n, u in ((1, "ampoules"), (2, "ampoules"), (1, "boxes"),
+                                                             (1, "mL"), (1, "支"), (1, "aliquots"), (0.2, "vials"))],
+                         ["1 ampoule", "2 ampoules", "1 box", "1 mL", "1 支", "1 aliquot", "0.2 vials"])
 
 
 class LowStockTests(InventoryCase):

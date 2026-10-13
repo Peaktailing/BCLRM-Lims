@@ -15,10 +15,12 @@ Four checks, each deterministic and read from the records alone:
   day) and use a word from WORDS, in English or Chinese, unless "no" or
   "not" (无, 没有, 未见…) comes just before it. Notes that may need a look,
   never a finding.
-* not_weighed: a mouse in an active experiment measuring body weight not
+* not_weighed: an animal in an active experiment measuring body weight not
   weighed for more than N days: the longest gap between the weighing days
   its regimen plans, or DEFAULT_WEIGH_EVERY when it plans none (or after
-  the last of them). Animals left out of the analysis are not counted.
+  the last of them). A mouse's weights are its own (MouseWeight); any other
+  animal's are the experiment's readings. Animals left out of the analysis
+  are not counted.
 
 `checks()` gives them all, each {"id", "title", "severity", "items", "fix"}
 with an item's `ref`, its numbers and `url` (a path; lab_checks makes it
@@ -371,7 +373,7 @@ def weigh_every(exp, day_number: int | None = None) -> int:
 def not_weighed(session, today: date, owner: str | None = None) -> list[dict]:
     from . import experiments as ex
     from .models import MouseWeight
-    out = []
+    out = _others_not_weighed(session, today, owner)
     for exp in _experiments(session, ("active",)):
         if exp.start_date is None or exp.start_date > today or not _weighs(exp):
             continue
@@ -397,7 +399,55 @@ def not_weighed(session, today: date, owner: str | None = None) -> list[dict]:
                         "experiment": exp.name, "experiment_ref": {"kind": "experiment", "id": exp.id},
                         "group": em.treatment_group or "", "last_weighed": weighed.isoformat() if weighed else None,
                         "days": days, "every_days": every, "url": ex.page_url(exp)})
-    out.sort(key=lambda x: (-x["days"], x["mouse"]))
+    out.sort(key=lambda x: (-x["days"], str(x.get("mouse") or x.get("label") or "")))
+    return out
+
+
+# The ref an action takes for each kind of animal (app/actions.py).
+_REF_KIND = {"fish": "fish", "unit": "stock_unit", "organism": "org_animal"}
+
+
+def _others_not_weighed(session, today: date, owner: str | None) -> list[dict]:
+    """not_weighed for the animals of an active experiment in any other
+    database (fish, flies, worms, other organisms): weighed when the
+    experiment has a body weight reading for them."""
+    from . import experiments as ex
+    from .models import Experiment, ExperimentReading
+    out = []
+    for exp in session.scalars(select(Experiment).where(Experiment.status == "active").order_by(Experiment.id)):
+        if _is_colony(exp) or exp.start_date is None or exp.start_date > today:
+            continue
+        place = ex.place_for(session, exp.db)
+        if place is None or not ex.weighs(exp, place):
+            continue
+        members = []
+        for sub in ex.subjects(session, exp, place):
+            if sub.kind not in _REF_KIND or not sub.alive or sub.left_out.strip():
+                continue
+            rec = sub.record
+            whose = (rec.tank.owner if sub.kind == "fish" and rec.tank else getattr(rec, "owner", "")) or ""
+            if owner and whose != owner and (exp.owner_username or "") != owner:
+                continue
+            members.append((sub, whose))
+        if not members:
+            continue
+        every = weigh_every(exp, (today - exp.start_date).days + 1)
+        last: dict[str, date] = {}
+        for key, day in session.execute(select(ExperimentReading.subject, ExperimentReading.read_on).where(
+                ExperimentReading.experiment_id_fk == exp.id, ExperimentReading.readout_key == "body_weight",
+                ExperimentReading.read_on <= today)):
+            if key not in last or day > last[key]:
+                last[key] = day
+        for sub, whose in members:
+            weighed = last.get(sub.key)
+            since = max(weighed, exp.start_date) if weighed else exp.start_date
+            days = (today - since).days
+            if days <= every:
+                continue
+            out.append({"animal": sub.kind, "label": sub.label, "ref": {"kind": _REF_KIND[sub.kind], "id": sub.id},
+                        "owner": whose, "experiment": exp.name, "experiment_ref": {"kind": "experiment", "id": exp.id},
+                        "group": sub.group, "last_weighed": weighed.isoformat() if weighed else None,
+                        "days": days, "every_days": every, "url": ex.page_url(exp)})
     return out
 
 
@@ -428,11 +478,12 @@ def checks(session, today: date | None = None, owner: str | None = None, pct: fl
                                "lethargic, wound…): notes that may need a look", "medium",
               welfare_notes(session, today, owner, features),
               "Quote the line to the person; it is a word in a note, not a finding. Nothing is proposed.")
+    check("not_weighed", "Animals in an active experiment measuring body weight not weighed for longer than "
+                         "its regimen's weighing days allow (7 days when it plans none)", "medium",
+          not_weighed(session, today, owner),
+          "Weigh them; a mouse's weight is recorded with mouse_weight, any other animal's as the experiment's "
+          "body weight reading, once the person has the number.")
     if features.get("colony", True):
-        check("not_weighed", "Mice in an active experiment measuring body weight not weighed for longer than "
-                             "its regimen's weighing days allow (7 days when it plans none)", "medium",
-              not_weighed(session, today, owner),
-              "Weigh them; a weight is recorded with mouse_weight once the person has the number.")
         check("status_experiment", "Mice whose status and experiments disagree: status experiment in no "
                                    "experiment, or another status while in an active experiment", "low",
               status_experiment(session, owner),

@@ -273,7 +273,7 @@ The first card of the mouse colony (or of zebrafish, in a lab without mice) list
 
 - **Notes that may need a look**: A mouse, tank or fish whose notes changed in the last 14 days (the change history says when), or a weight taken in that time with a note, that uses one of these words, in any case: hunched, hunching, lethargic, lethargy, moribund, not eating, off food, dehydrated, dehydration, wound, wounds, wounded, ulcer, ulcers, ulcerated, ulceration, weight loss, losing weight, thin, emaciated, labored (laboured) breathing, piloerection, hypothermic, prolapse; 弓背, 消瘦, 精神差, 精神萎靡, 萎靡, 不进食, 拒食, 脱水, 伤口, 溃疡, 呼吸困难, 体重下降, 体重减轻, 濒死, 竖毛, 低体温, 脱垂. The line it is in is shown. A word just after *no*, *not* or *without* (无, 没有, 未, 未见) isn't counted, so *no wound* and 未见溃疡 stay off. It is a word in a note, not a finding.
 
-- **Not weighed in their experiment**: A mouse in an active experiment measuring body weight, not weighed for longer than its regimen's weighing days allow, or 7 days when it plans none ([Experiments](https://biomanager.org/guide/experiments#welfare)).
+- **Not weighed in their experiment**: An animal in an active experiment measuring body weight, not weighed for longer than its regimen's weighing days allow, or 7 days when it plans none ([Experiments](https://biomanager.org/guide/experiments#welfare)).
 
 - **Status and experiment disagree**: A mouse whose status is *experiment* while it is in no experiment (once the lab keeps its mouse experiments here), or something else, such as *geno*, while it is in an active one.
 
@@ -910,7 +910,7 @@ Reagents, chemicals, antibodies, viruses and primers have a **Low at** column be
 
 - In the sheet, a quantity or Low at is saved when you leave the cell or press Enter, so typing `12` doesn't pass through `1` on the way.
 
-- Counted in ampoules, vials, tubes or bottles but used by the mL? Give the item a **Pack size**, what one of them holds (`10 mL`), in its dialog beside **Unit** (or show the column in the sheet). An AI assistant told *2 mL used* then takes 0.2 of an ampoule off the quantity, and so does an experiment day recorded with **Take what they got off the inventory** ([Experiments](https://biomanager.org/guide/experiments#the-page)).
+- Counted in ampoules, vials, tubes or bottles but used by the mL? Give the item a **Pack size**, what one of them holds (`10 mL`), in its dialog beside **Unit** (or show the column in the sheet; for many at once, tick them and use **Set field → Pack size**). An AI assistant told *2 mL used* then takes 0.2 of an ampoule off the quantity, and so does an experiment day recorded with **Take what they got off the inventory** ([Experiments](https://biomanager.org/guide/experiments#the-page)).
 
 ### Every inventory
 
@@ -1059,7 +1059,7 @@ Home's card [Animals that may need a look](https://biomanager.org/guide/home-pag
 
 - **Losing weight**: a mouse whose latest weight is the lab's percentage (15% unless an admin sets another in **Settings → General → Weight loss to flag**) or more below its first weight in an experiment that has started, or below its heaviest of the last 30 days.
 
-- **Not weighed in their experiment**: in an active experiment whose readout is body weight, a mouse not weighed for longer than the longest gap between the regimen's weighing days (a *Readout day* on days 1, 4, 7: 3 days), or 7 days when it plans none or its last has passed. Animals left out of the analysis aren't counted.
+- **Not weighed in their experiment**: in an active experiment whose readout is body weight, an animal (a mouse, or any other organism weighed in the experiment) not weighed for longer than the longest gap between the regimen's weighing days (a *Readout day* on days 1, 4, 7: 3 days), or 7 days when it plans none or its last has passed. Animals left out of the analysis aren't counted.
 
 - **Status and experiment disagree**: a mouse whose status is *experiment* while it is in no planned, active or paused experiment, or *geno*, *breeder* or *transfer* while it is in an active one.
 

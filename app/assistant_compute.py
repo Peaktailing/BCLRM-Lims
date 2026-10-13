@@ -663,7 +663,7 @@ def availability(session, species: str = "mouse", genotype: str = "", sex: str =
     if not lab.request_features().get("colony", True):
         raise LookupError("The mouse colony is switched off for this lab.")
     from sqlalchemy.orm import selectinload
-    from .access import can_edit_mouse
+    from .access import yours_to_use
     from .models import MouseRecord
     from .services import holds_breeders, mouse_is_active
     terms = _terms(genotype)
@@ -708,7 +708,7 @@ def availability(session, species: str = "mouse", genotype: str = "", sex: str =
                 "genotype": m.genotype or "", "born": born.isoformat() if born else None, "age_days": age,
                 "age_weeks": round(age / 7, 1) if age is not None else None,
                 "cage": m.cage.cage_id if m.cage else None, "purpose": m.cage.purpose if m.cage else "",
-                "owner": m.owner or "", "yours_to_use": can_edit_mouse(m),
+                "owner": m.owner or "", "yours_to_use": yours_to_use(m),
                 "weight_g": weights[m.id][0] if m.id in weights else None,
                 "in_experiment": busy.get(m.id), "url": _mouse_url(m)} for m, born, age in found[:limit]]
     notes = [f"Ages are on {on.isoformat()}, from each mouse's litter's date of birth."]

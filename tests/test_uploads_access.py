@@ -59,10 +59,12 @@ class Base(AppTestCase):
         r = self.post_json(client, f"/notebook/api/pages/{page_id}/shares", {"username": username, "role": role})
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
 
-    def upload_picture(self, client) -> str:
+    def upload_picture(self, client, page_id=None) -> str:
         """The notebook editor's picture upload; the stored name."""
-        r = client.post("/notebook/upload-image", data={"image": (io.BytesIO(PNG), "blot.png")},
-                        content_type="multipart/form-data")
+        data = {"image": (io.BytesIO(PNG), "blot.png")}
+        if page_id is not None:
+            data["page_id"] = str(page_id)                      # the live editor says which page
+        r = client.post("/notebook/upload-image", data=data, content_type="multipart/form-data")
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
         address = r.get_json()["url"]
         self.assertTrue(address.startswith("/static/uploads/"), address)
@@ -87,6 +89,20 @@ class NotebookPictures(Base):
         self.assertRefused(self.o, name)
         self.assertEqual(rows("select source, username from upload_owners where name=?", name),
                          [("upload", self.member)])
+
+    def test_someone_editing_the_page_with_its_uploader_sees_the_picture_before_autosave(self):
+        page = self.new_page(self.m)
+        editor = make_user()
+        self.share(self.m, page, editor, role="edit")
+        e = client_for(editor)
+        name = self.upload_picture(self.m, page)
+        self.assertServed(e, name)                               # before the page names it
+        self.assertRefused(self.o, name)
+        # Uploaded "into" a page they can't edit, it stays only theirs.
+        other_page = self.new_page(self.o)
+        name = self.upload_picture(self.m, other_page)
+        self.assertRefused(self.o, name)
+        self.assertEqual(count("upload_owners", "name=? and source='notebook_pages'", name), 0)
 
     def test_a_private_page_s_picture_is_its_owner_s_until_shared(self):
         name = self.upload_picture(self.m)

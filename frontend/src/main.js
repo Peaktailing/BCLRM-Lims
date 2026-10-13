@@ -142,6 +142,7 @@ async function mountOnce(options) {
     extensions: extensionsFor({ provider, user, onCommentOpen: options.onCommentOpen, pageId: page.id }),
     autofocus: false,
   });
+  editor.bmPageId = page.id;     // uploads name their page (commands.uploadImage)
 
   if (empty) {
     seeding = true;

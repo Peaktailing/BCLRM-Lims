@@ -176,6 +176,10 @@ class Availability(Compute):
         self.assertEqual(out["animals"][0]["ref"], {"kind": "mouse", "id": free})
         self.assertEqual(out["animals"][0]["age_days"], 60)
         self.assertTrue(out["animals"][0]["yours_to_use"])
+        # An admin may edit the member's mouse, but it isn't theirs to take.
+        theirs = self.ok(self.get(f"/availability?genotype={locus}&sex=F&age_min_days=50&age_max_days=90",
+                                  self.token(self.a, scope="read")))
+        self.assertFalse(theirs["animals"][0]["yours_to_use"])
         self.assertEqual(out["left_out"], {"in_experiments": 1, "breeders": 1, "age_unknown": 0})
         more = self.ok(self.get(f"/availability?genotype={locus}&sex=F&age_min_days=50&age_max_days=90"
                                 "&include_in_experiments=true&include_breeders=true"))

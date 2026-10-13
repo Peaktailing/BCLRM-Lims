@@ -224,6 +224,24 @@ class NotWeighed(Welfare):
         execute("update experiments set readout=? where id=?", json.dumps({"key": "tumour_volume"}), exp)
         self.assertEqual([i for i in self.checks()["not_weighed"]["items"] if i["experiment_ref"]["id"] == exp], [])
 
+    def test_any_organism_is_counted_by_its_experiment_s_weight_readings(self):
+        key = self.make_organism_module(self.a)
+        late, weighed, out = (self.make_animal(self.a, key) for _ in range(3))
+        r = self.a.post(f"/experiments/in/organisms:{key}/create", data={
+            "name": uniq("Exp "), "readout": "", "start_date": days_ago(10)})
+        exp = int(location(r).rsplit("/", 1)[1])
+        execute("update experiments set status='active' where id=?", exp)
+        for animal in (late, weighed, out):
+            self.a.post(f"/experiments/{exp}/subjects/add", json={"how": "one", "value": str(animal), "group": ""})
+        self.a.post(f"/experiments/{exp}/readings", json={"on": days_ago(9), "values": {f"organism:{late}": "30",
+                                                                                      f"organism:{weighed}": "30"}})
+        self.a.post(f"/experiments/{exp}/readings", json={"on": days_ago(2), "values": {f"organism:{weighed}": "29"}})
+        execute("update experiment_subjects set left_out='died' where experiment_id_fk=? and subject_id=?", exp, out)
+        found = [i for i in self.checks()["not_weighed"]["items"] if i["experiment_ref"]["id"] == exp]
+        self.assertEqual([(i["ref"], i["days"], i["last_weighed"]) for i in found],
+                         [({"kind": "org_animal", "id": late}, 9, days_ago(9))])
+        self.assertTrue(found[0]["label"])
+
     def test_weigh_every_from_the_regimen(self):
         from types import SimpleNamespace
         step = lambda days, kind="reading": SimpleNamespace(kind=kind, days=days, treatment_group="")  # noqa: E731

@@ -195,7 +195,7 @@ never what you may edit.
     regimen…** keeps a regimen to start the next cohort from.
   - **Animals that may need a look**, on Home: a mouse of an experiment
     down the lab's weight-loss threshold from its first weight in it (or
-    from its peak of the last 30 days), one not weighed for longer than
+    from its peak of the last 30 days), an animal of any organism not weighed for longer than
     the regimen's weighing days allow (7 days if it plans none; animals
     left out of the analysis aren't counted), and a mouse whose status
     says *experiment* while it is in no experiment, or something else

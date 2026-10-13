@@ -50,6 +50,7 @@ export async function uploadImage(editor, file, alt = '') {
   if (!file) return;
   const form = new FormData();
   form.append('image', file);
+  if (editor.bmPageId) form.append('page_id', String(editor.bmPageId));   // others editing it see it at once
   try {
     const data = await api('/notebook/upload-image', { method: 'POST', form });
     const caption = alt || file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
@@ -63,6 +64,7 @@ export async function uploadFile(editor, file) {
   if (!file) return;
   const form = new FormData();
   form.append('file', file);
+  if (editor.bmPageId) form.append('page_id', String(editor.bmPageId));
   try {
     const data = await api('/notebook/upload-file', { method: 'POST', form });
     editor.chain().focus().insertContent({ type: 'text', text: `${data.name} (${formatBytes(data.size)})`, marks: [{ type: 'link', attrs: { href: data.url } }] }).insertContent(' ').run();

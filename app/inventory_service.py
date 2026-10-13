@@ -405,6 +405,25 @@ def number_text(value: float | None) -> str:
     return "" if value is None else format(value, "g")
 
 
+def singular(unit: str | None) -> str:
+    """One of an item's unit as people write it: ampoules → ampoule, boxes →
+    box. Units of measure (mL, mg) and units in other languages are kept."""
+    unit = (unit or "").strip()
+    low = unit.lower()
+    if len(low) < 3 or not low.isascii() or not low.endswith("s") or low.endswith(("ss", "us", "is")):
+        return unit
+    if low.endswith(("ches", "shes", "xes", "sses")):
+        return unit[:-2]
+    if low.endswith("ies"):
+        return unit[:-3] + "y"
+    return unit[:-1]
+
+
+def amount_text(value: float, unit: str | None) -> str:
+    """An amount with its unit: 2 ampoules, 1 ampoule, 0.2 ampoules."""
+    return f"{number_text(value)} {singular(unit) if value == 1 else (unit or '')}".strip()
+
+
 # "Pack size": what one of an item's unit holds, "10 mL" for an item kept in
 # ampoules, so an amount used in mL (or µL, L) comes off as part of an
 # ampoule (actions._used). Any unit it is written in is kept as typed.

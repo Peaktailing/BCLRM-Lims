@@ -168,6 +168,15 @@ def can_edit_mouse(mouse, user=None) -> bool:
     return can_edit(mouse, user, shared=cage_editable_shared(getattr(mouse, "cage", None), user))
 
 
+def yours_to_use(mouse, user=None) -> bool:
+    """A mouse this person may take for an experiment: theirs, nobody's, or
+    in a cage shared with them. An admin may edit everyone's mice, which
+    doesn't make them theirs to use."""
+    if mouse is None:
+        return False
+    return owns(mouse, user) or is_unowned(mouse) or cage_editable_shared(getattr(mouse, "cage", None), user)
+
+
 def can_edit_experiment(experiment, user=None) -> bool:
     """An experiment belongs to whoever created it (owner_username); only
     they, or an admin, may rename it, change its members or delete it."""

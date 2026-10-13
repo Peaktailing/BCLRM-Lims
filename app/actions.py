@@ -2103,7 +2103,8 @@ def _left_after(s, item, used: float) -> tuple[str, str]:
         raise ActionError(gettext("%(field)s must be more than 0.", field="amount"))
     if used > now:
         raise ActionError(gettext("Only %(left)s %(unit)s of %(item)s is left.", left=isvc.number_text(now),
-                                  unit=item.unit or "", item=_item_label(s, item)))
+                                  unit=isvc.singular(item.unit) if now == 1 else item.unit or "",
+                                  item=_item_label(s, item)))
     return isvc.number_text(now), isvc.number_text(round(now - used, 6))
 
 
@@ -2133,12 +2134,12 @@ def _used(s, item, v) -> tuple[float, str, str]:
         raw, unit = number, match.group(2) or unit
     amount = float(raw)
     have, want = _unit_key(item.unit), _unit_key(unit)
-    if not want or want == have:
-        return amount, f"{isvc.number_text(amount)} {item.unit or ''}".strip(), ""
-    given = f"{isvc.number_text(amount)} {unit}"
+    if not want or want == have or isvc.singular(want) == isvc.singular(have):    # 1 ampoule of ampoules
+        return amount, isvc.amount_text(amount, item.unit), ""
+    given = isvc.amount_text(amount, unit)
     if _same_family(want, have):
         converted = round(amount * _factor(want, have), 9)
-        return converted, given, f"{isvc.number_text(converted)} {item.unit}"
+        return converted, given, isvc.amount_text(converted, item.unit)
     # Kept in packs (ampoules, vials, bottles) of a known size: 2 mL used of
     # 10 mL ampoules is 0.2 of one.
     pack = isvc.pack_size(item.pack_size)
@@ -2147,7 +2148,7 @@ def _used(s, item, v) -> tuple[float, str, str]:
         if want == pack_unit or _same_family(want, pack_unit):
             factor = 1.0 if want == pack_unit else _factor(want, pack_unit)
             converted = round(amount * factor / size, 9)
-            return converted, given, f"{isvc.number_text(converted)} {item.unit}".strip()
+            return converted, given, isvc.amount_text(converted, item.unit)
         raise ActionError(gettext("%(item)s comes in packs of %(pack)s, and %(amount)s can't be turned into that.",
                                   item=_item_label(s, item), pack=item.pack_size, amount=given))
     if not have:
