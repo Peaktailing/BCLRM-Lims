@@ -583,7 +583,9 @@ database has a name of its own (one another database has is refused), so
     day used (marked *(expired)* when the lot was past its expiry), when
     each was done and by whom, the amount each animal got, and its readout as a table and a
     chart (body weight in grams or % of the first, manipulation days
-    marked), kept up to date.
+    marked), kept up to date. An experiment with other measures (an ELISA
+    a plate filled) has a button for each beside the main readout; the one
+    you pick is kept with the block. The block is in the app's language.
     **Freeze a copy** keeps what it shows at that moment in the page. On
     the experiment itself, **Add to notebook** makes your notebook page
     for it with that block already in.

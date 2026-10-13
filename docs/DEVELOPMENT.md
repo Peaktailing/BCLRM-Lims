@@ -1667,9 +1667,18 @@ log over time is drawn as a line).
 
 **Colony experiments in a page.** The `experiment` block
 (`frontend/src/blocks/experiment.js`) keeps only `{"id", "show",
-"percent"}` and reads `/colony/experiments/<id>/notebook.json`; *Freeze a
+"percent", "measure"}` and reads `/colony/experiments/<id>/notebook.json`; *Freeze a
 copy* stores that payload in the block as `frozen`, so the page's
-versions keep it. A recorded day's reagent and lot (its record's
+versions keep it. The payload's `measures` are the experiment's other
+measures, each with its `table` as the page has it; `measure` (a
+`measure:<id>` key, none for the main readout) is the one the block shows,
+switched by a button each (`readouts()`, `chosenReadout()`; a reader who
+can't edit switches without saving). Every word goes through `tr()`, its
+Chinese in `js-notebook.json`; the readout's, kinds' and status's names
+arrive in English and are translated where they show, as on the
+experiment page (`tc()` for `experiment::<status>`).
+`tests/js/experiment-zh.check.mjs` checks each literal has its Chinese and
+no English is shown outside `tr()`. A recorded day's reagent and lot (its record's
 `reagent`) show under the manipulation, *(expired)* as on the experiment
 page (`reagentUsed()`, `reagentText()`; `tests/js/experiment.check.mjs`).
 The payload, the plan and the records are `app/experiment_steps.py`:

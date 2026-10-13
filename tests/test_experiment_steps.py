@@ -3,10 +3,12 @@ from body weight, recording days, the calendar and the notebook."""
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, timedelta
 
 # tests.base first: it points the app at a throwaway database before app is imported.
-from tests.base import AppTestCase, count, location, one, row, uniq
+from tests.base import AppTestCase, count, execute, location, one, row, uniq
+from app import i18n  # noqa: E402
 from app import experiment_steps as xs  # noqa: E402
 
 
@@ -161,3 +163,48 @@ class Recording(AppTestCase):
         items = self.a.get("/colony/experiments/notebook-list.json").get_json()["experiments"]
         self.assertTrue(items[0]["mine"])
         self.assertIn(self.exp, [e["id"] for e in items])
+
+    def test_the_block_carries_the_other_measures_and_their_readings(self):
+        """The notebook block can show another measure (an ELISA a plate
+        filled) as well as the main readout: notebook.json carries each,
+        with its readings by animal and day as the experiment page has them."""
+        execute("update experiments set readout=? where id=?",
+                json.dumps({"key": "body_weight", "measures": [{"id": 1, "label": "IL-6 ELISA", "unit": "pg/mL"}]}),
+                self.exp)
+        url = f"/colony/experiments/{self.exp}/notebook.json"
+        keys = [m["key"] for m in self.a.get(url).get_json()["experiment"]["members"]]
+        r = self.a.post(f"/experiments/{self.exp}/readings", json={"on": self.start.isoformat(), "measure": "measure:1",
+                                                                    "values": {keys[0]: "0.45", keys[1]: "1.2"}})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        got = self.a.get(url).get_json()["experiment"]
+        self.assertEqual(got["readout"]["label"], "Body weight")            # the main readout is as it was
+        self.assertEqual(got["weights"]["rows"][0]["values"], [20.0])
+        [measure] = got["measures"]
+        self.assertEqual((measure["key"], measure["label"], measure["unit"]), ("measure:1", "IL-6 ELISA", "pg/mL"))
+        table = measure["table"]
+        self.assertEqual((table["dates"], table["days"]), ([self.start.isoformat()], [1]))
+        values = {row["key"]: row["values"] for row in table["rows"]}
+        self.assertEqual((values[keys[0]], values[keys[1]], values[keys[2]]), ([0.45], [1.2], [None]))
+        self.assertEqual(measure["table"]["rows"][1]["pct"], [100.0])
+        # An experiment with none has an empty list (a frozen copy from before has no key at all).
+        execute("update experiments set readout=? where id=?", json.dumps({"key": "body_weight"}), self.exp)
+        self.assertEqual(self.a.get(url).get_json()["experiment"]["measures"], [])
+
+    def test_the_words_the_block_gets_as_values_have_their_chinese(self):
+        """The block translates what arrives in English, as the experiment
+        page does (t() of the readout's name and unit, the kinds, the noun,
+        the status, the database): each built-in one has its Chinese in the
+        catalogue the notebook page loads. Units like g and mm stay as they are."""
+        from app import derived
+        from app import experiments as ex
+        from app.app import app
+        with app.test_request_context(headers={"Accept-Language": "zh-CN"}):
+            js = i18n.js_catalog()
+        words = {"Mouse colony", "Readout day", "Other", "mice", "mouse", "fish rows", "fish row", "Body weight",
+                 "Measurement"}
+        words |= {r["label"] for r in ex.READOUTS.values()}
+        words |= {r["unit"] for r in ex.READOUTS.values() if re.search(r"[a-z]{3}", r["unit"])}
+        words |= {f.label for f in derived.FORMULAS.values() if re.search(r"[a-z]{3}", f.label)}     # not ΔCt
+        words |= {label for rows in ex.KINDS.values() for _key, label, _icon in rows}
+        words |= {f"experiment::{status}" for status in ex.STATUSES}
+        self.assertEqual(sorted(w for w in words if w not in js), [])

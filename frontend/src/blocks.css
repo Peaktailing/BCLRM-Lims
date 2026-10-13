@@ -345,8 +345,10 @@ body.nb-run-open .nb-timers { z-index: 85; }
 .nb-exp-title:hover { text-decoration: underline; }
 .nb-mini.is-on { border-color: var(--color-brand-600); background: color-mix(in srgb, var(--color-brand-600) 10%, var(--color-surface)); color: var(--color-brand-700); }
 .nb-exp-section h4 { margin: 0 0 6px; font-size: 13px; font-weight: 650; color: var(--color-muted); }
-.nb-exp-subhead { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.nb-exp-subhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
 .nb-exp-subhead h4 { margin: 0; }
+/* The main readout or another measure (an ELISA a plate filled): one button each. */
+.nb-exp-switch { display: flex; flex-wrap: wrap; gap: 4px; }
 .nb-exp-scroll { overflow-x: auto; }
 .nb-exp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nb-exp-table th { padding: 5px 8px; border-bottom: 1px solid var(--color-hairline); font-size: 11.5px; font-weight: 600; text-align: left; color: var(--color-muted); white-space: nowrap; }
