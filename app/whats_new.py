@@ -30,6 +30,15 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.15.0": {
+        "new": [
+            "A **Stimulation** in the regimen keeps its **Frequency**, **Intensity**, **Pulse width** and **Duration**.",
+            "**New experiment** offers ΔCt, ΔΔCt and fold change as the readout, with the **Control group**.",
+        ],
+        "changed": [
+            "A measure's **•••** changes its **Kind** too; its readings are worked out again.",
+        ],
+    },
     "1.14.2": {
         "new": [
             "**Set field** offers **Pack size**, to give many items theirs at once.",

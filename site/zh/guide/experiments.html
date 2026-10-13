@@ -171,8 +171,8 @@
       <h2 id="derived">由测量值算出的观测指标</h2>
       <p>有些观测指标是算出来的，不是直接读出来的：卡尺量出的肿瘤体积、qPCR 得到的倍数变化。
         在 <b>观测指标 → 由 BioManager 根据你的测量值计算</b> （Readout → Worked out by BioManager from what you measure）里选一个，
-        然后填入你测得的值，计算交给 BioManager，每次都一样算。<b>新建实验</b> （New experiment）里也可以选它们，ΔΔCt 和倍数变化还要填
-        <b>对照组</b> （Control group）。</p>
+        然后填入你测得的值，计算交给 BioManager，每次都一样算。<b>新建实验</b> （New experiment）里也可以选它们，ΔΔCt
+        和倍数变化还要填 <b>对照组</b> （Control group）。</p>
       <table class="gtable">
         <tr><th>肿瘤体积 (L × W² / 2)</th><td>长和宽（mm），长为较长的一边。单位 mm³。</td></tr>
         <tr><th>肿瘤体积 (π/6 × L × W × H)</th><td>三个直径（mm），适合也测高度的实验室。用你们实验室习惯的那一种。</td></tr>
@@ -232,8 +232,8 @@
         对照组的平均 ΔCt 为准，和主要观测指标一样。</p>
       <p>所显示指标旁边的 <b>•••</b> 打开这个指标：修改名称或单位（读数仍然归它），修改 <b>类型</b> （Kind），修改 ΔΔCt 或倍数变化的 <b>对照组</b> （Control group），
         或 <b>删除指标</b> （Delete measure）。换成另一种类型会重新计算读数：数值保留原值，ΔCt 由每个读数的两个 Ct 算出，
-        ΔΔCt 或倍数变化需要每个读数都有两个 Ct（数值或直接填的 ΔCt 没有，这时会说明原因，不做任何改动）。每次修改在
-        <b>批量操作记录</b> （Batch history）里是一步。删除前会先询问，并说明会一起删掉多少个读数；删除在 <b>批量操作记录</b> （Batch history）里是一步，
+        ΔΔCt 或倍数变化需要每个读数都有两个 Ct（数值或直接填的 ΔCt 没有，这时会说明原因，不做任何改动）。每次修改
+        在 <b>批量操作记录</b> （Batch history）里是一步。删除前会先询问，并说明会一起删掉多少个读数；删除在 <b>批量操作记录</b> （Batch history）里是一步，
         在那里 <b>撤销</b> （Undo）会把指标和它的读数一起找回来。</p>
       <h2 id="the-page">实验页面</h2>
       <ul>

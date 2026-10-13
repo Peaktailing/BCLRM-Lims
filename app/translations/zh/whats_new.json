@@ -145,5 +145,8 @@
   "**Not weighed in their experiment** covers every animal weighed in an experiment, not only mice.": "**实验中未按时称重** 现在涵盖实验里称重的所有动物，不只是小鼠。",
   "A picture added while someone else has the page open shows for them at once, not after it saves.": "有人同时打开页面时，新加的图片会立刻显示给他们，而不是等保存之后。",
   "One of an item is written in the singular: **1 ampoule used**.": "用量为一时用单数：**1 ampoule used**。",
-  "An AI assistant no longer offers an admin other people's mice as theirs to use.": "AI 助手不再把别人的小鼠当作管理员自己可用的小鼠。"
+  "An AI assistant no longer offers an admin other people's mice as theirs to use.": "AI 助手不再把别人的小鼠当作管理员自己可用的小鼠。",
+  "A **Stimulation** in the regimen keeps its **Frequency**, **Intensity**, **Pulse width** and **Duration**.": "处理方案里的 **刺激** 会记下它的 **频率**、**强度**、**脉宽** 和 **时长**。",
+  "**New experiment** offers ΔCt, ΔΔCt and fold change as the readout, with the **Control group**.": "**新建实验** 可以直接选 ΔCt、ΔΔCt 和倍数变化作为观测指标，并填写 **对照组**。",
+  "A measure's **•••** changes its **Kind** too; its readings are worked out again.": "指标的 **•••** 也可以改 **类型**，它的读数会重新计算。"
 }
