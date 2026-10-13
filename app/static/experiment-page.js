@@ -895,8 +895,8 @@
     f.label.value = m.label;
     f.unit.value = m.unit || '';
     f.control.value = m.control || '';
-    $('[data-xp-measure-unit]', dialog).hidden = Boolean(m.formula);
-    $('[data-xp-measure-control]', dialog).hidden = !m.per_group;
+    f.kind.value = m.formula || '';
+    measureKindShown();
     $('[data-xp-measure-kind]', dialog).textContent = m.formula ? `${t(m.kind_label)}: ${m.expression}. ${t(m.description)}` : '';
     $('[data-xp-measure-count]', dialog).textContent = m.count
       ? t(m.count === 1 ? 'It holds %(n)s reading; renaming keeps it.' : 'It holds %(n)s readings; renaming keeps them.', { n: m.count })
@@ -905,17 +905,26 @@
     if (!dialog.open) dialog.showModal();
     f.label.focus();
   }
+  // The unit is a number's own; a control group, ΔΔCt's and fold change's.
+  const PER_GROUP = ['delta_delta_ct', 'fold_change'];
+  function measureKindShown() {
+    const dialog = $('#xp-measure');
+    const kind = $('[data-xp-form="measure"]').elements.kind.value;
+    $('[data-xp-measure-unit]', dialog).hidden = Boolean(kind);
+    $('[data-xp-measure-control]', dialog).hidden = !PER_GROUP.includes(kind);
+  }
   const measureForm = $('[data-xp-form="measure"]');
   if (measureForm) {
+    measureForm.elements.kind.addEventListener('change', measureKindShown);
     measureForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const m = measureNow();
       const dialog = measureForm.closest('dialog');
       if (!m) { dialog.close(); return; }
       const f = measureForm.elements;
-      const body = { label: f.label.value };
-      if (!m.formula) body.unit = f.unit.value;
-      if (m.per_group) body.control = f.control.value;
+      const body = { label: f.label.value, kind: f.kind.value };
+      if (!f.kind.value) body.unit = f.unit.value;
+      if (PER_GROUP.includes(f.kind.value)) body.control = f.control.value;
       try {
         apply(await send(`${XP}/measures/${m.id}/update`, body));
         dialog.close();

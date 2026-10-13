@@ -126,6 +126,63 @@ class DeletingAMeasure(MeasureBase):
         self.assertEqual((readout_json(exp)["last_measure"], [m["id"] for m in readout_json(exp)["measures"]]), (2, [2]))
 
 
+class ChangingAMeasuresKind(MeasureBase):
+    def ct_measure(self, kind="delta_ct", **extra):
+        exp, keys = self.experiment(groups=("Vehicle", "Drug", "Drug"), readout={"readout": "tumour_volume"})
+        layout = self.qpcr_layout(exp, keys)
+        saved = self.m.post(f"/experiments/{exp}/plates/save", data={
+            "layout_id": layout, "text": QPCR, "measure": "new", "measure_label": "Il6", "measure_kind": kind,
+            "target": "Il6", "reference": "Gapdh", "on": YESTERDAY, **extra}).get_json()
+        self.assertEqual(saved["saved"], 3, saved)
+        return exp, keys
+
+    def values(self, exp):
+        return dict(rows("select subject, value from experiment_readings where readout_key='measure:1' "
+                         "and experiment_id_fk=?", exp))
+
+    def test_delta_ct_to_fold_change_and_back_works_each_out_again(self):
+        exp, keys = self.ct_measure()
+        delta = self.values(exp)
+        refused = self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "fold_change"})
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("control of Il6", refused.get_json()["error"])
+        r = self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "fold_change", "control": "Vehicle"})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(readout_json(exp)["measures"][0]["formula"], "fold_change")
+        folds = self.values(exp)
+        self.assertEqual(folds[keys[0]], 1.0)
+        self.assertAlmostEqual(folds[keys[1]], 2 ** -(delta[keys[1]] - delta[keys[0]]), places=3)
+        self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "delta_ct"})
+        self.assertEqual(self.values(exp), delta)
+        self.assertNotIn("control", readout_json(exp)["measures"][0])
+        # One batch each, which Batch history's Undo takes back whole.
+        batch = rows("select id from batches where actor=? and description like 'Measure of%' order by id desc",
+                     self.member)[0][0]
+        self.post(self.m, f"/batches/{batch}/undo")
+        self.assertEqual(readout_json(exp)["measures"][0]["formula"], "fold_change")
+        self.assertEqual(self.values(exp), folds)
+
+    def test_a_number_keeps_its_values_and_a_typed_delta_ct_has_no_cts_for_fold_change(self):
+        exp, keys = self.ct_measure()
+        delta = self.values(exp)
+        r = self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "", "unit": "cycles"})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(self.values(exp), delta)
+        self.assertEqual(readout_json(exp)["measures"][0], {"id": 1, "label": "Il6", "unit": "cycles"})
+        self.assertEqual(set(rows("select note from experiment_readings where readout_key='measure:1'"
+                                  " and experiment_id_fk=?", exp)), {("",)})
+        # Back to ΔCt: each number is taken as the ΔCt it is, with no Cts to go further.
+        self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "delta_ct"})
+        self.assertEqual(self.values(exp), delta)
+        refused = self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "delta_delta_ct",
+                                                                              "control": "Vehicle"})
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("3 readings of Il6 have no two Cts", refused.get_json()["error"])
+        self.assertEqual(readout_json(exp)["measures"][0]["formula"], "delta_ct")      # nothing changed
+        bad = self.m.post(f"/experiments/{exp}/measures/1/update", json={"kind": "ratio"})
+        self.assertIn("isn't a kind of measure", bad.get_json()["error"])
+
+
 class AtTheBench(MeasureBase):
     def test_bench_mode_has_each_measure_to_record_into(self):
         exp, keys = self.with_measure()

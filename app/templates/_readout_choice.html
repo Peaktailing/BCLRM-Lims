@@ -1,0 +1,21 @@
+{# A new experiment's readout: one measured, or one BioManager works out
+   (ΔCt, ΔΔCt, fold change), with the control group the per-group ones are
+   against. Both New experiment forms (colony.html, _experiments_tab.html). #}
+{% macro readout_choice(family) %}{% set c = experiment_readouts(family) %}
+  <select name="readout" aria-label="{{ _('Readout') }}" data-new-readout>
+    {% for r in c.readouts %}<option value="{{ r.key }}">{{ r.label|tr }}{% if r.unit %} ({{ r.unit|tr }}){% endif %}</option>{% endfor %}
+    {% if c.derived %}<optgroup label="{{ _('Worked out by BioManager from what you measure') }}">
+      {% for r in c.derived %}<option value="{{ r.key }}" title="{{ r.description|tr }}" data-per-group="{{ 1 if r.per_group else '' }}">{{ r.label|tr }}{% if r.unit %} ({{ r.unit|tr }}){% endif %}</option>{% endfor %}
+    </optgroup>{% endif %}
+  </select>
+  <input name="readout_control" placeholder="{{ _('Control group, e.g. Vehicle') }}" aria-label="{{ _('Control group') }}" hidden data-new-readout-control>
+  <script nonce="{{ csp_nonce() }}">
+    /* A per-group readout (ΔΔCt, fold change) asks for its control group. */
+    document.querySelectorAll('[data-new-readout]').forEach((select) => {
+      const control = select.parentElement.querySelector('[data-new-readout-control]');
+      const shown = () => { control.hidden = !(select.selectedOptions[0] || {}).dataset?.perGroup; };
+      select.addEventListener('change', shown);
+      shown();
+    });
+  </script>
+{% endmacro %}

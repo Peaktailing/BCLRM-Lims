@@ -1262,6 +1262,7 @@
           <input name="name" placeholder="{{ _('Experiment name (e.g. 6-OHDA cohort 1)') }}" aria-label="{{ _('Experiment name') }}" required>
           <input name="from_cage_id" placeholder="{{ _('Start with a cage’s mice (optional)') }}" aria-label="{{ _('Start with the mice of cage') }}" list="cage-id-list">
           <input type="date" name="start_date" title="{{ _('Start date') }}" aria-label="{{ _('Start date') }}">
+          {% from "_readout_choice.html" import readout_choice %}{{ readout_choice('mouse') }}
           <input name="treatment_plan" placeholder="{{ _('Treatment (e.g. drug X 10 mg/kg, qd × 14d)') }}" aria-label="{{ _('Treatment') }}">
           <button type="submit">{{ icon('plus') }} {{ _('New experiment') }}</button>
         </form>

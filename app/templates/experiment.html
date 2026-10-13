@@ -351,7 +351,7 @@
   </form>
 </dialog>
 
-{# Another measure, from the ••• beside its button: renamed (its readings stay) or deleted with them #}
+{# Another measure, from the ••• beside its button: renamed or another kind (its readings stay) or deleted with them #}
 <dialog class="xp-dialog" id="xp-measure" aria-labelledby="xp-measure-title">
   <form method="dialog" class="xp-form" data-xp-form="measure">
     <header class="xp-dialog-head"><div><h3 id="xp-measure-title">{{ _('Measure') }}</h3><p class="xp-sub" data-xp-measure-kind></p></div>
@@ -359,6 +359,13 @@
     <div class="xp-dialog-body">
       <div class="xp-grid">
         <label class="xp-span2">{{ _('Name') }} <input name="label" maxlength="60" required autocomplete="off"></label>
+        <label title="{{ _('A number for each animal, or one BioManager works out from two genes’ Cts as the main readout can be') }}">{{ _('Kind') }}
+          <select name="kind" data-xp-measure-kind-choice>
+            <option value="">{{ _('A number') }}</option>
+            <option value="delta_ct">{{ _('ΔCt: target − reference') }}</option>
+            <option value="delta_delta_ct">{{ _('ΔΔCt, against a control group') }}</option>
+            <option value="fold_change">{{ _('Fold change (2^−ΔΔCt)') }}</option>
+          </select></label>
         <label data-xp-measure-unit>{{ _('Unit') }} <input name="unit" maxlength="20" autocomplete="off"></label>
         <label data-xp-measure-control hidden>{{ _('Control group') }} <input name="control" list="xp-groups" placeholder="{{ _('e.g. Vehicle') }}" autocomplete="off"></label>
       </div>

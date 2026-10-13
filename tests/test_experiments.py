@@ -137,6 +137,22 @@ class Organisms(Base):
         self.assertEqual(location(self.a.get(f"/experiments/in/organisms:{key}")),
                          f"/organisms/{key}?view=experiments")
 
+    def test_a_new_experiment_can_follow_a_readout_worked_out_from_cts(self):
+        key = self.make_organism_module(self.a)
+        page = self.a.get(f"/organisms/{key}?view=experiments").get_data(as_text=True)
+        self.assertIn('value="derived:fold_change"', page)
+        r = self.a.post(f"/experiments/in/organisms:{key}/create", data={
+            "name": uniq("Exp "), "readout": "derived:fold_change", "readout_control": "Vehicle",
+            "start_date": TODAY.isoformat()})
+        exp = int(location(r).rsplit("/", 1)[1])
+        readout = self.data(exp)["readout"]
+        self.assertEqual((readout["formula"], readout["control"]), ("fold_change", "Vehicle"))
+        # The colony's New experiment form too.
+        self.assertIn('value="derived:delta_ct"', self.a.get("/colony?view=experiments").get_data(as_text=True))
+        r = self.a.post("/colony/experiments/create", data={"name": uniq("Exp "), "readout": "derived:delta_ct"})
+        exp = int(location(r).rsplit("/", 1)[1])
+        self.assertEqual(self.data(exp)["readout"]["formula"], "delta_ct")
+
     def test_an_organism_weighed_and_dosed_by_weight(self):
         key = self.make_organism_module(self.a)
         animal = self.make_animal(self.a, key)

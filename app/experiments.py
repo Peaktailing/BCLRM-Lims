@@ -222,6 +222,14 @@ def derived_choices(place: Place) -> list[dict]:
     return [derived_readout(f) for f in derived.FORMULAS.values() if not f.families or place.family in f.families]
 
 
+def new_readout_choices(family: str) -> dict:
+    """The New experiment form's readouts for a family of animals
+    (templates/_readout_choice.html): measured ones, and worked out."""
+    from types import SimpleNamespace
+    place = SimpleNamespace(family=family)
+    return {"readouts": readout_choices(place), "derived": derived_choices(place)}
+
+
 def readout_json(key: str, control: str = "") -> str | None:
     """What an experiment keeps for a readout chosen by its key (a built-in
     one or "derived:<formula>"); None for a key that is neither."""
@@ -305,18 +313,25 @@ def _measure_name(exp: Experiment, place: Place, label, keep: str = "") -> str:
     return label
 
 
+def _measure_kind(formula) -> str:
+    """A measure's kind as kept: "" for a number, else one of MEASURE_FORMULAS;
+    a ValueError, in words, for anything else."""
+    formula = str(formula or "").strip()
+    if formula in ("", "value"):
+        return ""
+    if formula not in MEASURE_FORMULAS:
+        raise ValueError(gettext("“%(kind)s” isn't a kind of measure: a number, or one of %(formulas)s.",
+                                 kind=formula, formulas=", ".join(MEASURE_FORMULAS)))
+    return formula
+
+
 def add_measure(exp: Experiment, place: Place, label, unit="", formula="", control="") -> dict:
     """Another measure of the experiment's animals, kept with it (the one of
     that name when it has one already); a ValueError, in words, without a
     name or for the main readout's own. `formula` makes it one BioManager
     works out from two Cts (MEASURE_FORMULAS), against `control` for ΔΔCt."""
     label = _measure_name(exp, place, label)
-    formula = str(formula or "").strip()
-    if formula in ("", "value"):
-        formula = ""
-    elif formula not in MEASURE_FORMULAS:
-        raise ValueError(gettext("“%(kind)s” isn't a kind of measure: a number, or one of %(formulas)s.",
-                                 kind=formula, formulas=", ".join(MEASURE_FORMULAS)))
+    formula = _measure_kind(formula)
     found = readout_for(exp, place, label)
     if found is not None:
         if (found.get("formula") or "") != formula:
@@ -340,23 +355,73 @@ def add_measure(exp: Experiment, place: Place, label, unit="", formula="", contr
 
 
 def change_measure(exp: Experiment, place: Place, key: str, data: dict) -> dict:
-    """A measure renamed (`label`), its unit or its control group changed
-    (`unit`, `control`); its id, and so its readings, stay. A ValueError,
-    in words, for a name it can't have; a LookupError for no such measure."""
+    """A measure renamed (`label`), its unit, its kind or its control group
+    changed (`unit`, `kind`, `control`); its id, and so its readings, stay
+    (`rekind_readings` turns them into the new kind). A ValueError, in
+    words, for a name or kind it can't have; a LookupError for no such
+    measure."""
     m = readout_for(exp, place, key)
     if m is None or not m.get("measure"):
         raise LookupError(key)
+    kind = _measure_kind(data["kind"]) if "kind" in data else (m.get("formula") or "")
+    per_group = bool(kind) and derived.FORMULAS[kind].per_group
     chosen = _chosen(exp)
     for entry in chosen.get("measures") or []:
         if isinstance(entry, dict) and str(entry.get("id")) == str(m["id"]):
             if "label" in data:
                 entry["label"] = _measure_name(exp, place, data.get("label"), keep=m["key"])
-            if "unit" in data and not m.get("formula"):
-                entry["unit"] = str(data.get("unit") or "").strip()[:20]
-            if "control" in data and m.get("per_group"):
+            if kind:
+                entry["formula"], entry["unit"] = kind, ""
+            else:
+                entry.pop("formula", None)
+                if "unit" in data:
+                    entry["unit"] = str(data.get("unit") or "").strip()[:20]
+            if "control" in data and per_group:
                 entry["control"] = str(data.get("control") or "").strip()[:80]
+            if not per_group:
+                entry.pop("control", None)
+            elif kind != (m.get("formula") or "") and not str(entry.get("control") or "").strip():
+                raise ValueError(gettext("Say which group is the control of %(measure)s (its Control group): it is worked out against that group's mean ΔCt.",  # noqa: E501
+                                         measure=entry["label"]))
     exp.readout = json.dumps(chosen, ensure_ascii=False)
     return readout_for(exp, place, m["key"])
+
+
+def rekind_readings(session, exp: Experiment, place: Place, before: dict, after: dict) -> None:
+    """A measure's readings as its new kind: a number keeps each value; ΔCt
+    works each out from its two Cts again (a number becomes a ΔCt as it is);
+    ΔΔCt and fold change, every day against the control group. A ValueError,
+    in words, when readings have nothing the new kind can be worked out
+    from (a number or a typed ΔCt has no Cts for ΔΔCt)."""
+    old, new = before.get("formula") or "", after.get("formula") or ""
+    if old == new:
+        return
+    rows = list(session.scalars(select(ExperimentReading).where(
+        ExperimentReading.experiment_id_fk == exp.id, ExperimentReading.readout_key == after["key"])))
+    if not new:
+        for r in rows:
+            r.note = ""
+        return
+    f = derived.FORMULAS[new]
+    bare = [r for r in rows if derived.read_note(r.note) is None]
+    if bare and f.per_group:
+        raise ValueError(ngettext("%(num)s reading of %(measure)s has no two Cts to work %(kind)s out from: delete it, or keep the kind.",  # noqa: E501
+                                  "%(num)s readings of %(measure)s have no two Cts to work %(kind)s out from: delete them, or keep the kind.",  # noqa: E501
+                                  len(bare), measure=after["label"], kind=i18n.translate_value(f.label)))
+    for r in bare:
+        if r.value is None or abs(r.value) > derived.CT_MAX:
+            raise ValueError(gettext("A ΔCt of %(value)s isn't one a run gives (at most %(max)s cycles either way).",
+                                     value=f"{r.value:g}" if r.value is not None else "", max=f"{derived.CT_MAX:g}"))
+    if not f.per_group:
+        for r in rows:
+            inputs = derived.read_note(r.note)
+            if inputs is not None:
+                r.value = derived.compute(new, inputs)
+        return
+    subs = subjects(session, exp, place)
+    session.flush()
+    for on in sorted({r.read_on for r in rows}):
+        _store_day(session, exp, after, on, subs)
 
 
 def drop_measure(exp: Experiment, place: Place, key: str) -> dict:
@@ -1055,7 +1120,7 @@ def create(db_key: str):
                          description=(form.get("description") or "").strip(),
                          treatment_plan=(form.get("treatment_plan") or "").strip(), status="active",
                          owner_username=g.user.username, start_date=parse_date(form.get("start_date")),
-                         db=place.key, readout=readout_json(readout) or "")
+                         db=place.key, readout=readout_json(readout, form.get("readout_control") or "") or "")
         s.add(exp)
         s.flush()
         start_with = (form.get("from_group") or "").strip()
@@ -1488,18 +1553,24 @@ def update_measure(experiment_id: int, measure_id: int):
     """{"label", "unit", "control"}: another measure renamed, its unit or
     (for ΔΔCt and fold change) its control group changed. Its id stays, so
     its readings stay with it."""
+    from . import audit
     data = request.get_json(silent=True) or request.form.to_dict()
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
         refused = _refuse(exp)
         if refused:
             return refused
+        before = readout_for(exp, place, f"{MEASURE}{measure_id}")
         try:
-            m = change_measure(exp, place, f"{MEASURE}{measure_id}", data)
+            with audit.batch(s, "update", f"Measure of {exp.name} changed", "experiments"):
+                m = change_measure(exp, place, f"{MEASURE}{measure_id}", data)
+                rekind_readings(s, exp, place, before, m)
         except LookupError:
+            s.rollback()
             return jsonify({"ok": False, "error": gettext("This experiment has no measure “%(measure)s”.",
                                                           measure=measure_id)}), 404
-        except ValueError as e:
+        except (ValueError, derived.DerivedError) as e:
+            s.rollback()
             return jsonify({"ok": False, "error": str(e)}), 409
         if m.get("per_group"):
             # A new control group: each day's ΔΔCt is against its animals now.

@@ -22,9 +22,7 @@
         </select>
       {% endif %}
       <input type="date" name="start_date" value="{{ t.today }}" title="{{ _('Start date (day 1)') }}" aria-label="{{ _('Start date') }}">
-      <select name="readout" aria-label="{{ _('Readout') }}">
-        {% for r in t.readouts %}<option value="{{ r.key }}">{{ r.label|tr }}{% if r.unit %} ({{ r.unit|tr }}){% endif %}</option>{% endfor %}
-      </select>
+      {% from "_readout_choice.html" import readout_choice %}{{ readout_choice(place.family) }}
       <input name="treatment_plan" placeholder="{{ _('Treatment, in words (optional)') }}" aria-label="{{ _('Treatment') }}">
       <button type="submit">{{ icon('plus') }} {{ _('New experiment') }}</button>
     </form>

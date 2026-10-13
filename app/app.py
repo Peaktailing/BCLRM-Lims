@@ -442,6 +442,7 @@ app.register_blueprint(server_setup.bp)
 # Experiments on every database's animals (app/experiments.py), and what is
 # done to them, planned and recorded (app/experiment_steps.py).
 from . import experiments as experiment_pages  # noqa: E402
+app.jinja_env.globals["experiment_readouts"] = experiment_pages.new_readout_choices
 from . import experiment_steps  # noqa: E402
 from . import experiment_plan  # noqa: E402  (the plan kept at Start, and the changes from it)
 app.register_blueprint(experiment_pages.bp)
@@ -2952,6 +2953,8 @@ def create_experiment():
             status="active",
             owner_username=g.user.username,
             start_date=start_date,
+            readout=experiment_pages.readout_json(request.form.get("readout") or "",
+                                                   request.form.get("readout_control") or "") or "",
         )
         db_session.add(exp)
         db_session.flush()

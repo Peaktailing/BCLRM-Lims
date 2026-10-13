@@ -135,5 +135,6 @@
   "A number": "数值",
   "ΔCt: target − reference": "ΔCt：目的基因 − 内参基因",
   "ΔΔCt, against a control group": "ΔΔCt，相对于对照组",
-  "Delete measure": "删除指标"
+  "Delete measure": "删除指标",
+  "Control group, e.g. Vehicle": "对照组，如 Vehicle"
 }
