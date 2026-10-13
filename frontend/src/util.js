@@ -1,8 +1,10 @@
 // Small helpers shared by the notebook's blocks and panels.
 
-// Text in the page's language: window.t, from the page (base.html), knows the Chinese.
-export function tr(text) {
-  return typeof window !== 'undefined' && typeof window.t === 'function' ? window.t(text) : text;
+// Text in the page's language: window.t, from the page (base.html), knows the
+// Chinese; `values` fill its %(name)s, as t() does.
+export function tr(text, values) {
+  if (typeof window !== 'undefined' && typeof window.t === 'function') return window.t(text, values);
+  return values ? text.replace(/%\((\w+)\)[sd]/g, (m, k) => (k in values ? values[k] : m)) : text;
 }
 
 export function escapeHtml(s) {

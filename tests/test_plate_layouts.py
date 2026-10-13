@@ -216,6 +216,124 @@ class LayingItOnTheLayout(unittest.TestCase):
                          {"A1": {"role": "blank"}, "P24": {"role": "standard", "conc": 2.5}})
 
 
+def elisa(*samples, a=0.05, b=1.2, c=150.0, d=3.0, noise=None):
+    """An ELISA plate as "well value" lines: eight standards in duplicate
+    (rows C and D, 0 to 1000) on a 4PL curve, then each sample's two wells
+    along row A at the concentration given (or, as a string, that signal)."""
+    from app.standard_curves import logistic
+    concs = [0, 15.625, 31.25, 62.5, 125, 250, 500, 1000]
+    lines, layout = [], {}
+    for i, conc in enumerate(concs):
+        for row in "CD":
+            y = logistic(conc, a, b, c, d) * (1 + (noise() if noise else 0))
+            lines.append(f"{row}{i + 1}\t{y:.5f}")
+            layout[f"{row}{i + 1}"] = {"role": "standard", "conc": conc}
+    for i, (key, conc) in enumerate(samples):
+        y = conc if isinstance(conc, str) else f"{logistic(conc, a, b, c, d):.5f}"
+        for col in (2 * i + 1, 2 * i + 2):
+            lines.append(f"A{col}\t{y}")
+            layout[f"A{col}"] = {"role": "sample", "subject": key}
+    return "\n".join(lines), layout
+
+
+class StandardCurves(unittest.TestCase):
+    """app/standard_curves.py: a line, a log–log line, a 4PL by
+    Levenberg–Marquardt in pure Python, refused in words when it doesn't settle."""
+
+    def points(self, a=0.05, b=1.2, c=150.0, d=3.0, concs=(0, 15.625, 31.25, 62.5, 125, 250, 500, 1000), noise=None):
+        from app.standard_curves import logistic
+        return [(x, logistic(x, a, b, c, d) * (1 + (noise() if noise else 0))) for x in concs for _ in range(2)]
+
+    def test_a_4pl_finds_the_curve_it_was_drawn_from(self):
+        from app import standard_curves as sc
+        for a, b, c, d in ((0.05, 1.2, 150.0, 3.0), (2.5, 0.8, 40.0, 0.1), (0.1, 2.5, 300.0, 1.8)):   # rising, falling, steep
+            f = sc.four_pl(self.points(a, b, c, d))
+            for got, want in zip((f["a"], f["b"], f["c"], f["d"]), (a, b, c, d)):
+                self.assertAlmostEqual(got, want, delta=abs(want) * 1e-3)
+            self.assertEqual(f["r2"], 1.0)
+            self.assertAlmostEqual(sc.concentration(f, sc.logistic(200, a, b, c, d)), 200, delta=0.01)
+
+    def test_a_4pl_through_noisy_standards(self):
+        import random
+        from app import standard_curves as sc
+        rng = random.Random(7)
+        f = sc.four_pl(self.points(noise=lambda: rng.gauss(0, 0.03)))
+        self.assertGreater(f["r2"], 0.98)
+        self.assertAlmostEqual(f["c"], 150, delta=150 * 0.2)
+        self.assertAlmostEqual(f["d"], 3.0, delta=0.3)
+        self.assertAlmostEqual(f["b"], 1.2, delta=0.25)
+        self.assertGreater(f["rmse"], 0)
+        self.assertAlmostEqual(sc.concentration(f, sc.logistic(100, 0.05, 1.2, 150, 3.0)), 100, delta=15)
+
+    def test_a_signal_the_curve_never_reaches(self):
+        from app import standard_curves as sc
+        f = sc.four_pl(self.points())
+        self.assertIsNone(sc.concentration(f, 3.5))          # past the top plateau
+        self.assertFalse(sc.below(f, 3.5))
+        self.assertIsNone(sc.concentration(f, 0.01))         # under the bottom one
+        self.assertTrue(sc.below(f, 0.01))
+
+    def test_a_4pl_that_does_not_settle_is_refused_in_words(self):
+        from app import standard_curves as sc
+        for points in ([(x, 0.5) for x in (1, 2, 4, 8, 16)],                         # flat
+                       [(1, 1), (2, 0.2), (4, 0.1), (8, 0.2), (16, 1)],                # a V, not an S
+                       [(1, 1), (10, 0.1), (100, 1), (1000, 0.1), (10000, 1)]):        # a zigzag
+            with self.assertRaises(sc.CurveError) as caught:
+                sc.four_pl(points)
+            self.assertTrue(str(caught.exception))
+        with self.assertRaises(sc.CurveError) as caught:
+            sc.four_pl([(1, 0.1), (2, 0.2), (4, 0.4), (8, 0.8)])
+        self.assertIn("at least five concentrations", str(caught.exception))
+
+    def test_log_log_and_linear(self):
+        from app import standard_curves as sc
+        f = sc.loglog([(0, 0.0)] + [(x, 0.01 * x ** 0.8) for x in (10, 100, 1000)])
+        self.assertEqual((f["slope"], f["intercept"], f["r2"], f["left_out"]), (0.8, -2.0, 1.0, 1))
+        self.assertAlmostEqual(sc.concentration(f, 0.01 * 50 ** 0.8), 50, places=6)
+        self.assertIsNone(sc.concentration(f, 0))
+        line = sc.linear([(1, 0.25), (2, 0.45), (4, 0.85)])
+        self.assertEqual((line["slope"], line["intercept"]), (0.2, 0.05))
+        with self.assertRaises(sc.CurveError):
+            sc.loglog([(0, 0.1), (5, 0.2)])
+
+    def test_the_curve_chosen_for_the_standards(self):
+        from app import standard_curves as sc
+        self.assertEqual(sc.fit(self.points())["model"], "4pl")            # eight, over a 64-fold range
+        self.assertTrue(sc.fit(self.points())["auto"])
+        self.assertEqual(sc.fit(self.points(concs=(1, 2, 3)))["model"], "linear")
+        self.assertEqual(sc.fit(self.points(concs=(10, 11, 12, 13, 14)))["model"], "linear")   # not a tenfold range
+        self.assertEqual(sc.fit([(1, 1), (10, 0.1), (100, 1), (1000, 0.1), (10000, 1)])["model"], "linear")
+        self.assertEqual(sc.fit(self.points(), "loglog")["model"], "loglog")
+        self.assertNotIn("auto", sc.fit(self.points(), "linear"))
+
+
+class AFourPLPlate(unittest.TestCase):
+    def test_each_animal_is_read_off_the_curve_and_the_curve_is_there_to_draw(self):
+        text, layout = elisa(("mouse:1", 100), ("mouse:2", 2000), ("mouse:3", "3.5000"), ("mouse:4", "0.0100"))
+        out = plates.analyse(plates.clean_layout(layout, 96), 96, plates.read_export(text=text), VALUE,
+                             subjects("mouse:1", "mouse:2", "mouse:3", "mouse:4"), {"standard_curve": True})
+        self.assertEqual((out["fit"]["model"], out["fit"]["auto"]), ("4pl", True))
+        got = {r["key"]: r for r in out["subjects"]}
+        self.assertAlmostEqual(got["mouse:1"]["value"], 100, delta=0.5)
+        self.assertNotIn("outside", got["mouse:1"])
+        self.assertAlmostEqual(got["mouse:2"]["value"], 2000, delta=20)
+        self.assertTrue(got["mouse:2"]["outside"])                    # past the highest standard, still marked
+        self.assertIn("dilute", got["mouse:3"]["error"])
+        self.assertIn("less than the assay detects", got["mouse:4"]["error"])
+        self.assertEqual(out["ready"], 2)
+        curve = out["curve"]
+        self.assertTrue(curve["log"])
+        self.assertEqual(len(curve["standards"]), 16)
+        self.assertGreater(len(curve["line"]), 20)
+        self.assertEqual([round(x) for x, _y in curve["samples"]], [100, 2000])
+        # Asked for a line instead, it is a line.
+        line = plates.analyse(plates.clean_layout(layout, 96), 96, plates.read_export(text=text), VALUE,
+                              subjects("mouse:1"), plates.options_from({"standard_curve": "1", "curve": "linear"}))
+        self.assertEqual(line["fit"]["model"], "linear")
+        self.assertNotIn("auto", line["fit"])
+        self.assertEqual(plates.options_from({"curve": "Log–log"})["curve"], "loglog")
+
+
 class Base(AppTestCase):
     def experiment(self, groups=("Vehicle", "Vehicle", "Drug"), readout=None, client=None):
         client = client or self.m
@@ -376,6 +494,133 @@ class ReadingAPlate(Base):
         self.assertEqual(json.loads(note), {"ct_target": 25.1, "ct_reference": 18.15})
 
 
+class AnotherMeasure(Base):
+    """A plate fills the main readout, or another measure of the same
+    animals beside it: kept with the experiment, on the page, in Export,
+    in experiment_summary."""
+
+    def tumour_experiment(self):
+        return self.experiment(readout={"readout": "tumour_volume"})
+
+    def test_a_plate_fills_another_measure_beside_the_main_readout(self):
+        exp, keys = self.tumour_experiment()
+        layout = self.save_layout(exp, self.grid_layout(keys)).get_json()["id"]
+        listed = self.m.get(f"/experiments/{exp}/plates.json").get_json()
+        self.assertEqual((listed["main"]["key"], listed["main"]["plate"], listed["others"]), ("tumour_volume", True, []))
+        form = {"layout_id": layout, "text": GRID, "measure": "new", "measure_label": "IL-6 ELISA",
+                "measure_unit": "pg/mL"}
+        # Trying it changes nothing, the measure included.
+        preview = self.m.post(f"/experiments/{exp}/plates/preview", data=form).get_json()
+        self.assertEqual((preview["readout"]["label"], preview["readout"]["measure"]), ("IL-6 ELISA", True))
+        self.assertNotIn("measures", one("select readout from experiments where id=?", exp))
+        saved = self.m.post(f"/experiments/{exp}/plates/save", data=form).get_json()
+        self.assertEqual((saved["saved"], saved["filled"]), (3, "measure:1"), saved)
+        self.assertIn("IL-6 ELISA", saved["message"])
+        self.assertEqual(count("experiment_readings", "experiment_id_fk=? and readout_key=?", exp, "measure:1"), 3)
+        self.assertEqual(count("experiment_readings", "experiment_id_fk=? and readout_key=?", exp, "tumour_volume"), 0)
+        # The page: the main readout's sheet is as it was, the measure has its own.
+        self.assertEqual(saved["table"]["dates"], [])
+        measure = saved["measures"][0]
+        self.assertEqual((measure["key"], measure["label"], measure["unit"]), ("measure:1", "IL-6 ELISA", "pg/mL"))
+        self.assertEqual(next(r for r in measure["table"]["rows"] if r["key"] == keys[0])["values"], [0.45])
+        self.assertIn("xp-measure-chips", self.get_ok(self.m, f"/colony/experiments/{exp}"))
+        listed = self.m.get(f"/experiments/{exp}/plates.json").get_json()
+        self.assertEqual(listed["others"], [{"key": "measure:1", "label": "IL-6 ELISA", "unit": "pg/mL"}])
+        self.assertEqual(listed["reads"][0]["readout"], "IL-6 ELISA")
+        # The next plate picks it by name or key; no second measure of that name.
+        again = self.m.post(f"/experiments/{exp}/plates/save", data={**form, "measure_label": "il-6 elisa"}).get_json()
+        self.assertEqual(again["filled"], "measure:1")
+        self.assertEqual(len(again["measures"]), 1)
+        self.assertEqual(self.m.post(f"/experiments/{exp}/plates/preview",
+                                     data={"layout_id": layout, "text": GRID, "measure": "measure:1"}).get_json()["replaces"], 3)
+        refused = self.m.post(f"/experiments/{exp}/plates/preview", data={"layout_id": layout, "text": GRID, "measure": "IFN"})
+        self.assertIn("IL-6 ELISA", refused.get_json()["error"])
+        self.assertIn("main readout", self.m.post(f"/experiments/{exp}/plates/preview", data={
+            **form, "measure_label": "Tumour volume"}).get_json()["error"])
+        # A cell typed in its sheet is that measure's; a new main readout keeps it.
+        r = self.m.post(f"/experiments/{exp}/readings", json={"on": TODAY.isoformat(), "values": {keys[0]: "0.5"},
+                                                              "measure": "measure:1"})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(one("select value from experiment_readings where subject=? and readout_key='measure:1'", keys[0]), 0.5)
+        self.assertEqual(self.m.post(f"/experiments/{exp}/readings", json={"on": TODAY.isoformat(), "values": {keys[0]: "1"},
+                                                                           "measure": "nope"}).status_code, 400)
+        self.m.post(f"/experiments/{exp}/update", data={"readout": "score"}, headers={"X-Autosave": "1"})
+        self.assertEqual(json.loads(one("select readout from experiments where id=?", exp))["key"], "score")
+        self.assertEqual([m["label"] for m in self.m.get(f"/experiments/{exp}/data.json").get_json()["measures"]],
+                         ["IL-6 ELISA"])
+
+    def test_a_main_readout_no_plate_gives_still_has_its_measures(self):
+        exp, keys = self.experiment(readout={"readout": "body_weight"})
+        layout = self.save_layout(exp, self.grid_layout(keys)).get_json()["id"]
+        self.assertFalse(self.m.get(f"/experiments/{exp}/plates.json").get_json()["main"]["plate"])
+        refused = self.m.post(f"/experiments/{exp}/plates/preview", data={"layout_id": layout, "text": GRID})
+        self.assertIn("Another measure", refused.get_json()["error"])
+        saved = self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": GRID, "measure": "new",
+                                                                     "measure_label": "Serum ALT"}).get_json()
+        self.assertEqual(saved["saved"], 3, saved)
+        self.assertEqual(count("mouse_weights", "notes like ?", "ELISA%"), 0)
+
+    def test_export_and_the_summary_carry_it(self):
+        exp, keys = self.tumour_experiment()
+        layout = self.save_layout(exp, self.grid_layout(keys)).get_json()["id"]
+        self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": GRID, "measure": "new",
+                                                             "measure_label": "IL-6 ELISA", "measure_unit": "pg/mL"})
+        r = self.m.get(f"/experiments/{exp}/export.xlsx")
+        from openpyxl import load_workbook
+        book = load_workbook(io.BytesIO(r.data))
+        self.assertIn("IL-6 ELISA", book.sheetnames)
+        sheet = list(book["IL-6 ELISA"].values)
+        self.assertIn("IL-6 ELISA (pg/mL)", sheet[0])
+        self.assertEqual(len(sheet), 4)
+        self.assertEqual(len(list(book["Readout"].values)), 1)        # the main readout: nothing yet
+        self.assertIn(("IL-6 ELISA",), [tuple(v for v in row if v is not None) for row in book["Tests by day"].values])
+        from app.assistant_compute import experiment_summary
+        from app.db import SessionLocal
+        with app.test_request_context("/"), SessionLocal() as s:
+            summary = experiment_summary(s, exp)
+        other = summary["readouts"]["other_measures"][0]
+        self.assertEqual((summary["readouts"]["label"], other["label"], other["unit"], other["days_measured"]),
+                         ("Tumour volume", "IL-6 ELISA", "pg/mL", 1))
+        outcome = next(i for i in summary["arrive"] if i["item"] == 6)
+        self.assertTrue(any("Secondary measures: IL-6 ELISA" in r for r in outcome["recorded"]))
+
+
+class UndoingAPlate(Base):
+    def test_batch_history_undo_takes_the_whole_plate_back(self):
+        exp, keys = self.experiment()
+        layout = self.save_layout(exp, self.grid_layout(keys)).get_json()["id"]
+        on = (TODAY - timedelta(days=1)).isoformat()
+        # One animal had a value that day already: the plate replaces it, and Undo puts it back.
+        self.m.post(f"/experiments/{exp}/readings", json={"on": on, "values": {keys[0]: "0.3"}})
+        r = self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": GRID, "on": on})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        batch, description = rows("select id, description from batches where actor=? order by id desc", self.member)[0]
+        self.assertIn("Plate 1", description)
+        self.assertEqual(count("audit_log", "batch_id_fk=? and table_name='experiment_readings'", batch), 3)
+        self.assertEqual(count("audit_log", "batch_id_fk=? and table_name='plate_reads'", batch), 1)
+        self.post(self.m, f"/batches/{batch}/undo")
+        self.assertEqual(count("plate_reads", "experiment_id_fk=?", exp), 0)
+        self.assertEqual(dict(rows("select subject, value from experiment_readings where experiment_id_fk=?", exp)),
+                         {keys[0]: 0.3})
+        self.assertEqual(count("plate_layouts", "id=?", layout), 1)        # the layout stays
+
+    def test_a_later_plate_on_the_same_layout_does_not_stop_the_undo(self):
+        exp, keys = self.experiment()
+        layout = self.save_layout(exp, self.grid_layout(keys)).get_json()["id"]
+        first = (TODAY - timedelta(days=2)).isoformat()
+        self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": GRID, "on": first,
+                                                             "measure": "new", "measure_label": "IL-6 ELISA"})
+        batch = one("select max(id) from batches where actor=?", self.member)
+        self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": GRID, "on": TODAY.isoformat(),
+                                                             "measure": "measure:1"})
+        self.post(self.m, f"/batches/{batch}/undo")
+        self.assertEqual(count("plate_reads", "experiment_id_fk=?", exp), 1)
+        self.assertEqual(count("experiment_readings", "experiment_id_fk=? and read_on=?", exp, first), 0)
+        self.assertEqual(count("experiment_readings", "experiment_id_fk=? and read_on=?", exp, TODAY.isoformat()), 3)
+        # The measure stays, with the later plate's readings to show.
+        self.assertIn("IL-6 ELISA", one("select readout from experiments where id=?", exp))
+
+
 class ForAnAssistant(Base):
     def setUp(self):
         super().setUp()
@@ -398,6 +643,23 @@ class ForAnAssistant(Base):
         inline = self.bm.call_tool(self.api, "plate_readout", {"experiment_id": exp, "format": 96, "text": GRID,
                                                                "wells": {"A1": keys[0], "A2": keys[0]}})
         self.assertEqual(inline["change"]["fields"]["values"], {keys[0]: 0.505})
+
+    def test_the_tool_fills_another_measure_by_its_name(self):
+        exp, keys = self.experiment(readout={"readout": "tumour_volume"})
+        layout = self.save_layout(exp, self.grid_layout(keys), name="ELISA 1").get_json()["id"]
+        self.m.post(f"/experiments/{exp}/plates/save", data={"layout_id": layout, "text": GRID, "measure": "new",
+                                                             "measure_label": "IL-6 ELISA",
+                                                             "on": (TODAY - timedelta(days=1)).isoformat()})
+        out = self.bm.call_tool(self.api, "plate_readout", {"experiment_id": exp, "layout": "ELISA 1", "text": GRID,
+                                                            "measure": "IL-6 ELISA"})
+        self.assertEqual(out["change"]["fields"]["measure"], "IL-6 ELISA")
+        preview = actions.run(app, self.member, [out["change"]])
+        self.assertTrue(preview.ok, preview.changes[0].as_dict())
+        self.assertIn("IL-6 ELISA", preview.changes[0].as_dict()["summary"])
+        self.assertIn("no measure", self.bm.call_tool(self.api, "plate_readout", {
+            "experiment_id": exp, "layout": "ELISA 1", "text": GRID, "measure": "IFN"})["error"])
+        self.assertIn("Plate layout dialog", self.bm.call_tool(self.api, "plate_readout", {
+            "experiment_id": exp, "layout": "ELISA 1", "text": GRID, "measure": "new"})["error"])
 
     def test_a_captures_file_is_the_export(self):
         exp, keys = self.experiment()

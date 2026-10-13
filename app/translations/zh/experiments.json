@@ -119,5 +119,8 @@
   "%(item)s: %(amount)s taken off (%(before)s → %(after)s).": "%(item)s：扣除 %(amount)s（%(before)s → %(after)s）。",
   "Take what they got off the inventory": "从库存中扣除给药量",
   "Nothing was taken off %(item)s: some have no weight to work out what they got.": "未从 %(item)s 扣除：有些动物没有体重，算不出给药量。",
-  "%(item)s: %(amount)s put back on the inventory.": "%(item)s：%(amount)s 已放回库存。"
+  "%(item)s: %(amount)s put back on the inventory.": "%(item)s：%(amount)s 已放回库存。",
+  "Name the measure, e.g. IL-6 ELISA.": "请给这个指标起个名字，如 IL-6 ELISA。",
+  "%(label)s is already the main readout: choose it in the list.": "%(label)s 已经是主要观测指标：请在列表中选择它。",
+  "This experiment has no measure “%(measure)s”.": "这个实验没有指标「%(measure)s」。"
 }

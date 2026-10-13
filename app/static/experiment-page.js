@@ -42,6 +42,13 @@
   const num = (v, digits = 1) => (v === null || v === undefined || Number.isNaN(v) ? ''
     : Number(v).toFixed(digits).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''));
   const fraction = () => D.readout.kind === 'fraction';
+  // Another measure a plate filled beside the main readout (an ELISA): its own chip on the sheet, which the chart follows.
+  const viewed = () => (String(view).startsWith('measure:') && (D.measures || []).find((m) => m.key === view)) || null;
+  const VR = () => viewed() || D.readout;
+  const VT = () => (viewed() ? viewed().table : D.table);
+  const vFraction = () => VR().kind === 'fraction';
+  const vRL = () => t(VR().label);
+  const vUnit = () => (VR().unit ? t(VR().unit) : '');
   // A readout BioManager works out (app/derived.py): typed as what was measured (length and width), never as the result.
   const derivedRO = () => Boolean(D.readout.formula);
   const inputsOf = () => D.readout.inputs || [];
@@ -112,14 +119,24 @@
   }
 
   // For the Plate dialog (static/plate-layout.js): the page's data, and drawing it again after a save.
-  window.BMExperiment = { data: () => D, apply: (data) => apply(data), say: (state, text) => say(state, text) };
+  window.BMExperiment = {
+    data: () => D, apply: (data) => apply(data), say: (state, text) => say(state, text),
+    // After a plate is saved: the sheet and chart show what it filled.
+    show: (key) => {
+      view = key && key.startsWith('measure:') ? key : 'readout';
+      try { sessionStorage.setItem(`xp:view:${D.id}`, view); } catch (_e) { /* no storage */ }
+      scale = null;
+      drawSheet(); drawChart(); drawLabels();
+    },
+  };
 
   function apply(data, { sheet = true } = {}) {
     ['subjects', 'groups', 'steps', 'schedule', 'table', 'readout', 'weighs', 'start_date', 'editable', 'kinds',
       'regimens', 'reagents', 'sample_inventories', 'planned', 'fixed', 'plan', 'readout_day', 'planned_test',
-      'deviations', 'comparison'].forEach((k) => {
+      'deviations', 'comparison', 'measures'].forEach((k) => {
       if (data[k] !== undefined) D[k] = data[k];
     });
+    if (String(view).startsWith('measure:') && !viewed()) view = 'readout';
     drawPlan();
     if (data.add) refreshAddOptions(data.add);
     const list = $('#xp-groups');
@@ -143,11 +160,15 @@
     const note = $('[data-xp-derived-note]');
     if (note) note.textContent = derivedRO() ? t(r.description || '') : '';
     const title = $('[data-xp-chart-title]');
-    if (title) title.textContent = `${RL()}${r.unit && !fraction() ? ` (${unitOf()})` : ''}`;
+    if (title) title.textContent = `${vRL()}${VR().unit && !vFraction() ? ` (${vUnit()})` : ''}`;
+    const chips = $('[data-xp-measures]');
+    if (chips) {
+      chips.innerHTML = (D.measures || []).map((m) => `<button type="button" class="dt-chip" role="tab" data-xp-view="${esc(m.key)}" aria-pressed="false" title="${esc(t('Another measure, beside the main readout'))}">${icon('chart')} ${esc(m.label)}</button>`).join('');
+    }
     const [raw, pct] = $$('[data-xp-scale]');
     if (raw && pct) {
-      raw.textContent = fraction() ? t('How many %(unit)s', { unit: unitOf() }).trim() : (unitOf() || t('Value'));
-      pct.textContent = fraction() ? t('% of those at the start') : t('% of the first');
+      raw.textContent = vFraction() ? t('How many %(unit)s', { unit: vUnit() }).trim() : (vUnit() || t('Value'));
+      pct.textContent = vFraction() ? t('% of those at the start') : t('% of the first');
       raw.setAttribute('aria-pressed', String(scale === 'raw'));
       pct.setAttribute('aria-pressed', String(scale === 'pct'));
     }
@@ -183,13 +204,13 @@
       cols.forEach((c) => head.push(`<th class="xp-daycol" data-state="${esc(c.state)}" title="${esc(`${t('Day %(n)s', { n: c.day })}${c.date ? `, ${niceDate(c.date, true)}` : ''}: ${titleOf(c)}${c.group ? ` (${c.group})` : ''}`)}">
         <span class="xp-dayhead">${t('Day %(n)s', { n: c.day })}</span><span class="xp-daywhat">${esc(titleOf(c))}</span><span class="xp-daydate">${esc(niceDate(c.date))}${c.group ? ` · ${esc(c.group)}` : ''}</span></th>`));
     } else {
-      D.table.dates.forEach((d, i) => head.push(`<th class="xp-daycol"><span class="xp-dayhead">${D.table.days[i] !== null ? t('Day %(n)s', { n: D.table.days[i] }) : ''}</span><span class="xp-daydate">${esc(niceDate(d))}</span></th>`));
-      if (D.editable && derivedRO()) head.push(`<th class="xp-daycol xp-newday"><button type="button" class="xp-link" data-xp-open="reading">${t('Another day')}</button></th>`);
+      VT().dates.forEach((d, i) => head.push(`<th class="xp-daycol"><span class="xp-dayhead">${VT().days[i] !== null ? t('Day %(n)s', { n: VT().days[i] }) : ''}</span><span class="xp-daydate">${esc(niceDate(d))}</span></th>`));
+      if (D.editable && VR().formula) head.push(`<th class="xp-daycol xp-newday"><button type="button" class="xp-link" data-xp-open="reading">${t('Another day')}</button></th>`);
       else if (D.editable) head.push(`<th class="xp-daycol xp-newday"><span class="xp-dayhead">${t('Another day')}</span><input type="date" class="xp-newday-date" value="${today()}" max="${today()}" aria-label="${esc(t('The day of the new column'))}"></th>`);
     }
     if (D.editable) head.push('<th class="xp-actions"></th>');
 
-    const rowsByKey = Object.fromEntries(D.table.rows.map((r) => [r.key, r]));
+    const rowsByKey = Object.fromEntries(VT().rows.map((r) => [r.key, r]));
     const body = subs.map((s) => {
       const out = s.left_out ? ` <span class="xp-left-tag" title="${esc(t('Left out of the analysis: %(reason)s', { reason: s.left_out }))}">${esc(t('left out'))}</span>` : '';
       const cells = [`<td class="sheet-pin sheet-pin-start xp-id"><span class="sheet-id"><span class="life-dot${s.alive ? ' is-alive' : ''}"></span><span class="ident">${esc(s.label)}</span>${out}</span></td>`];
@@ -202,8 +223,8 @@
         cols.forEach((c) => cells.push(treatmentCell(s, c)));
       } else {
         const row = rowsByKey[s.key] || { values: [] };
-        D.table.dates.forEach((d, i) => cells.push(derivedRO() ? derivedCell(d, row.values[i], (row.inputs || [])[i]) : readingCell(s, d, row.values[i])));
-        if (D.editable) cells.push(derivedRO() ? '<td></td>' : readingCell(s, '', null, true));
+        VT().dates.forEach((d, i) => cells.push(VR().formula ? derivedCell(d, row.values[i], (row.inputs || [])[i]) : readingCell(s, d, row.values[i])));
+        if (D.editable) cells.push(VR().formula ? '<td></td>' : readingCell(s, '', null, true));
       }
       if (D.editable) {
         const leave = s.left_out
@@ -244,9 +265,9 @@
   }
 
   function readingCell(subject, date, value, fresh = false) {
-    const of = fraction() && subject.start != null ? `<span class="xp-of">/ ${subject.start}</span>` : '';
+    const of = vFraction() && subject.start != null ? `<span class="xp-of">/ ${subject.start}</span>` : '';
     return `<td class="xp-r"><span class="xp-rwrap"><input class="xp-cell xp-num" data-xp-reading="${esc(subject.key)}" data-date="${esc(date)}" ${fresh ? 'data-fresh="1"' : ''}
-      value="${value === null || value === undefined ? '' : num(value, 2)}" inputmode="decimal" aria-label="${esc(date ? t('%(readout)s of %(label)s on %(date)s', { readout: RL(), label: subject.label, date }) : t('%(readout)s of %(label)s', { readout: RL(), label: subject.label }))}" ${D.editable ? '' : 'disabled'}>${of}</span></td>`;
+      value="${value === null || value === undefined ? '' : num(value, 2)}" inputmode="decimal" aria-label="${esc(date ? t('%(readout)s of %(label)s on %(date)s', { readout: vRL(), label: subject.label, date }) : t('%(readout)s of %(label)s', { readout: vRL(), label: subject.label }))}" ${D.editable ? '' : 'disabled'}>${of}</span></td>`;
   }
 
   // A readout BioManager works out: the value, what was measured on hover; a click opens the day to change it.
@@ -281,7 +302,7 @@
       const on = t.dataset.fresh ? ($('.xp-newday-date') || {}).value : t.dataset.date;
       if (!on) return;
       try {
-        const data = await send(`${XP}/readings`, { on, values: { [t.dataset.xpReading]: t.value } });
+        const data = await send(`${XP}/readings`, { on, values: { [t.dataset.xpReading]: t.value }, ...(viewed() ? { measure: viewed().key } : {}) });
         t.classList.remove('is-error');
         apply(data, { sheet: Boolean(t.dataset.fresh) });       // a new day becomes its own column
       } catch (_e) { t.classList.add('is-error'); }
@@ -292,8 +313,10 @@
     const btn = event.target.closest('button');
     if (!btn) return;
     if (btn.dataset.xpView) {
+      const was = VR();
       view = btn.dataset.xpView;
       try { sessionStorage.setItem(`xp:view:${D.id}`, view); } catch (_e) { /* no storage */ }
+      if (VR() !== was) { scale = null; drawChart(); }
       drawSheet(); drawLabels();
     } else if (btn.dataset.xpScale) {
       scale = btn.dataset.xpScale; drawChart(); drawLabels();
@@ -339,9 +362,9 @@
     'var(--viz-5, #e87ba4)', 'var(--viz-7, #4a3aa7)'];
 
   function drawChart() {
-    if (scale === null) scale = fraction() ? 'pct' : 'raw';
+    if (scale === null) scale = vFraction() ? 'pct' : 'raw';
     const host = $('[data-xp-chart]');
-    const tb = D.table;
+    const tb = VT();
     const xs = tb.days.every((d) => d !== null) ? tb.days : tb.dates.map((_d, i) => i + 1);
     const pct = scale === 'pct';
     const byGroup = new Map();
@@ -355,7 +378,7 @@
       points: xs.map((x, i) => {
         const have = rows.filter((r) => r.values[i] !== null && r.values[i] !== undefined);
         if (!have.length) return null;
-        if (fraction() && pct) {
+        if (vFraction() && pct) {
           const total = have.reduce((a, r) => a + (r.start || 0), 0);
           if (!total) return null;
           return { x, y: (have.reduce((a, r) => a + r.values[i], 0) / total) * 100, sem: 0, n: have.length };
@@ -374,7 +397,7 @@
     });
     const all = series.flatMap((s) => s.points.flatMap((p) => [p.y - p.sem, p.y + p.sem]));
     if (!all.length) {
-      host.innerHTML = `<p class="xp-empty">${t('No %(readout)s yet.', { readout: esc(RL().toLowerCase()) })} ${D.editable ? t("<b>%(verb)s</b> the %(nouns)s, or type in the sheet's %(readout)s view.", { verb: esc(verb()), nouns: esc(nouns()), readout: esc(RL()) }) : ''}</p>`;
+      host.innerHTML = `<p class="xp-empty">${t('No %(readout)s yet.', { readout: esc(vRL().toLowerCase()) })} ${D.editable ? t("<b>%(verb)s</b> the %(nouns)s, or type in the sheet's %(readout)s view.", { verb: esc(tc('readout', VR().verb || 'Record')), nouns: esc(nouns()), readout: esc(vRL()) }) : ''}</p>`;
       return;
     }
     const dayList = [...new Set([...xs, ...marks.keys()])].sort((a, b) => a - b);
@@ -385,12 +408,12 @@
     const pad = (yMax - yMin || 1) * 0.12;
     yMin -= pad; yMax += pad;
     // A count or a percentage never goes below nothing; a percentage of those at the start tops out at all of them.
-    if (fraction() || pct) yMin = Math.max(0, yMin);
-    if (fraction() && pct) { yMin = 0; yMax = 105; }
+    if (vFraction() || pct) yMin = Math.max(0, yMin);
+    if (vFraction() && pct) { yMin = 0; yMax = 105; }
     const W = 760; const H = 260; const L = 48; const R = 14; const T = 14; const B = 34;
     const sx = (x) => L + ((x - xMin) / ((xMax - xMin) || 1)) * (W - L - R);
     const sy = (y) => T + (1 - (y - yMin) / ((yMax - yMin) || 1)) * (H - T - B);
-    let svg = `<svg viewBox="0 0 ${W} ${H}" class="xp-svg" role="img" aria-label="${esc(t('%(readout)s by group over the days', { readout: RL() }))}">`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" class="xp-svg" role="img" aria-label="${esc(t('%(readout)s by group over the days', { readout: vRL() }))}">`;
     for (let i = 0; i <= 4; i += 1) {
       const y = yMin + ((yMax - yMin) * i) / 4;
       svg += `<line x1="${L}" x2="${W - R}" y1="${sy(y)}" y2="${sy(y)}" class="xp-grid"/><text x="${L - 6}" y="${sy(y) + 4}" text-anchor="end" class="xp-axis">${num(y, pct ? 0 : 1)}</text>`;
@@ -405,7 +428,7 @@
       svg += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.2"/>`;
       s.points.forEach((p) => {
         if (p.sem) svg += `<line x1="${sx(p.x)}" x2="${sx(p.x)}" y1="${sy(p.y - p.sem)}" y2="${sy(p.y + p.sem)}" stroke="${s.color}" stroke-width="1.5"/>`;
-        svg += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="4" fill="${s.color}" class="xp-dot" data-tip="${esc(`${s.name}, ${t('day %(n)s', { n: p.x })}: ${num(p.y, pct ? 0 : 1)}${pct ? '%' : (D.readout.unit && !fraction() ? ` ${unitOf()}` : '')}${p.sem ? ` ± ${num(p.sem, pct ? 0 : 1)}` : ''} (n = ${p.n})`)}"/>`;
+        svg += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="4" fill="${s.color}" class="xp-dot" data-tip="${esc(`${s.name}, ${t('day %(n)s', { n: p.x })}: ${num(p.y, pct ? 0 : 1)}${pct ? '%' : (VR().unit && !vFraction() ? ` ${vUnit()}` : '')}${p.sem ? ` ± ${num(p.sem, pct ? 0 : 1)}` : ''} (n = ${p.n})`)}"/>`;
       });
     });
     // Wide, invisible bands on the dashed lines: pointing at one says what was done that day.
@@ -414,7 +437,7 @@
       svg += `<rect x="${sx(d) - 8}" y="${T}" width="16" height="${H - T - B}" class="xp-hit" data-tip-title="${esc(`${t('Day %(n)s', { n: d })}${items[0].date ? ` · ${niceDate(items[0].date, true)}` : ''}`)}" data-tip="${esc(text.join('\n'))}"/>`;
     });
     // Stars over the days where the groups differ (the table below has each test).
-    const stats = (D.table.stats || {})[pct && !fraction() ? 'pct' : 'raw'] || [];
+    const stats = (VT().stats || {})[pct && !vFraction() ? 'pct' : 'raw'] || [];
     stats.forEach((st, i) => {
       if (!st.stars || st.stars === 'ns') return;
       const x = xs[i];
@@ -424,7 +447,7 @@
     svg += '</svg>';
     drawStats(stats);
     const legend = series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('');
-    host.innerHTML = `${svg}<div class="xp-tip" hidden></div><div class="xp-legend">${legend}<span class="xp-muted">${fraction() && pct ? t('% of those at the start') : t('mean ± SEM')}${marks.size ? ` · ${t('dashed: manipulation days (point at one)')}` : ''}</span></div>`;
+    host.innerHTML = `${svg}<div class="xp-tip" hidden></div><div class="xp-legend">${legend}<span class="xp-muted">${vFraction() && pct ? t('% of those at the start') : t('mean ± SEM')}${marks.size ? ` · ${t('dashed: manipulation days (point at one)')}` : ''}</span></div>`;
   }
 
   function drawStats(stats) {
@@ -432,7 +455,7 @@
     const tested = stats.filter((st) => st.test);
     box.hidden = !tested.length;
     if (!tested.length) return;
-    const unit = scale === 'pct' || fraction() ? '%' : (D.readout.unit ? ` ${D.readout.unit}` : '');
+    const unit = scale === 'pct' || vFraction() ? '%' : (VR().unit ? ` ${VR().unit}` : '');
     $('[data-xp-stats-table]').innerHTML = `<table class="dense-table fit-table"><thead><tr><th>${tc('experiment', 'Day')}</th><th>${t('Groups')}</th><th>${tc('experiment', 'Test')}</th><th>p</th><th></th></tr></thead><tbody>${
       stats.map((st) => `<tr><td>${st.day !== null ? t('Day %(n)s', { n: st.day }) : ''} <span class="xp-muted">${esc(niceDate(st.date))}</span></td>
         <td>${st.groups.map((g) => `${esc(g.group)}: ${num(g.value, 2)}${unit}${g.sem != null ? ` ± ${num(g.sem, 2)}` : ''} <span class="xp-muted">n=${g.n}</span>`).join('<br>')}</td>

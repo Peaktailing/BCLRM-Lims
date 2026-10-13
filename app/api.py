@@ -1062,7 +1062,8 @@ def experiment_readings(experiment_id: int):
     the day's readout (a weight, a count, a score) for some animals. For a
     readout BioManager works out (app/derived.py), "inputs" gives what was
     measured instead: {"1043": {"length": 12.1, "width": 8.4}}, and the
-    value is computed here."""
+    value is computed here. "measure" (another measure's name or key, as a
+    plate fills it) records that measure instead of the main readout."""
     from . import experiments as xp
     data = _json()
     with SessionLocal() as s:
@@ -1087,14 +1088,17 @@ def experiment_readings(experiment_id: int):
         by = {x.key: x for x in subjects}
         by.update({x.label.lstrip("#"): x for x in subjects})
         saved, problems = 0, []
-        readout = xp.readout_of(exp, place)
+        readout = xp.readout_for(exp, place, data.get("measure"))
+        if readout is None:
+            abort(400, f"This experiment has no measure “{data.get('measure')}”; its other measures: "
+                       f"{', '.join(m['label'] for m in xp.measures_of(exp)) or 'none'}.")
         for name, raw in xp.control_first(readout, list(values.items()), lambda item: by.get(str(item[0]).lstrip("#"))):
             subject = by.get(str(name).lstrip("#"))
             if subject is None:
                 problems.append(f"{name} isn't in this experiment.")
                 continue
             problem = xp.set_reading(s, exp, place, subject, on, raw if isinstance(raw, dict) else
-                                     "" if raw is None else str(raw))
+                                     "" if raw is None else str(raw), readout)
             if problem:
                 problems.append(problem)
             else:

@@ -1661,8 +1661,10 @@ log over time is drawn as a line).
 (`frontend/src/blocks/experiment.js`) keeps only `{"id", "show",
 "percent"}` and reads `/colony/experiments/<id>/notebook.json`; *Freeze a
 copy* stores that payload in the block as `frozen`, so the page's
-versions keep it. The payload, the plan and the records are
-`app/experiment_steps.py`:
+versions keep it. A recorded day's reagent and lot (its record's
+`reagent`) show under the manipulation, *(expired)* as on the experiment
+page (`reagentUsed()`, `reagentText()`; `tests/js/experiment.check.mjs`).
+The payload, the plan and the records are `app/experiment_steps.py`:
 
 Experiments are on any database's animals (`app/experiments.py`):
 `experiments.db` says which (`colony`, `zebrafish`, `stocks:<key>`,
@@ -1768,7 +1770,7 @@ draws a layout on a plate (a rectangle dragged, a whole row or column,
 `conc`); `GET …/plates.json` lists the layouts, the last read onto first
 (*Same as last plate*), and the plates read. **Read a plate →** posts the
 export (multipart: `layout_id`, `file` or `text`, `on`, `target`,
-`reference`, `subtract_blank`, `standard_curve`, `skip`) to `…/plates/preview`,
+`reference`, `subtract_blank`, `standard_curve`, `curve`, `measure`, `skip`) to `…/plates/preview`,
 which changes nothing, and **Save readings** to `…/plates/save`. Both run
 `work_out` → `analyse`, the pure part: `read_export` reads the file with
 `sheet_import.read_workbook` (a workbook's *Results* sheet first) and
@@ -1780,7 +1782,15 @@ grid in a file is a read, named by the line above it), else headerless
 for ΔCt, ΔΔCt and fold change (each animal's mean Ct of the target and
 reference genes, as `inputs`), `od` for `blank_subtracted` (needs blank
 wells), `value` for any other number (the mean, less the blank's mean, or
-read off the standards' least-squares line); body weight, a count and the
+read off a standard curve, `app/standard_curves.py`: `linear`, `loglog` or
+`4pl`, as `curve` asks, else `fit()` picks 4PL for five or more
+concentrations over a tenfold range and a line otherwise; the 4PL is a
+pure-Python Levenberg–Marquardt on (a, d, ln c, ln b), at most
+`MAX_STEPS`, refused as a `CurveError` in words when it doesn't settle,
+puts the EC50 a hundredfold off the standards, has a slope outside
+0.05–20 or r² under `MIN_R2`; `concentration()` is None past a plateau,
+which the animal's row says, `below()` telling which side; the analysis
+carries `curve` to draw beside the plate); body weight, a count and the
 caliper formulas are refused in words. A Ct outside 0–50, an OD over 10
 (in `od`), an *OVRFLW* or a word is `limit` or `no_value` and left out; a
 replicate more than `CT_TOLERANCE` (0.5 cycles) or `VALUE_TOLERANCE` (20 %)
@@ -1788,7 +1798,12 @@ from its animal's median is `outlier`, flagged only; `skip` leaves wells out
 by hand. ΔΔCt and fold change come from `experiments.derive_day`, so the
 day's other readings count. `save` writes each value through
 `experiments.set_reading` (derived inputs as the sheet takes them,
-`control_first`), counts what it `replaces`, and keeps a `PlateRead`; the
+`control_first`), counts what it `replaces`, and keeps a `PlateRead`, all
+inside one `audit.batch`, so Batch history's Undo takes the plate back
+whole (the layout's `used_at` is set outside it, by a Core update, so a
+later plate on the same layout doesn't block that Undo; a new measure is
+kept before the batch, so an Undo never hides another plate's readings
+of it); the
 file is saved (`services.save_uploaded_file`) only once some animal has a
 value, and `upload_owners` makes it the experiment's to see. For an
 assistant, `POST /api/v1/experiments/<id>/plate` (`api.COMPUTING`) runs the
@@ -1796,6 +1811,28 @@ same with `layout` (id or name) or `wells` + `format`, and `text` or a
 `capture` (its file), and answers the analysis with the `experiment_reading`
 change to propose (`plate_readout` tool). Tested in
 `tests/test_plate_layouts.py`.
+
+**Other measures** (`experiments.measures_of`, no schema change). The
+main readout is the one the plan, tests by day, the chart's default and
+bench mode are about; a plate can fill another measure of the same
+animals (**Readout** in the plate dialog: `measure` is blank or `main`,
+a measure's key or name, or `new` with `measure_label` and
+`measure_unit`, `plates.readout_from`). They are kept in
+`experiments.readout` as `"measures": [{"id", "label", "unit"}]`
+(`add_measure`; `keep_measures` carries them over a change of the main
+readout), and their readings in `experiment_readings` with
+`readout_key` `measure:<id>`. `readings`, `reading_inputs`,
+`readout_table` and `set_reading` take an optional `readout` for one;
+`readout_for` finds the main readout or a measure. The page data has
+`measures`, each with its `table`; `experiment-page.js` draws a chip for
+each beside the readout's (`view` `measure:<id>`), and the sheet, the
+chart and the tests follow it (`VR()`, `VT()`), a typed cell posting
+`measure` to `/readings`. Export adds a sheet per measure with values
+and its tests under **Tests by day**; `experiment_summary` has
+`readouts.other_measures` and ARRIVE item 6 names them as secondary;
+`experiment_reading` and `POST /api/v1/experiments/<id>/readings` take
+`measure`, and `plate_readout` takes `measure` (an existing one) and
+`curve`.
 
 **Planned experiments and changes from the plan** (`app/experiment_plan.py`,
 revision 0033). Status `planned` comes before `active`: an assistant's

@@ -355,6 +355,8 @@ body.nb-run-open .nb-timers { z-index: 85; }
 .nb-exp-day { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .nb-exp-num { font-variant-numeric: tabular-nums; text-align: right; }
 .nb-exp-done { color: var(--color-ok-700); white-space: nowrap; }
+.nb-exp-lot { font-size: 12px; color: var(--color-ink-soft); }
+.nb-exp-expired { color: var(--color-warn-700); font-weight: 600; white-space: nowrap; }
 .nb-exp-state { font-size: 12px; color: var(--color-muted); }
 .nb-exp-state[data-state="today"] { color: var(--color-brand-700); font-weight: 600; }
 .nb-exp-state[data-state="overdue"] { color: var(--color-warn-700); font-weight: 600; }
