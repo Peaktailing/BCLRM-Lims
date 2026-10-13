@@ -2360,10 +2360,16 @@ record in a database they can't open, history shows only their own changes
 unless they are an admin, and search is the ⌘K search
 (`app.search_results`, which gives each match a `ref`). The genotype model
 counts copies of the allele that matters at each autosomal, unlinked locus
-(one to three loci); a strain or background wanted (`is_strain`: the
+(one to five loci, `MAX_LOCI`); a strain or background wanted (`is_strain`: the
 `BACKGROUND` pattern, C57BL/6J, BALB/c…, or a background in the lab's
 Strains, `lab_strains`) is no locus but both parents of it, odds 1, with
 breeders whose genotype names it (and asking it het or wt is refused);
+`breeding_plan` counts each mating's litters as `litters_per_mating`, or
+`litters_by` (born in the window: the first `PAIRING_TO_BIRTH` days on,
+then every `LITTER_INTERVAL`), else one; a Breeding cage holding a female
+and a male of a cross is a mating under way (`to_set_up` is the rest),
+and only breeders in no Breeding cage and no busy experiment count as
+free; `clashes` names breeder kinds two listed crosses would both need;
 litter sizes are the line's own mean when it has three
 litters with pup counts, else the lab's, else 6; power is exact, from the
 noncentral F distribution over `exp_stats.inc_beta` (two groups are the t² =

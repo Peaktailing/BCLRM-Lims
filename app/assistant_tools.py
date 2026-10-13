@@ -469,15 +469,21 @@ TOOLS.update({
     "breeding_plan": (
         "Plan breeding for a genotype, worked out by BioManager: Mendelian odds for each mating type among the "
         "lab's own breeders (or the crosses given), the lab's own litter size, weaning at P21, and how many matings "
-        "to set up by which date for `count` mice of that genotype and sex, aged within the window on `by`. Tell "
-        "the person the assumptions it lists, and which breeders it was unsure how to read.",
+        "to set up by which date for `count` mice of that genotype and sex, aged within the window on `by`; up to "
+        "5 loci. Each mating counts the litters born in time (or litters_per_mating); Breeding cages already "
+        "pairing a cross count as matings under way, and crosses that would need the same breeders are listed in "
+        "clashes. Tell the person the assumptions it lists, which breeders it was unsure how to read, and any "
+        "clashes or breeders in experiments.",
         _obj({"want": _WANT, "sex": {"type": "string", "enum": ["F", "M"]},
               "count": {"type": "integer", "description": "How many mice are wanted"},
               "age_min_days": {"type": "integer"}, "age_max_days": {"type": "integer"},
               "by": {"type": "string", "description": "When they are needed, YYYY-MM-DD"},
               "crosses": {"type": "array", "items": {"type": "object"},
                           "description": "Instead of the lab's breeders: [{female: {locus: state}, male: {…}}]"},
-              "confidence": {"type": "number", "description": "How sure to be of having enough (default 0.9)"}},
+              "confidence": {"type": "number", "description": "How sure to be of having enough (default 0.9)"},
+              "litters_per_mating": {"type": "integer", "description": "Litters to count from each mating, 1 to 6 "
+                                                                       "(default: as many as are born in time for "
+                                                                       "`by`, else 1)"}},
              ("want",)),
         lambda api, a: breeding_plan(api, a)),
     "randomize": (

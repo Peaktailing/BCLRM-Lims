@@ -1722,7 +1722,7 @@ For anything with a right answer, the assistant asks BioManager, which works it 
 
 - **Which animals are free**: by genotype, sex and age on a date, leaving out those in experiments and breeding cages.
 
-- **A breeding plan**: *I need 12 Cre⁺ fl/fl males at 8 weeks by March 1.* The odds for each mating, from the breeders you have; how many matings to set up, and by when; your line's own litter sizes. A strain (C57BL/6J, BALB/c) isn't an allele: wanting it means both parents of that strain.
+- **A breeding plan**: *I need 12 Cre⁺ fl/fl males at 8 weeks by March 1.* The odds for each mating, from the breeders you have; how many matings to set up, and by when, counting every litter a mating has time for and the pairs already in Breeding cages; your line's own litter sizes; up to five genes. It says when two of the crosses it lists would need the same breeders, and which breeders are in an experiment. A strain (C57BL/6J, BALB/c) isn't an allele: wanting it means both parents of that strain.
 
 - **Animals per group**: from the difference you want to see and the spread in your own past readouts (the same numbers G*Power gives).
 
