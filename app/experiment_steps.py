@@ -451,6 +451,8 @@ def notebook_payload(session, exp: Experiment) -> dict:
         "schedule": schedule(session, exp, place, subs),
         "readout": table["readout"],
         "weights": table,
+        # Other measures beside the main readout, each with its table as the page has it.
+        "measures": [{**m, "table": ex.readout_table(session, exp, place, subs, m)} for m in ex.measures_of(exp)],
         "as_of": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
 
