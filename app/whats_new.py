@@ -34,6 +34,7 @@ NOTES: dict[str, dict[str, list[str]]] = {
         "new": [
             "Samples has a tab for each type (tissue, DNA, RNA…), each with its own columns, such as **Fixation** for tissue and **260/280** for DNA; **+** adds a type.",
             "**Split notes** moves each *Column: value* in the ticked samples' notes into that column.",
+            "Hovering the arrow after a sample's source ID shows that mouse's sex, age, genotype, status, owner and cage; the notebook's **@mouse** card shows the age too.",
         ],
     },
     "1.12.0": {
