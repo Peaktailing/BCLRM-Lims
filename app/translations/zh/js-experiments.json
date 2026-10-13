@@ -191,5 +191,6 @@
   "Lot": "批号",
   "Expired on %(date)s, before this day.": "已于 %(date)s 过期，早于这一天。",
   "There are %(n)s of %(name)s in the inventory: pick the one used.": "库存里有 %(n)s 个 %(name)s：请选出用的那一个。",
-  "Taken off the inventory: %(what)s": "已从库存扣除：%(what)s"
+  "Taken off the inventory: %(what)s": "已从库存扣除：%(what)s",
+  "Another measure, beside the main readout": "其他指标，与主要观测指标并列"
 }

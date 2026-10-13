@@ -234,6 +234,87 @@ def readout_json(key: str, control: str = "") -> str | None:
     return json.dumps(chosen)
 
 
+# Other measures. An experiment has one main readout: the one its plan,
+# tests by day, chart and bench mode are about (app/experiment_plan.py
+# keeps it as planned). A plate can fill another measure of the same
+# animals beside it (an IL-6 ELISA in a tumour experiment): kept in the
+# readout's JSON, {"measures": [{"id", "label", "unit"}]}, with readings
+# keyed "measure:<id>", shown on the page's sheet and chart (a chip each),
+# in Export and in the assistant's experiment_summary.
+MEASURE = "measure:"
+
+
+def _chosen(exp: Experiment) -> dict:
+    try:
+        chosen = json.loads(exp.readout or "{}")
+    except ValueError:
+        chosen = {}
+    return chosen if isinstance(chosen, dict) else {}
+
+
+def measure_readout(ident: int, label: str, unit: str = "") -> dict:
+    return {"key": f"{MEASURE}{ident}", "label": " ".join(str(label).split())[:60],
+            "unit": str(unit or "").strip()[:20], "kind": "value", "verb": "Record", "measure": True}
+
+
+def measures_of(exp: Experiment) -> list[dict]:
+    """The experiment's other measures, in the order they were added."""
+    out = []
+    for m in _chosen(exp).get("measures") or []:
+        if isinstance(m, dict) and str(m.get("id") or "").isdigit() and str(m.get("label") or "").strip():
+            out.append(measure_readout(int(m["id"]), m["label"], m.get("unit") or ""))
+    return out
+
+
+def readout_for(exp: Experiment, place: Place, key) -> dict | None:
+    """The main readout (no key, "main" or its own key), or another measure
+    by its key or name; None for neither."""
+    main = readout_of(exp, place)
+    text = str(key or "").strip()
+    if not text or text in ("main", main["key"]):
+        return main
+    for m in measures_of(exp):
+        if text == m["key"] or text.lower() == m["label"].lower():
+            return m
+    return None
+
+
+def add_measure(exp: Experiment, place: Place, label, unit="") -> dict:
+    """Another measure of the experiment's animals, kept with it (the one of
+    that name when it has one already); a ValueError, in words, without a
+    name or for the main readout's own."""
+    label = " ".join(str(label or "").split())[:60]
+    if not label:
+        raise ValueError(gettext("Name the measure, e.g. IL-6 ELISA."))
+    main = readout_of(exp, place)
+    if label.lower() in {main["label"].lower(), i18n.translate_value(main["label"]).lower()}:
+        raise ValueError(gettext("%(label)s is already the main readout: choose it in the list.", label=label))
+    found = readout_for(exp, place, label)
+    if found is not None:
+        return found
+    chosen = _chosen(exp)
+    kept = [m for m in chosen.get("measures") or [] if isinstance(m, dict)]
+    ident = max([int(m["id"]) for m in kept if str(m.get("id") or "").isdigit()] + [0]) + 1
+    kept.append({"id": ident, "label": label, "unit": str(unit or "").strip()[:20]})
+    chosen["measures"] = kept
+    exp.readout = json.dumps(chosen, ensure_ascii=False)
+    return measure_readout(ident, label, unit)
+
+
+def keep_measures(new_json: str | None, before: str | None) -> str | None:
+    """A new main readout's JSON with the other measures the experiment had."""
+    try:
+        old = json.loads(before or "{}")
+    except ValueError:
+        old = {}
+    measures = old.get("measures") if isinstance(old, dict) else None
+    if not measures:
+        return new_json
+    chosen = json.loads(new_json or "{}")
+    chosen["measures"] = measures
+    return json.dumps(chosen, ensure_ascii=False)
+
+
 def weighs(exp: Experiment, place: Place) -> bool:
     """Whether the readout is the animals' weight, which doses per body
     weight are worked out from."""
@@ -421,11 +502,12 @@ def candidates(session, exp: Experiment, place: Place) -> dict:
 
 # ---------------------------------------------------------------- readings
 
-def readings(session, exp: Experiment, place: Place, subs: list[Subject] | None = None) -> dict[str, dict[date, float]]:
-    """{subject key: {date: value}} for the readout."""
+def readings(session, exp: Experiment, place: Place, subs: list[Subject] | None = None,
+             readout: dict | None = None) -> dict[str, dict[date, float]]:
+    """{subject key: {date: value}} for the readout (or another measure)."""
     subs = subjects(session, exp, place) if subs is None else subs
     out: dict[str, dict[date, float]] = {s.key: {} for s in subs}
-    readout = readout_of(exp, place)
+    readout = readout or readout_of(exp, place)
     if place.subject_kind == "mouse" and readout["key"] == "body_weight":
         ids = {s.id: s.key for s in subs}
         if ids:
@@ -454,10 +536,11 @@ def readings(session, exp: Experiment, place: Place, subs: list[Subject] | None 
     return out
 
 
-def reading_inputs(session, exp: Experiment, place: Place, subs: list[Subject] | None = None) -> dict[str, dict[date, dict]]:
+def reading_inputs(session, exp: Experiment, place: Place, subs: list[Subject] | None = None,
+                   readout: dict | None = None) -> dict[str, dict[date, dict]]:
     """{subject key: {date: inputs}} for a readout BioManager works out:
     what was measured, kept with each reading."""
-    readout = readout_of(exp, place)
+    readout = readout or readout_of(exp, place)
     if not readout.get("formula"):
         return {}
     keys = {x.key for x in (subjects(session, exp, place) if subs is None else subs)}
@@ -503,11 +586,13 @@ def weight_on(values: dict[date, float], day: date | None) -> tuple[float | None
     return (values[usable[-1]], usable[-1]) if usable else (None, None)
 
 
-def set_reading(session, exp: Experiment, place: Place, subject: Subject, on: date, raw) -> str | None:
-    """Store (or, blank, remove) one day's readout; a sentence when it can't.
-    `raw` is the value typed, or for a readout BioManager works out, what
-    was measured ({"length": 12.1, "width": 8.4})."""
-    readout = readout_of(exp, place)
+def set_reading(session, exp: Experiment, place: Place, subject: Subject, on: date, raw,
+                readout: dict | None = None) -> str | None:
+    """Store (or, blank, remove) one day's readout (or, given `readout`,
+    another measure's); a sentence when it can't. `raw` is the value typed,
+    or for a readout BioManager works out, what was measured
+    ({"length": 12.1, "width": 8.4})."""
+    readout = readout or readout_of(exp, place)
     if readout.get("formula"):
         return _set_derived(session, exp, place, readout, subject, on, raw)
     if isinstance(raw, dict):
@@ -644,14 +729,15 @@ def _store_day(session, exp: Experiment, readout: dict, on: date, subs: list[Sub
         rows[key].value = value
 
 
-def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | None = None) -> dict:
-    """The readout by animal and date, each date's day number, and each
-    value as a percentage: of the animal's first value, or for a count of
-    how many there were at the start."""
+def readout_table(session, exp: Experiment, place: Place, subs: list[Subject] | None = None,
+                  readout: dict | None = None) -> dict:
+    """The readout (or another measure) by animal and date, each date's day
+    number, and each value as a percentage: of the animal's first value, or
+    for a count of how many there were at the start."""
     subs = subjects(session, exp, place) if subs is None else subs
-    series = readings(session, exp, place, subs)
-    readout = readout_of(exp, place)
-    measured = reading_inputs(session, exp, place, subs)
+    readout = readout or readout_of(exp, place)
+    series = readings(session, exp, place, subs, readout)
+    measured = reading_inputs(session, exp, place, subs, readout)
     dates = sorted({d for values in series.values() for d in values})
     start = exp.start_date
     rows = []
@@ -694,6 +780,7 @@ def payload(session, exp: Experiment, place: Place) -> dict:
         "steps": [xs.step_dict(st, place.family, session) for st in exp.steps],
         "schedule": xs.schedule(session, exp, place, subs),
         "table": table,
+        "measures": [{**m, "table": readout_table(session, exp, place, subs, m)} for m in measures_of(exp)],
         "regimens": xs.regimens_for(session, place.family),
         "reagents": reagent_choices(session),
         "sample_inventories": sample_inventories(session),
@@ -999,12 +1086,15 @@ def update(experiment_id: int):
                     setattr(exp, name, value[:200] if name == "name" else value)
         if "readout" in form:
             key = form.get("readout") or ""
+            before = exp.readout
             if key == "custom":
                 kind = form.get("readout_kind") if form.get("readout_kind") in ("value", "fraction") else "value"
                 exp.readout = json.dumps({"key": "custom", "label": (form.get("readout_label") or "Measurement")[:60],
                                           "unit": (form.get("readout_unit") or "")[:20], "kind": kind})
             elif readout_json(key) is not None:
                 exp.readout = readout_json(key, form.get("readout_control") or "")
+            if exp.readout != before:
+                exp.readout = keep_measures(exp.readout, before)
         exp.readout_day, exp.planned_test = readout_day, planned_test
         exp.status, exp.start_date, exp.end_date = status or "active", start, end
         exp.updated_at = datetime.utcnow()
@@ -1242,8 +1332,9 @@ def start(experiment_id: int):
 @bp.post("/<int:experiment_id>/readings")
 def save_readings(experiment_id: int):
     """{"on": date, "values": {subject key: "24.5" or "" (remove)}}: one
-    cell from the sheet, or a whole day. For a readout BioManager works out,
-    each value is what was measured: {"length": "12.1", "width": "8.4"}."""
+    cell from the sheet, or a whole day; `measure` for another measure's
+    (its key). For a readout BioManager works out, each value is what was
+    measured: {"length": "12.1", "width": "8.4"}."""
     data = request.get_json(silent=True) or {}
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
@@ -1256,14 +1347,18 @@ def save_readings(experiment_id: int):
             return jsonify({"ok": False, "error": gettext("Say which day it is for.")}), 400
         if on > date.today():
             return jsonify({"ok": False, "error": gettext("A readout can't be for a day still to come.")}), 400
+        readout = readout_for(exp, place, data.get("measure"))
+        if readout is None:
+            return jsonify({"ok": False, "error": gettext("This experiment has no measure “%(measure)s”.",
+                                                          measure=data.get("measure"))}), 400
         by_key = {x.key: x for x in subjects(s, exp, place)}
         problems = []
         given = list((data.get("values") or {}).items())
-        for key, raw in control_first(readout_of(exp, place), given, lambda item: by_key.get(item[0])):
+        for key, raw in control_first(readout, given, lambda item: by_key.get(item[0])):
             subject = by_key.get(key)
             if subject is None:
                 continue
-            problem = set_reading(s, exp, place, subject, on, raw if isinstance(raw, dict) else str(raw))
+            problem = set_reading(s, exp, place, subject, on, raw if isinstance(raw, dict) else str(raw), readout)
             if problem:
                 problems.append(problem)
         if problems and len(problems) == len(data.get("values") or {}):
@@ -1296,11 +1391,8 @@ def delete(experiment_id: int):
 
 # ---------------------------------------------------------------- export
 
-def _rows_for_export(session, exp, place):
-    from . import experiment_steps as xs
-    subs = subjects(session, exp, place)
-    table = readout_table(session, exp, place, subs)
-    by_key = {x.key: x for x in subs}
+def _long_rows(exp, place, table, by_key) -> list[list]:
+    """A readout's (or another measure's) values, one row per animal and day."""
     readout = table["readout"]
     unit = f" ({readout['unit']})" if readout["unit"] else ""
     measured = readout.get("inputs") or []      # a readout BioManager works out: what was measured, beside it
@@ -1316,6 +1408,36 @@ def _rows_for_export(session, exp, place):
             long_rows.append([exp.name, place.label, r["label"], r["group"], r["sex"], x.genotype if x else "",
                               x.housing if x else "", d, table["days"][i], r["values"][i], r["start"], r["pct"][i],
                               r.get("left_out", "")] + [inputs.get(m["key"], "") for m in measured])
+    return long_rows
+
+
+def _stats_rows(table) -> list[list]:
+    rows = []
+    for day in table["stats"]["raw"]:
+        rows.append([day["day"], day["date"],
+                     "; ".join(f"{g['group']}: {g['value']}" + (f" ± {g['sem']}" if g.get("sem") is not None else "")
+                               + f" (n={g['n']})" for g in day["groups"]),
+                     day["test"], day["p"], day["stars"]])
+    return rows
+
+
+def _measure_exports(session, exp, place, subs) -> list[tuple[str, list[list], list[list]]]:
+    """Each other measure with a value: (its name, its long rows, its tests by day)."""
+    by_key = {x.key: x for x in subs}
+    out = []
+    for m in measures_of(exp):
+        table = readout_table(session, exp, place, subs, m)
+        if table["dates"]:
+            out.append((m["label"], _long_rows(exp, place, table, by_key), _stats_rows(table)))
+    return out
+
+
+def _rows_for_export(session, exp, place):
+    from . import experiment_steps as xs
+    subs = subjects(session, exp, place)
+    table = readout_table(session, exp, place, subs)
+    by_key = {x.key: x for x in subs}
+    long_rows = _long_rows(exp, place, table, by_key)
     wide = [[place.noun.capitalize(), "Group"] + [f"Day {n}" if n is not None else d for d, n in zip(table["dates"], table["days"])]]
     wide += [[r["label"], r["group"]] + r["values"] for r in table["rows"]]
     manip = [["Day", "Date planned", "Done on", "Done by", "What", "Kind", "Dose", "Route", "Group", place.noun.capitalize(),
@@ -1336,21 +1458,16 @@ def _rows_for_export(session, exp, place):
                           x.label, ("yes" if e else "no") if rec else "", (e or {}).get("amount", ""),
                           (e or {}).get("volume", ""), (e or {}).get("grams", ""), reagent.get("name", ""),
                           reagent.get("lot", ""), rec["note"] if rec else ""])
-    stats = [["Day", "Date", "Groups", "Test", "p", ""]]
-    for day in table["stats"]["raw"]:
-        stats.append([day["day"], day["date"],
-                      "; ".join(f"{g['group']}: {g['value']}" + (f" ± {g['sem']}" if g.get("sem") is not None else "")
-                                + f" (n={g['n']})" for g in day["groups"]),
-                      day["test"], day["p"], day["stars"]])
+    stats = [["Day", "Date", "Groups", "Test", "p", ""]] + _stats_rows(table)
     return long_rows, wide, manip, stats
 
 
 @bp.get("/<int:experiment_id>/export.<fmt>")
 def export(experiment_id: int, fmt: str):
     """The readout (long, for Prism or R, and wide), each animal's
-    manipulations, the day-by-day tests and, for one started with a plan,
-    the plan and the changes from it: an Excel workbook, or the long
-    readout as CSV."""
+    manipulations, the day-by-day tests, each other measure on a sheet of
+    its own and, for one started with a plan, the plan and the changes from
+    it: an Excel workbook, or the long readout as CSV."""
     import csv
     import io
     import re as _re
@@ -1359,6 +1476,7 @@ def export(experiment_id: int, fmt: str):
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
         long_rows, wide, manip, stats = _rows_for_export(s, exp, place)
+        measures = _measure_exports(s, exp, place, subjects(s, exp, place))
         plan_rows = experiment_plan.export_rows(s, exp, place)
         base = _re.sub(r"[^A-Za-z0-9._-]+", "-", exp.name).strip("-")[:60] or "experiment"
     from .services import csv_text
@@ -1371,6 +1489,16 @@ def export(experiment_id: int, fmt: str):
     from openpyxl.styles import Font
     book = Workbook()
     sheets = [("Readout", long_rows), ("Readout, wide", wide), ("Manipulations", manip), ("Tests by day", stats)]
+    titles = {t.lower() for t, _rows in sheets} | {"plan and deviations"}
+    for label, rows, _tests in measures:
+        # A sheet's name: at most 31 characters, none of []:*?/\, and not another sheet's.
+        title = base_title = _re.sub(r"[\[\]:*?/\\]+", " ", label).strip()[:31] or "Measure"
+        n = 1
+        while title.lower() in titles:
+            n += 1
+            title = f"{base_title[:27]} ({n})"
+        titles.add(title.lower())
+        sheets.append((title, rows))
     if plan_rows:
         sheets.append(("Plan and deviations", plan_rows))
     for i, (title, rows) in enumerate(sheets):
@@ -1384,9 +1512,18 @@ def export(experiment_id: int, fmt: str):
         for cell in sheet[1]:
             cell.font = Font(bold=True)
         sheet.freeze_panes = "A2"
-    if len(stats) > 1:
-        book["Tests by day"].append([])
-        book["Tests by day"].append(["Each day is tested on its own, not corrected for the number of days."])
+    tests = book["Tests by day"]
+    for label, _rows, rows in measures:
+        if rows:
+            tests.append([])
+            for row in [[label], *rows]:
+                tests.append(row)
+                for cell in tests[tests.max_row]:
+                    if isinstance(cell.value, str) and cell.value.startswith("="):
+                        cell.data_type = "s"
+    if len(stats) > 1 or any(rows for _label, _long, rows in measures):
+        tests.append([])
+        tests.append(["Each day is tested on its own, not corrected for the number of days."])
     buffer = io.BytesIO()
     book.save(buffer)
     return Response(buffer.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -305,6 +305,19 @@
 .pl-preview .xp-danger-text { color: var(--color-danger-700); font-size: 12px; }
 .pl-reads ul { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--color-ink-soft); }
 .pl-fill .xp-num { width: 70px; }
+.pl-read-top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
+.pl-read-top .pl-plate-wrap { flex: 1 1 560px; }
+.pl-curve { flex: 0 1 320px; min-width: 240px; margin: 0; }
+.pl-curve[hidden] { display: none; }
+.pl-curve svg { display: block; width: 100%; height: auto; }
+.pl-curve figcaption { font-size: 12px; color: var(--color-ink-soft); }
+.pl-curve-grid { stroke: color-mix(in srgb, var(--color-hairline) 60%, transparent); }
+.pl-curve-axis { font-size: 10px; fill: var(--color-muted); font-variant-numeric: tabular-nums; }
+.pl-curve-line { fill: none; stroke: var(--color-brand-600); stroke-width: 2; }
+.pl-curve-std { fill: var(--color-ink-soft); }
+.pl-curve-sample { fill: none; stroke: var(--viz-2, #eb6834); stroke-width: 1.5; }
+.pl-curve-sample.is-outside { stroke: var(--color-warn-700); stroke-dasharray: 2 2; }
+.xp-measure-chips { display: contents; }
 @media (max-width: 760px) {
   .pl-work { flex-direction: column; }
   .pl-palette { width: 100%; max-height: 180px; }

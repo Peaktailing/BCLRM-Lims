@@ -17,14 +17,17 @@ Reading a plate (the experiment page's **Plate** dialog, or the
    qPCR run has several genes.
 2. `analyse` lays the values on the layout, changing nothing: each animal's
    replicates averaged, the blank taken off or the standard curve read
-   (a least-squares line), or for a readout BioManager works out
+   (a line, a log–log line or a 4PL: app/standard_curves.py), or for a
+   readout BioManager works out
    (app/derived.py) the inputs it takes (OD and blank; the Cts of the target
    and reference genes). Replicates far from the others are flagged (more
    than half a cycle for a Ct, a fifth of the value otherwise), and wells
    past what an instrument reads (derived.CT_MAX, derived.OD_MAX) or that
    never came up are left out, saying so. Any well can be left out by hand.
 3. Saving (`save`, the person's button) writes each animal's value as the
-   experiment's readout for the day through experiments.set_reading, the
+   experiment's readout for the day (or another measure of it, chosen
+   under Readout: experiments.measures_of), as one batch that Batch
+   history's Undo takes back whole, through experiments.set_reading, the
    way the sheet does, and keeps the plate as a PlateRead: the layout as it
    was, every well's value, the choices made, each animal's value, and the
    file it came from (an upload, served to whoever may see the experiment).
@@ -41,7 +44,7 @@ from datetime import date, datetime
 from flask import Blueprint, abort, g, jsonify, make_response, redirect, request, url_for
 from sqlalchemy import func, select
 
-from . import access, derived, i18n
+from . import access, derived, i18n, standard_curves
 from .db import SessionLocal
 from .i18n import gettext
 
@@ -361,7 +364,7 @@ def mode_for(readout: dict) -> str:
         raise PlateError(gettext("%(readout)s is worked out from what is measured on the animal, not read off a plate: choose the readout the plate gives (Readout, at the top).",  # noqa: E501
                                  readout=label))
     if readout.get("key") == "body_weight" or readout.get("kind") == "fraction":
-        raise PlateError(gettext("%(readout)s isn't read off a plate: choose the readout the plate gives (Readout, at the top), such as Something else… or one BioManager works out.",  # noqa: E501
+        raise PlateError(gettext("%(readout)s isn't read off a plate: under Readout, choose Another measure… for what the plate measures, or change the experiment's readout (Readout, at the top).",  # noqa: E501
                                  readout=label))
     return "value"
 
@@ -381,25 +384,6 @@ def _sd(xs: list[float]) -> float | None:
         return None
     m = _mean(xs)
     return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
-
-
-def linear_fit(points: list[tuple[float, float]]) -> dict | None:
-    """Least squares: signal = slope × concentration + intercept, and r²."""
-    if len({x for x, _ in points}) < 2:
-        return None
-    n = len(points)
-    mx = sum(x for x, _ in points) / n
-    my = sum(y for _, y in points) / n
-    sxx = sum((x - mx) ** 2 for x, _ in points)
-    sxy = sum((x - mx) * (y - my) for x, y in points)
-    slope = sxy / sxx
-    if slope == 0:
-        return None
-    intercept = my - slope * mx
-    syy = sum((y - my) ** 2 for _, y in points)
-    r2 = 1.0 if syy == 0 else (sxy * sxy) / (sxx * syy)
-    return {"slope": derived.tidy(slope), "intercept": derived.tidy(intercept), "r2": round(r2, 4),
-            "_slope": slope, "_intercept": intercept}
 
 
 def _read(raw: str, mode: str, ct_like: bool) -> tuple[float | None, list[str]]:
@@ -500,7 +484,7 @@ def analyse(layout: dict[str, dict], fmt: int, export: dict, readout: dict, subj
         raise PlateError(gettext("Mark the blank wells: %(readout)s is each well's OD less the blank's.",
                                  readout=i18n.translate_value(readout.get("label") or "")))
 
-    # The standards, and a line through them.
+    # The standards, and a curve through them (app/standard_curves.py).
     standards, fit = [], None
     if mode == "value":
         by_conc: dict[float, list[float]] = {}
@@ -513,9 +497,11 @@ def analyse(layout: dict[str, dict], fmt: int, export: dict, readout: dict, subj
         if options.get("standard_curve"):
             if not standards:
                 raise PlateError(gettext("Mark the standard wells, each with its concentration, for a standard curve."))
-            fit = linear_fit([(c, v) for c, vs in by_conc.items() for v in vs])
-            if fit is None:
-                raise PlateError(gettext("A standard curve needs standards of at least two concentrations."))
+            curve = options.get("curve") if options.get("curve") in standard_curves.MODELS else None
+            try:
+                fit = standard_curves.fit([(c, v) for c, vs in by_conc.items() for v in vs], curve)
+            except standard_curves.CurveError as e:
+                raise PlateError(str(e)) from None
 
     out_subjects = []
     inputs_by: dict[str, dict] = {}
@@ -567,17 +553,26 @@ def analyse(layout: dict[str, dict], fmt: int, export: dict, readout: dict, subj
                 row["inputs"] = derived.check("blank_subtracted", {"od": derived.tidy(means[target]), "blank": blank})
                 row["value"] = derived.compute("blank_subtracted", row["inputs"])
             else:
-                value = means[target] - (blank if subtract else 0)
+                signal = value = means[target] - (blank if subtract else 0)
                 if fit is not None:
-                    value = (value - fit["_intercept"]) / fit["_slope"]
+                    row["signal"] = derived.tidy(signal)
                     lo, hi = standards[0]["mean"], standards[-1]["mean"]
-                    signal = means[target] - (blank if subtract else 0)
                     if not min(lo, hi) <= signal <= max(lo, hi):
                         row["outside"] = True
+                    value = standard_curves.concentration(fit, signal)
+                    if value is None:
+                        row["error"] = (gettext("Its signal, %(value)s, is below where the standard curve starts: less than the assay detects.",  # noqa: E501
+                                                value=f"{signal:g}") if standard_curves.below(fit, signal) else
+                                        gettext("Its signal, %(value)s, is past where the standard curve levels off, so no concentration can be read off it: dilute the sample and read it again.",  # noqa: E501
+                                                value=f"{signal:g}"))
+                        out_subjects.append(row)
+                        continue
                 row["value"] = derived.tidy(value)
                 if row["value"] < 0:
-                    row["error"] = gettext("%(value)s is below zero once the blank is taken off: a readout can't be below zero.",
-                                           value=f"{row['value']:g}")
+                    row["error"] = (gettext("It reads as %(value)s on the standard curve, below zero: a readout can't be below zero.",
+                                            value=f"{row['value']:g}") if fit is not None else
+                                    gettext("%(value)s is below zero once the blank is taken off: a readout can't be below zero.",
+                                            value=f"{row['value']:g}"))
                     del row["value"]
         except derived.DerivedError as e:
             row["error"] = str(e)
@@ -591,14 +586,19 @@ def analyse(layout: dict[str, dict], fmt: int, export: dict, readout: dict, subj
             if row["key"] in worked:
                 row["value"] = worked[row["key"]]
 
+    curve = None
     if fit is not None:
-        fit = {k: v for k, v in fit.items() if not k.startswith("_")}
+        # The standards and the curve through them, and each animal on it, to draw.
+        curve = {**standard_curves.drawn(fit, [s["conc"] for s in standards]),
+                 "standards": [[c, derived.tidy(v)] for c, vs in sorted(by_conc.items()) for v in vs],
+                 "samples": [[r["value"], r["signal"]] for r in out_subjects if "value" in r and "signal" in r]}
+        fit = standard_curves.public(fit)
     flagged = {flag: sorted((w for w, e in wells_out.items() if any(flag in r["flags"] for r in e["reads"].values())),
                             key=position) for flag in ("outlier", "limit", "no_value")}
     return {"format": fmt, "mode": mode, "kind": export.get("kind", "value"), "shape": export.get("shape", ""),
             "targets": targets, "target": target, "reference": reference if mode == "ct" else None,
             "blank": {"mean": blank, "n": len(blank_values), "subtracted": bool(subtract and blank is not None)},
-            "standards": standards, "fit": fit, "wells": wells_out, "subjects": out_subjects,
+            "standards": standards, "fit": fit, "curve": curve, "wells": wells_out, "subjects": out_subjects,
             "flagged": flagged, "skipped": sorted(skip, key=position), "warnings": warnings,
             "ready": sum(1 for r in out_subjects if "value" in r)}
 
@@ -632,10 +632,17 @@ def find_layout(session, exp, ref):
         (r for r in rows if r.name.strip().lower() == text.lower()), None)
 
 
-def reads(session, exp, limit: int = 20) -> list[dict]:
+def reads(session, exp, place=None, limit: int = 20) -> list[dict]:
+    """The plates read onto the experiment, the newest first, each with the
+    readout or measure it filled."""
+    from . import experiments as xp
     from .models import PlateRead
     rows = session.scalars(select(PlateRead).where(PlateRead.experiment_id_fk == exp.id)
                            .order_by(PlateRead.id.desc()).limit(limit)).all()
+    names = {m["key"]: m["label"] for m in xp.measures_of(exp)}
+    if place is not None:
+        main = xp.readout_of(exp, place)
+        names[main["key"]] = i18n.translate_value(main["label"])
     out = []
     for r in rows:
         try:
@@ -643,7 +650,7 @@ def reads(session, exp, limit: int = 20) -> list[dict]:
         except ValueError:
             results = {}
         out.append({"id": r.id, "layout": r.layout_name, "read_on": r.read_on.isoformat(), "readout_key": r.readout_key,
-                    "count": len(results), "file_name": r.file_name, "by": r.created_by,
+                    "readout": names.get(r.readout_key, ""), "count": len(results), "file_name": r.file_name, "by": r.created_by,
                     "file_url": f"/static/{r.file_path}" if r.file_path else ""})
     return out
 
@@ -653,11 +660,50 @@ def _subject_rows(session, exp, place) -> list[dict]:
     return [{"key": x.key, "label": x.label, "group": x.group} for x in xp.subjects(session, exp, place)]
 
 
-def work_out(session, exp, place, layout_row, export: dict, options: dict, on: date) -> dict:
-    """analyse() for this experiment's layout and readout, a readout against
-    the control group worked out with the day's other readings."""
+def measures(exp, place) -> dict:
+    """What a plate can fill: the main readout (`plate`: whether a plate
+    gives it) and the experiment's other measures."""
     from . import experiments as xp
-    readout = xp.readout_of(exp, place)
+    main = xp.readout_of(exp, place)
+    try:
+        mode_for(main)
+        fits_plate = True
+    except PlateError:
+        fits_plate = False
+    return {"main": {"key": main["key"], "label": main["label"], "unit": main.get("unit", ""), "plate": fits_plate},
+            "others": [{"key": m["key"], "label": m["label"], "unit": m["unit"]} for m in xp.measures_of(exp)]}
+
+
+def readout_from(exp, place, form, create: bool = False) -> dict:
+    """The readout a plate fills, from the dialog's choice (`measure`: blank
+    or "main" for the main readout, another measure's key or name, or "new"
+    with `measure_label` and `measure_unit`). A new measure is kept with
+    the experiment (its JSON; the caller commits or rolls back). A
+    PlateError, in words, for a measure it doesn't have."""
+    from . import experiments as xp
+    chosen = str(form.get("measure") or "").strip()
+    if chosen == "new":
+        if not create and not str(form.get("measure_label") or "").strip():
+            raise PlateError(gettext("Name the measure, e.g. IL-6 ELISA."))
+        try:
+            return xp.add_measure(exp, place, form.get("measure_label"), form.get("measure_unit") or "")
+        except ValueError as e:
+            raise PlateError(str(e)) from None
+    readout = xp.readout_for(exp, place, chosen)
+    if readout is None:
+        names = ", ".join(m["label"] for m in xp.measures_of(exp)) or gettext("none yet")
+        raise PlateError(gettext("Experiment %(name)s has no measure “%(measure)s”; its other measures: %(names)s.",
+                                 name=exp.name, measure=chosen, names=names))
+    return readout
+
+
+def work_out(session, exp, place, layout_row, export: dict, options: dict, on: date,
+             readout: dict | None = None) -> dict:
+    """analyse() for this experiment's layout and readout (or another
+    measure), a readout against the control group worked out with the
+    day's other readings."""
+    from . import experiments as xp
+    readout = readout or xp.readout_of(exp, place)
     subs = xp.subjects(session, exp, place)
     rows = [{"key": x.key, "label": x.label, "group": x.group} for x in subs]
     wells = clean_layout(layout_row.wells, layout_row.format)
@@ -670,40 +716,41 @@ def work_out(session, exp, place, layout_row, export: dict, options: dict, on: d
         ExperimentReading.read_on == on, ExperimentReading.subject.in_(keys or [""]))) or 0
     result["readout"] = {"key": readout["key"], "label": readout["label"], "unit": readout.get("unit", ""),
                          "formula": readout.get("formula"), "per_group": bool(readout.get("per_group")),
-                         "control": readout.get("control", "")}
+                         "control": readout.get("control", ""), "measure": bool(readout.get("measure"))}
     result["layout"] = {"id": layout_row.id, "name": layout_row.name}
     result["on"] = on.isoformat()
     return result
 
 
 def save(session, exp, place, layout_row, export: dict, options: dict, on: date, file_path: str = "",
-         file_name: str = "") -> tuple[int, list[str], dict]:
-    """Each animal's value written as the readout for the day (as the sheet
-    writes it) and the plate kept as their source. (saved, problems, the
-    analysis); the caller commits, or rolls back when nothing was saved."""
+         file_name: str = "", readout: dict | None = None) -> tuple[int, list[str], dict]:
+    """Each animal's value written as the readout (or the measure) for the
+    day, as the sheet writes it, and the plate kept as their source.
+    (saved, problems, the analysis); the caller commits, or rolls back when
+    nothing was saved."""
     from . import experiments as xp
     from .models import PlateRead
-    result = work_out(session, exp, place, layout_row, export, options, on)
-    readout = xp.readout_of(exp, place)
+    readout = readout or xp.readout_of(exp, place)
+    result = work_out(session, exp, place, layout_row, export, options, on, readout)
     by_key = {x.key: x for x in xp.subjects(session, exp, place)}
     given = [(r["key"], r) for r in result["subjects"] if "value" in r and r["key"] in by_key]
     saved, problems, results = 0, [], {}
     for key, row in xp.control_first(readout, given, lambda item: by_key.get(item[0])):
         raw = row["inputs"] if readout.get("formula") else repr(row["value"])
-        problem = xp.set_reading(session, exp, place, by_key[key], on, raw)
+        problem = xp.set_reading(session, exp, place, by_key[key], on, raw, readout)
         if problem:
             problems.append(str(problem))
         else:
             saved += 1
             results[key] = row["value"]
     if saved:
-        layout_row.used_at = datetime.utcnow()
         values = {t: (export.get("values") or {}).get(t, {}) for t in export.get("targets") or [""]}
         session.add(PlateRead(
             experiment_id_fk=exp.id, layout_id_fk=layout_row.id, layout_name=layout_row.name[:120],
             format=layout_row.format, wells=layout_row.wells, readout_key=readout["key"], read_on=on,
             options=json.dumps({"target": result["target"], "reference": result["reference"],
                                 "subtract_blank": result["blank"]["subtracted"], "blank": result["blank"]["mean"],
+                                "measure": readout["label"] if readout.get("measure") else "",
                                 "standard_curve": result["fit"], "skip": result["skipped"]}, ensure_ascii=False),
             data=json.dumps(values, ensure_ascii=False), results=json.dumps(results, ensure_ascii=False),
             file_path=file_path[:500], file_name=file_name[:255], created_by=g.user.username))
@@ -722,8 +769,10 @@ def options_from(form) -> dict:
     skip = form.get("skip") or []
     if isinstance(skip, str):
         skip = [x for x in re.split(r"[\s,;]+", skip) if x]
+    curve = str(form.get("curve") or "").strip().lower().replace("–", "").replace("-", "")
     return {"target": form.get("target") or None, "reference": form.get("reference") or None,
             "subtract_blank": flag("subtract_blank", True), "standard_curve": flag("standard_curve", False),
+            "curve": curve if curve in standard_curves.MODELS else None,
             "skip": skip if isinstance(skip, list) else []}
 
 
@@ -765,8 +814,9 @@ def listing(experiment_id: int):
     """The experiment's layouts (the last read onto first) and its plates read."""
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id)
-        return jsonify({"ok": True, "layouts": layouts(s, exp), "reads": reads(s, exp),
-                        "formats": sorted(FORMATS), "editable": access.can_edit_experiment(exp)})
+        return jsonify({"ok": True, "layouts": layouts(s, exp), "reads": reads(s, exp, place),
+                        "formats": sorted(FORMATS), "editable": access.can_edit_experiment(exp),
+                        **measures(exp, place)})
 
 
 @bp.post("/<int:experiment_id>/plates/layouts")
@@ -843,7 +893,9 @@ def preview(experiment_id: int):
         try:
             row = _layout_or_refuse(s, exp)
             export, _upload = _export_from_request()
-            result = work_out(s, exp, place, row, export, options_from(request.form), day_of(request.form.get("on")))
+            readout = readout_from(exp, place, request.form)       # a new measure only tried: rolled back below
+            result = work_out(s, exp, place, row, export, options_from(request.form), day_of(request.form.get("on")),
+                              readout)
         except PlateError as e:
             return _refused(e)
         s.rollback()
@@ -852,10 +904,12 @@ def preview(experiment_id: int):
 
 @bp.post("/<int:experiment_id>/plates/save")
 def save_plate(experiment_id: int):
-    """As preview, then each animal's value saved as the readout for the day,
-    the plate kept with its file as their source."""
+    """As preview, then each animal's value saved as the readout (or the
+    measure chosen) for the day, the plate kept with its file as their
+    source: one batch, which Batch history's Undo takes back whole."""
+    from . import audit, services
     from . import experiments as xp
-    from . import services
+    from .models import PlateLayout
     with SessionLocal() as s:
         exp, place = _load(s, experiment_id, edit=True)
         try:
@@ -863,10 +917,15 @@ def save_plate(experiment_id: int):
             export, upload = _export_from_request()
             on = day_of(request.form.get("on"))
             options = options_from(request.form)
-            checked = work_out(s, exp, place, row, export, options, on)
+            # A new measure is kept outside the batch: undoing the plate
+            # leaves it, so readings another plate gave it never go unseen.
+            readout = readout_from(exp, place, request.form, create=True)
+            checked = work_out(s, exp, place, row, export, options, on, readout)
         except PlateError as e:
+            s.rollback()
             return _refused(e)
         if not checked["ready"]:            # refused before a file is kept
+            s.rollback()
             problems = [f"{r['label']}: {r['error']}" for r in checked["subjects"] if r.get("error")]
             return jsonify({"ok": False, "error": " ".join(problems[:3]) or gettext("No animal has a value to save."),
                             "problems": problems}), 400
@@ -875,8 +934,11 @@ def save_plate(experiment_id: int):
             stored = services.save_uploaded_file(upload)
             if stored:
                 file_path, file_name = stored["path"], upload.filename or ""
+        s.flush()
         try:
-            saved, problems, result = save(s, exp, place, row, export, options, on, file_path, file_name)
+            with audit.batch(s, "create", f"Plate “{row.name}” read as {readout['label']}, {on.isoformat()}",
+                             "plate_reads"):
+                saved, problems, result = save(s, exp, place, row, export, options, on, file_path, file_name, readout)
         except PlateError as e:
             s.rollback()
             return _refused(e)
@@ -884,10 +946,15 @@ def save_plate(experiment_id: int):
             s.rollback()
             return jsonify({"ok": False, "error": " ".join(problems[:3]) or gettext("No animal has a value to save."),
                             "problems": problems}), 400
+        # Same as last plate: when it was last read onto is bookkeeping, not
+        # part of the batch (a later plate on it would stop this one's Undo).
+        s.execute(PlateLayout.__table__.update().where(PlateLayout.__table__.c.id == row.id)
+                  .values(used_at=datetime.utcnow()))
         s.commit()
         s.refresh(exp)
-        return jsonify({"ok": True, "saved": saved, "problems": problems,
-                        "message": gettext("Saved %(n)s readings for %(day)s from the plate.", n=saved,
+        return jsonify({"ok": True, "saved": saved, "problems": problems, "filled": readout["key"],
+                        "message": gettext("Saved %(n)s readings of %(readout)s for %(day)s from the plate.", n=saved,
+                                           readout=i18n.translate_value(readout["label"]),
                                            day=i18n.strftime(on, "%b %d, %Y")),
                         **xp.payload(s, exp, place)})
 
@@ -898,7 +965,8 @@ def for_assistant(session, exp, place, data: dict, export: dict | None = None) -
     """An export (`text`, or one read from a capture's file) laid on one of the experiment's
     layouts (`layout`, its id or name) or on `wells` given with `format`,
     changing nothing: the analysis, and the experiment_reading change to
-    propose for it."""
+    propose for it. `measure` names another measure of the experiment to
+    fill instead of its main readout."""
     from . import experiments as xp
     if data.get("layout") not in (None, ""):
         row = find_layout(session, exp, data.get("layout"))
@@ -919,10 +987,14 @@ def for_assistant(session, exp, place, data: dict, export: dict | None = None) -
     if export is None:
         export = read_export(text=str(data.get("text") or ""))
     on = day_of(data.get("date"))
-    result = work_out(session, exp, place, row, export, options_from(data), on)
-    readout = xp.readout_of(exp, place)
+    if str(data.get("measure") or "").strip() == "new":
+        raise PlateError(gettext("A new measure is made in the experiment page's Plate layout dialog; name one the experiment has, or leave measure out for its main readout."))  # noqa: E501
+    readout = readout_from(exp, place, data)
+    result = work_out(session, exp, place, row, export, options_from(data), on, readout)
     ready = [r for r in result["subjects"] if "value" in r]
     fields: dict = {"date": on.isoformat()}
+    if readout.get("measure"):
+        fields["measure"] = readout["label"]
     if readout.get("formula"):
         fields["inputs"] = {r["key"]: r["inputs"] for r in ready}
     else:

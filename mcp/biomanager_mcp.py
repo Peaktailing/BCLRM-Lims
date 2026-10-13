@@ -182,11 +182,12 @@ def build_server(api: Api):
                            format: int | None = None, text: str | None = None, capture: int | None = None,
                            target: str | None = None, reference: str | None = None,
                            subtract_blank: bool | None = None, standard_curve: bool | None = None,
+                           curve: str | None = None, measure: str | None = None,
                            skip: list[str] | None = None, date: str | None = None) -> dict:
         return call_tool(api, "plate_readout", given(
             experiment_id=experiment_id, layout=layout, wells=wells, format=format, text=text, capture=capture,
             target=target, reference=reference, subtract_blank=subtract_blank, standard_curve=standard_curve,
-            skip=skip, date=date))
+            curve=curve, measure=measure, skip=skip, date=date))
 
     @server.tool(name="verify_sequencing", description=description(api, "verify_sequencing"))
     def verify_sequencing_tool(plasmid: str | None = None, ref: dict | None = None, captures: list[int] | None = None,

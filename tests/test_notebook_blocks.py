@@ -35,6 +35,9 @@ class Blocks(unittest.TestCase):
     def test_a_formulation_works_out_moles_and_equivalents_and_a_log_is_a_line(self):
         self.check("formulation.check.mjs")
 
+    def test_the_experiment_block_names_the_lot_and_an_expired_one(self):
+        self.check("experiment.check.mjs")
+
     @unittest.skipUnless((ROOT / "frontend" / "node_modules" / "markdown-it").is_dir(), "needs frontend/node_modules")
     def test_callouts_toggles_columns_and_colours_read_from_markdown(self):
         self.check("markdown-extras.check.mjs")

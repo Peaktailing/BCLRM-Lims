@@ -207,6 +207,9 @@
         <li><b>Read a plate →</b>, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with
           row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen
           between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.</li>
+        <li><b>Readout</b> says what the plate fills: the experiment's main readout, or another measure of the same animals
+          kept beside it (below). <b>Another measure…</b> asks its name and unit, such as <i>IL-6 ELISA</i> in pg/mL; the
+          next plate offers it by name.</li>
         <li>Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a
           cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD
           over 10, a Ct over 50, <i>OVRFLW</i>) in red, and left out, as is <i>Undetermined</i>. Click any well to leave it
@@ -215,18 +218,34 @@
           <b>Save readings</b>.</li>
       </ol>
       <table class="gtable">
-        <tr><th>A readout of your own</th><td>(<b>Readout → Something else…</b>, such as IL-6 in pg/mL.) The mean of each
-          animal's wells, less the blank's mean (<b>Take off the blank</b>). With standards of two or more concentrations,
-          <b>Read each value off the standard curve</b> turns each into a concentration from a straight line through the
-          standards; the line and its r² are shown, and a value past the highest or lowest standard is marked.</td></tr>
+        <tr><th>A readout of your own, or another measure</th><td>(<b>Readout → Something else…</b> at the top, such as IL-6 in
+          pg/mL, or <b>Another measure…</b> in the plate.) The mean of each animal's wells, less the blank's mean (<b>Take off
+          the blank</b>). With standards of two or more concentrations, <b>Read each value off the standard curve</b> turns each
+          into a concentration, and <b>Curve</b> chooses the curve: <b>Linear</b>, a straight line through the standards;
+          <b>Log–log</b>, a straight line on log axes, for standards over several tenfold dilutions; or <b>4PL</b>, the
+          four-parameter logistic, the S-shaped curve of an ELISA, for five or more concentrations. BioManager starts with 4PL
+          when there are five or more standards spanning a tenfold dilution, and a straight line otherwise. The curve is drawn
+          beside the plate, with the standards as dots and each animal as a square on it, and its equation and r² below. A
+          value past the highest or lowest standard is marked; one past where a 4PL levels off can't be read at all, and says
+          so (dilute the sample and read it again). A 4PL that doesn't fit the standards is refused, in words, rather than
+          used.</td></tr>
         <tr><th>Absorbance, blank subtracted</th><td>The mean OD less the blank's, kept with both.</td></tr>
         <tr><th>ΔCt, ΔΔCt, fold change</th><td>Choose the <b>Target gene</b> and the <b>Reference gene</b> from the run;
           each animal's mean Ct of each is used, and ΔΔCt and fold change are against the <b>Control group</b> as when you type
           them.</td></tr>
       </table>
       <p>Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment:
-        <b>Plates read</b>, under the layout, lists each with its day, layout and file. Only the experiment's owner (or an
-        admin) lays out and reads plates, as with the rest of the experiment.</p>
+        <b>Plates read</b>, under the layout, lists each with its day, layout, what it filled and its file. A saved plate is
+        one step in <b>Batch history</b>: <b>Undo</b> there takes back all its readings and the plate together, and puts back
+        any readings it replaced. Only the experiment's owner (or an admin) lays out and reads plates, as with the rest of the
+        experiment.</p>
+      <h3 id="other-measures">Another measure beside the main readout</h3>
+      <p>An experiment has one main readout: the one its plan, <b>Main readout day</b>, tests by day and bench mode are
+        about. Something else measured on the same animals, such as an IL-6 ELISA at the end of a tumour experiment, is
+        another measure, kept beside it rather than in its place. Each gets its own button on the sheet, next to the main
+        readout's: the sheet shows its days (a cell can be typed or corrected there), and the chart below and its tests by day
+        follow the button chosen. <b>Export</b> gives each measure a sheet of its own, and its tests under the main readout's
+        in <b>Tests by day</b>. Changing the main readout keeps the other measures.</p>
       <h2 id="the-page">The page</h2>
       <ul>
         <li><b>The experiment</b> on top: name, status, start (day 1), end, readout and description, saved as you type.</li>
@@ -243,7 +262,7 @@
           bottle you used). A new bottle is another item, or type its lot. A lot already past its expiry on the day is
           recorded, with a warning. Tick <b>Take what they got off the inventory</b> to take the amounts (or volumes) the
           animals got off the item's quantity, turned into its unit (a <b>Pack size</b> turns mL into ampoules); it is taken once, however often the day is saved, and <b>Undo: not done</b> puts it back. The
-          lot shows on the day in the list and the sheet, and in <b>Export</b>.</li>
+          lot shows on the day in the list and the sheet, in <b>Export</b>, and in the experiment's notebook block.</li>
         <li><b>The chart</b> shows the readout by group over the days (the value, or its % of the first; for a count, % of those at
           the start). Each manipulation day is a dashed line: point at it to see what was done that day, by whom. Stars mark the
           days the groups differ, and <b>Tests by day</b> below lists each test (Welch's t-test for two groups, one-way ANOVA for
@@ -299,7 +318,7 @@
           <b>Reagent used</b> and its <b>Lot</b> filled in as on the page. <b>Scan a card</b> reads a
           cage, tank or vial card with the phone's camera and jumps to the animal in it.</li>
         <li><b>Export</b> downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations
-          with the reagent and lot it got, and the tests by day.</li>
+          with the reagent and lot it got, the tests by day, and a sheet for each other measure.</li>
         <li><b>Add to notebook</b> makes your notebook page for the experiment, with a live view of its manipulations and readout
           (<code>/experiment</code> adds one to any page; <b>Freeze a copy</b> keeps it as it is now).</li>
       </ul>
@@ -312,11 +331,12 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 12 min read</p>
+      <p>On this page · 13 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your week</a></li>
         <li class="lvl2"><a href="#derived">Readouts worked out from what you measure</a></li>
         <li class="lvl2"><a href="#plates">Plates from a plate reader or qPCR machine</a></li>
+        <li class="lvl3"><a href="#other-measures">Another measure beside the main readout</a></li>
         <li class="lvl2"><a href="#the-page">The page</a></li>
         <li class="lvl2"><a href="#the-regimen">The regimen</a></li>
         <li class="lvl2"><a href="#welfare">Animals that may need a look</a></li>
