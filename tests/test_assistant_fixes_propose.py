@@ -232,7 +232,8 @@ class Fixes(Compute):
         self.assertEqual(groups["items"]["properties"]["animals"]["type"], "array")
         self.assertEqual(steps["type"], "array")
         self.assertEqual(set(steps["items"]["properties"]),
-                         {"days", "kind", "agent", "dose", "route", "concentration", "group", "notes"})
+                         {"days", "kind", "agent", "dose", "route", "concentration", "frequency", "intensity",
+                          "pulse_width", "duration", "group", "notes"})
         self.assertEqual(steps["items"]["required"], ["days"])
         self.assertEqual(props["seed"]["type"], "integer")
         used = actions.CATALOGUE["inventory_quantity_used"].schema()["properties"]
