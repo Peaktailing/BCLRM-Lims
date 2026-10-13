@@ -544,7 +544,11 @@ def arrive(facts: dict) -> list[dict]:
     item(6, [f"{readout['label']}" + (f" ({readout['unit']})" if readout.get("unit") else "")
              + f", measured on {readout['days_measured']} day(s)" + (f" from {readout['first']} to {readout['last']}"
                                                                       if readout.get("first") else "") + "."
-             if readout.get("days_measured") else ""],
+             if readout.get("days_measured") else "",
+             ("Secondary measures: " + "; ".join(
+                 f"{m['label']}" + (f" ({m['unit']})" if m.get("unit") else "")
+                 + f", measured on {m['days_measured']} day(s)" for m in readout["other_measures"] if m["days_measured"])
+              + ".") if any(m["days_measured"] for m in readout.get("other_measures") or []) else ""],
          ["Which outcome is primary, and how it was measured (and by whom)."])
     tests = facts["statistics"]["tests"]
     item(7, [f"Groups compared on each day by {', '.join(tests)} (each day on its own, not corrected for the number "
@@ -1468,6 +1472,19 @@ def experiment_summary(session, experiment_id: int) -> dict:
         if readout["kind"] != "fraction" and len(samples) == 2 and all(len(v) >= 2 for v in samples.values()):
             (ga, a), (gb, b) = sorted(samples.items())
             last_day["difference"] = {**difference_ci(a, b), "of": f"{ga} minus {gb}"}
+    # Other measures a plate filled beside the main readout (an ELISA in a tumour experiment): secondary.
+    others = []
+    for m in xp.measures_of(exp):
+        mt = xp.readout_table(session, exp, place, subs, m)
+        days = [d for i, d in enumerate(mt["dates"]) if any(r["values"][i] is not None for r in mt["rows"])]
+        others.append({"label": m["label"], "unit": m["unit"], "days_measured": len(days),
+                       "first": days[0] if days else None, "last": days[-1] if days else None,
+                       "by_day": [{"date": d["date"], "day": d["day"], "test": d["test"],
+                                   "p": round(d["p"], 4) if d["p"] is not None else None, "groups": d["groups"]}
+                                  for d in mt["stats"]["raw"]]})
+    if others:
+        readouts["main"] = True
+        readouts["other_measures"] = others
     text = "\n".join(filter(None, [exp.description, exp.treatment_plan, *(p["notes"] for p in procedures)]))
     facts = {"animals": animals, "procedures": procedures, "readouts": readouts,
              "statistics": {"tests": tests, "by_day": [{"date": d["date"], "day": d["day"], "test": d["test"],

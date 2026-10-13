@@ -392,7 +392,7 @@ def derive(api: Api, a: dict) -> dict:
 
 
 PLATE_KEYS = ("layout", "wells", "format", "text", "capture", "target", "reference", "subtract_blank",
-              "standard_curve", "skip", "date")
+              "standard_curve", "curve", "measure", "skip", "date")
 
 
 def plate_readout(api: Api, a: dict) -> dict:
@@ -535,7 +535,8 @@ TOOLS.update({
         lambda api, a: lab_checks(api, a)),
     "experiment_summary": (
         "What the records say about an experiment, for its methods: the animals (species, genotypes, sex, age and "
-        "weight at the start, n per group), procedures (agent, dose, route, days, lots used and any used after its expiry), the readout, the tests "
+        "weight at the start, n per group), procedures (agent, dose, route, days, lots used and any used after its expiry), the main readout (and "
+        "other_measures, secondary ones a plate filled beside it, each with its tests by day), the tests "
         "used and the last day's comparison, dates; and arrive, the ARRIVE 2.0 Essential 10, each with what is "
         "recorded and what is missing. Never fill in what is missing yourself.",
         _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"}},
@@ -570,7 +571,11 @@ TOOLS.update({
         "averages each animal's replicate wells, takes off the blank or reads a standard curve, or for a ΔCt, ΔΔCt "
         "or fold change readout takes the target and reference genes' Cts; it flags replicates far from the others "
         "and wells past what the instrument reads. Show the person the values and flags, then propose the change it "
-        "returns (experiment_reading) as it is. Never average or subtract the wells yourself.",
+        "returns (experiment_reading) as it is. Never average or subtract the wells yourself. A plate fills the "
+        "experiment's main readout, or with measure another measure it has (e.g. an IL-6 ELISA beside tumour "
+        "volume; GET /api/v1/experiments/{id} lists page.measures). With standards, curve chooses the standard "
+        "curve: linear, loglog or 4pl (four-parameter logistic); left out, 4PL for five or more concentrations "
+        "over a tenfold range, linear otherwise.",
         _obj({"experiment_id": {"type": "integer", "description": "The experiment's id (resolve finds it by name)"},
               "layout": {"type": "string", "description": "The plate layout's id or name"},
               "wells": {"type": "object", "description": "Instead of a saved layout: {\"A1\": \"mouse:9\", "
@@ -582,7 +587,11 @@ TOOLS.update({
               "target": {"type": "string", "description": "Which read or gene to use, when the export has several"},
               "reference": {"type": "string", "description": "For ΔCt, ΔΔCt and fold change: the reference gene"},
               "subtract_blank": {"type": "boolean", "description": "Take the blank wells' mean off (default true)"},
-              "standard_curve": {"type": "boolean", "description": "Read each value off the standards' line"},
+              "standard_curve": {"type": "boolean", "description": "Read each value off the standard curve"},
+              "curve": {"type": "string", "enum": ["linear", "loglog", "4pl"],
+                        "description": "The standard curve's shape (left out: chosen from the standards)"},
+              "measure": {"type": "string", "description": "Another measure of the experiment to fill (its name), "
+                                                           "instead of its main readout"},
               "skip": {"type": "array", "items": {"type": "string"}, "description": "Wells to leave out, e.g. [\"A3\"]"},
               "date": {"type": "string", "description": "The day the readings are for (today if left out)"}},
              ("experiment_id",)),

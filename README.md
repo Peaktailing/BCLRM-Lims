@@ -173,6 +173,17 @@ never what you may edit.
     the standard curve, or for ΔCt, ΔΔCt and fold change the target and
     reference genes' Cts used; **Save readings** writes them as the day's
     readout, and the plate and its file are kept as where they came from.
+    The standard curve is a 4PL (four-parameter logistic, the usual for
+    an ELISA) when there are five or more standards over a tenfold
+    dilution, a straight line otherwise, or whichever you choose under
+    **Curve** (Linear, Log–log, 4PL); it is drawn beside the plate with
+    its r², and a value past the standards is marked. **Readout** in the
+    plate says what the plate fills: the experiment's main readout, or
+    **Another measure…** of the same animals kept beside it, such as an
+    IL-6 ELISA in a tumour experiment. Each measure gets its own button
+    on the sheet, its own chart and its own sheet in **Export**; the main
+    readout stays the one the plan and the tests are about. A saved plate
+    is one step in **Batch history**, so **Undo** takes all of it back.
   - **The regimen reminds you; you record it.** Days still to do are on
     the calendar, and the experiment's owner gets a notification each
     morning of what is due (Settings → Notifications → Experiments).

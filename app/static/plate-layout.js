@@ -4,7 +4,10 @@
    qPCR machine's export, pasted or as a file, laid on it. The app works out
    each animal's value and flags the wells; nothing is saved until Save
    readings. A selection of wells is a rectangle, dragged or a whole row or
-   column, as the notebook's plate block takes them. */
+   column, as the notebook's plate block takes them. A plate fills the
+   experiment's main readout or another measure beside it (Readout), and
+   standards are read with a line, a log–log line or a 4PL curve, drawn
+   beside the plate. */
 (function () {
   'use strict';
   const dialog = document.getElementById('xp-plate');
@@ -30,7 +33,9 @@
   const S = {
     step: 'layout', layouts: [], reads: [], id: null, name: '', format: 96, wells: {}, dirty: false,
     brush: { role: '' }, conc: '', drag: null, result: null, skip: new Set(), timer: null, busy: false,
+    main: null, others: [], curveChosen: false,
   };
+  const CURVES = { linear: t('Linear'), loglog: t('Log–log'), '4pl': t('4PL (four-parameter logistic)') };
 
   // ---------------------------------------------------------------- talking to the app
 
@@ -207,7 +212,7 @@
   function drawReads() {
     const box = $('[data-plate-reads]');
     box.hidden = !S.reads.length;
-    box.innerHTML = `<h4 class="xp-h4">${esc(t('Plates read'))}</h4><ul>${S.reads.map((r) => `<li>${esc(r.read_on)} · ${esc(r.layout)} · ${esc(t('%(n)s readings', { n: r.count }))}${r.by ? ` · ${esc(r.by)}` : ''}${r.file_url ? ` · <a href="${esc(r.file_url)}" download="${esc(r.file_name)}">${esc(r.file_name || t('File'))}</a>` : ''}</li>`).join('')}</ul>`;
+    box.innerHTML = `<h4 class="xp-h4">${esc(t('Plates read'))}</h4><ul>${S.reads.map((r) => `<li>${esc(r.read_on)} · ${esc(r.layout)}${r.readout ? ` · ${esc(r.readout)}` : ''} · ${esc(t('%(n)s readings', { n: r.count }))}${r.by ? ` · ${esc(r.by)}` : ''}${r.file_url ? ` · <a href="${esc(r.file_url)}" download="${esc(r.file_name)}">${esc(r.file_name || t('File'))}</a>` : ''}</li>`).join('')}</ul>`;
   }
 
   // ---------------------------------------------------------------- reading a plate onto it
@@ -217,9 +222,9 @@
     $$('[data-plate-step]').forEach((el) => { el.hidden = el.dataset.plateStep !== which; });
     $$('[data-plate-for]').forEach((el) => { el.hidden = el.dataset.plateFor !== which; });
     $('[data-plate-delete]').hidden = which !== 'layout' || !S.id;
-    // The plate moves with the step: drawn on the layout, then as the values read.
+    // The plate moves with the step: drawn on the layout, then as the values read (the curve beside it).
     const grid = $('.pl-plate-wrap');
-    if (which === 'read') $('[data-plate-preview]').prepend(grid); else $('.pl-work').append(grid);
+    if (which === 'read') $('[data-plate-top]').prepend(grid); else $('.pl-work').append(grid);
     drawGrid();
   }
 
@@ -232,6 +237,12 @@
     const opts = $('[data-plate-options]');
     const pick = (name) => { const el = opts.querySelector(`[name="${name}"]`); return el ? (el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value) : ''; };
     ['target', 'reference', 'subtract_blank', 'standard_curve'].forEach((n) => { const v = pick(n); if (v !== '') form.set(n, v); });
+    if (S.curveChosen && pick('curve')) form.set('curve', pick('curve'));
+    form.set('measure', $('[data-plate-measure]').value);
+    if ($('[data-plate-measure]').value === 'new') {
+      form.set('measure_label', $('[data-plate-measure-label]').value.trim());
+      form.set('measure_unit', $('[data-plate-measure-unit]').value.trim());
+    }
     form.set('skip', Array.from(S.skip).join(','));
     return form;
   }
@@ -272,6 +283,10 @@
     if (r.mode === 'value' && r.standards.length >= 2) {
       const on = was.standard_curve === null ? Boolean(r.fit) : was.standard_curve;
       parts.push(`<label class="xp-check"><input type="checkbox" name="standard_curve" ${on ? 'checked' : ''}> ${esc(t('Read each value off the standard curve'))}</label>`);
+      // Linear, log–log or 4PL: the app's choice until the person picks one.
+      if (on && r.fit) {
+        parts.push(`<label>${esc(t('Curve'))} <select name="curve">${Object.entries(CURVES).map(([k, label]) => `<option value="${k}" ${k === r.fit.model ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>`);
+      }
     }
     box.innerHTML = parts.join('');
   }
@@ -292,7 +307,7 @@
     const flagged = Object.entries(r.flagged).filter(([, ws]) => ws.length);
     if (flagged.length) notes.push(`<div class="pl-legend">${flagged.map(([f, ws]) => `<span class="pl-key is-${f}"></span>${esc(FLAG[f])}: ${esc(ws.join(', '))}`).join('<br>')}</div>`);
     if (r.blank.subtracted) notes.push(esc(t('Blank: mean of %(n)s wells, %(value)s, taken off each.', { n: r.blank.n, value: num(r.blank.mean) })));
-    if (r.fit) notes.push(esc(t('Standard curve: signal = %(slope)s × concentration + %(intercept)s, r² = %(r2)s.', { slope: num(r.fit.slope), intercept: num(r.fit.intercept), r2: r.fit.r2 })));
+    if (r.fit) notes.push(esc(fitText(r.fit)));
     if (r.skipped.length) notes.push(esc(t('Left out by hand: %(wells)s.', { wells: r.skipped.join(', ') })));
     r.warnings.forEach((w) => notes.push(esc(w)));
     if (r.replaces) notes.push(`<b>${esc(t('This replaces %(n)s readings already saved for that day.', { n: r.replaces }))}</b>`);
@@ -306,10 +321,80 @@
     const rows = r.subjects.map((row) => `<tr class="${row.error ? 'is-error' : ''}"><td>${esc(row.label)}</td><td>${esc(row.group)}</td><td>${esc(row.wells.join(' '))}</td>
       ${ct ? `<td>${meanOf(row, r.target)}</td><td>${meanOf(row, r.reference)}</td>` : `<td>${meanOf(row, r.target)}</td>`}
       <td>${row.error ? `<span class="xp-danger-text">${esc(row.error)}</span>` : `<b>${num(row.value)}</b>${row.outside ? ` <span class="xp-warn">${esc(t('outside the standards'))}</span>` : ''}`}</td></tr>`);
+    drawCurve(r);
     out.innerHTML = `${notes.map((n) => `<p class="xp-sub">${n}</p>`).join('')}
       <div class="table-wrap"><table class="dense-table fit-table"><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
     save.disabled = !r.ready;
     save.textContent = r.ready ? t('Save %(n)s readings', { n: r.ready }) : t('Save readings');
+  }
+
+  // The standard curve in words: its equation, how well it fits, and that it was chosen for them.
+  function fitText(f) {
+    const auto = f.auto ? ` ${t('(chosen for these standards; change it under Curve)')}` : '';
+    if (f.model === '4pl') {
+      return t('Standard curve, 4PL: signal = %(d)s + (%(a)s − %(d)s) / (1 + (concentration / %(c)s)^%(b)s); r² = %(r2)s, typical distance of a standard from it %(rmse)s.', { a: num(f.a), b: num(f.b), c: num(f.c), d: num(f.d), r2: f.r2, rmse: num(f.rmse) }) + auto;
+    }
+    if (f.model === 'loglog') {
+      return t('Standard curve, log–log: log signal = %(slope)s × log concentration + %(intercept)s; r² = %(r2)s (on the logarithms).', { slope: num(f.slope), intercept: num(f.intercept), r2: f.r2 })
+        + (f.left_out ? ` ${t('%(n)s standard wells at zero were left out (no logarithm).', { n: f.left_out })}` : '') + auto;
+    }
+    return t('Standard curve: signal = %(slope)s × concentration + %(intercept)s, r² = %(r2)s.', { slope: num(f.slope), intercept: num(f.intercept), r2: f.r2 }) + auto;
+  }
+
+  // The standards, the curve through them and each animal read off it, beside the plate.
+  function drawCurve(r) {
+    const box = $('[data-plate-curve]');
+    const c = r && r.curve;
+    if (!c || !c.line.length) { box.hidden = true; box.innerHTML = ''; return; }
+    const pts = c.standards.filter(([x]) => !c.log || x > 0);
+    const sampled = c.samples.filter(([x]) => !c.log || x > 0);
+    const xsAll = [...pts.map((p) => p[0]), ...c.line.map((p) => p[0]), ...sampled.map((p) => p[0])];
+    const ysAll = [...pts.map((p) => p[1]), ...c.line.map((p) => p[1]), ...sampled.map((p) => p[1])];
+    const fx = (x) => (c.log ? Math.log10(x) : x);
+    let [x0, x1] = [Math.min(...xsAll.map(fx)), Math.max(...xsAll.map(fx))];
+    let [y0, y1] = [Math.min(...ysAll), Math.max(...ysAll)];
+    if (x1 === x0) { x0 -= 1; x1 += 1; }
+    if (y1 === y0) { y0 -= 1; y1 += 1; }
+    const padY = (y1 - y0) * 0.08; y0 -= padY; y1 += padY;
+    const W = 320; const H = 220; const L = 40; const R = 8; const T = 8; const B = 30;
+    const sx = (x) => L + ((fx(x) - x0) / (x1 - x0)) * (W - L - R);
+    const sy = (y) => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('Standard curve'))}">`;
+    for (let i = 0; i <= 3; i += 1) {
+      const y = y0 + ((y1 - y0) * i) / 3;
+      svg += `<line x1="${L}" x2="${W - R}" y1="${sy(y)}" y2="${sy(y)}" class="pl-curve-grid"/><text x="${L - 4}" y="${sy(y) + 3}" text-anchor="end" class="pl-curve-axis">${num(y)}</text>`;
+    }
+    const ticks = c.log ? Array.from({ length: Math.floor(x1) - Math.ceil(x0) + 1 }, (_, i) => 10 ** (Math.ceil(x0) + i))
+      : [0, 1, 2, 3].map((i) => x0 + ((x1 - x0) * i) / 3);
+    ticks.forEach((x) => { svg += `<text x="${sx(x)}" y="${H - B + 13}" text-anchor="middle" class="pl-curve-axis">${num(x)}</text>`; });
+    svg += `<text x="${(L + W - R) / 2}" y="${H - 3}" text-anchor="middle" class="pl-curve-axis">${esc(c.log ? t('concentration (log scale)') : t('concentration'))}</text>`;
+    svg += `<path class="pl-curve-line" d="${c.line.map(([x, y], i) => `${i ? 'L' : 'M'}${sx(x).toFixed(1)},${sy(y).toFixed(1)}`).join(' ')}"/>`;
+    pts.forEach(([x, y]) => { svg += `<circle class="pl-curve-std" cx="${sx(x)}" cy="${sy(y)}" r="3"><title>${esc(`${t('Standard')} ${num(x)}: ${num(y)}`)}</title></circle>`; });
+    const outside = new Set(r.subjects.filter((s) => s.outside).map((s) => s.value));
+    sampled.forEach(([x, y]) => { svg += `<rect class="pl-curve-sample${outside.has(x) ? ' is-outside' : ''}" x="${sx(x) - 3.5}" y="${sy(y) - 3.5}" width="7" height="7"/>`; });
+    svg += '</svg>';
+    box.innerHTML = `${svg}<figcaption>${esc(t('Dots: the standards. Squares: each animal, read off the curve (dashed: outside the standards).'))}</figcaption>`;
+    box.hidden = false;
+  }
+
+  // Which readout the plate fills: the main one when a plate gives it, else the measure last read, else a new one.
+  function drawMeasures() {
+    const select = $('[data-plate-measure]');
+    const main = S.main || { key: '', label: '', plate: true };
+    const options = [`<option value="main" ${main.plate ? '' : 'disabled'}>${esc(t('%(readout)s (main readout)', { readout: t(main.label) }))}</option>`]
+      .concat(S.others.map((m) => `<option value="${esc(m.key)}">${esc(m.label)}${m.unit ? ` (${esc(m.unit)})` : ''}</option>`))
+      .concat([`<option value="new">${esc(t('Another measure…'))}</option>`]);
+    select.innerHTML = options.join('');
+    const last = (S.reads[0] || {}).readout_key;
+    const keys = S.others.map((m) => m.key);
+    select.value = last && keys.includes(last) ? last : (main.plate ? 'main' : (keys[0] || 'new'));
+    $('[data-plate-measure-label]').value = '';
+    $('[data-plate-measure-unit]').value = '';
+    showNewMeasure();
+  }
+  function showNewMeasure() {
+    const fresh = $('[data-plate-measure]').value === 'new';
+    $$('[data-plate-new-measure]').forEach((el) => { el.hidden = !fresh; });
   }
 
   async function savePlate() {
@@ -320,6 +405,7 @@
     try {
       const data = await call(`${URL_BASE}/save`, { form: formOf() });
       page.apply(data);
+      if (page.show) page.show(data.filled);
       page.say('saved', data.message || t('All changes saved'));
       dialog.close();
     } catch (e) {
@@ -344,6 +430,8 @@
       const data = await call(`${URL_BASE.replace(/\/plates$/, '/plates.json')}`, { method: 'GET' });
       S.layouts = data.layouts;
       S.reads = data.reads;
+      S.main = data.main;
+      S.others = data.others || [];
     } catch (e) {
       showError(e.message);
     }
@@ -351,8 +439,10 @@
     if (S.brush.role !== 'blank' && S.brush.role !== 'standard' && !subjectOf(S.brush.subject) && subjects()[0]) {
       S.brush = { role: 'sample', subject: subjects()[0].key };
     }
+    S.curveChosen = false;
     drawPalette();
     drawReads();
+    drawMeasures();
     step('layout');
     if (!dialog.open) dialog.showModal();
   }
@@ -455,7 +545,13 @@
       if (el.files.length) $('[data-plate-text]').value = '';
       S.skip = new Set();
       preview();
+    } else if (el.matches('[data-plate-measure]')) {
+      showNewMeasure();
+      if ($('[data-plate-measure]').value === 'new') $('[data-plate-measure-label]').focus();
+      preview();
     } else if (el.closest('[data-plate-options]') || el.matches('[data-plate-on]')) {
+      if (el.name === 'curve') S.curveChosen = true;
+      if (el.name === 'standard_curve' && !el.checked) S.curveChosen = false;
       preview();
     }
   });
@@ -463,5 +559,6 @@
     if (e.target.matches('[data-plate-name]')) { S.dirty = true; }
     if (e.target.matches('[data-plate-conc]')) { S.conc = e.target.value; }
     if (e.target.matches('[data-plate-text]')) { $('[data-plate-file]').value = ''; S.skip = new Set(); later(); }
+    if (e.target.matches('[data-plate-measure-label], [data-plate-measure-unit]')) later();
   });
 }());

@@ -998,16 +998,22 @@ An ELISA, a viability assay or a qPCR run gives one number per well, and the wor
 
 3. **Read a plate →**, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.
 
-4. Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD over 10, a Ct over 50, *OVRFLW*) in red, and left out, as is *Undetermined*. Click any well to leave it out, and again to put it back.
+4. **Readout** says what the plate fills: the experiment's main readout, or another measure of the same animals kept beside it (below). **Another measure…** asks its name and unit, such as *IL-6 ELISA* in pg/mL; the next plate offers it by name.
 
-5. Below the plate, each animal's wells, their mean and spread (CV), and the value it gets. Set the **Day**, then **Save readings**.
+5. Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD over 10, a Ct over 50, *OVRFLW*) in red, and left out, as is *Undetermined*. Click any well to leave it out, and again to put it back.
 
-| A readout of your own | (**Readout → Something else…**, such as IL-6 in pg/mL.) The mean of each animal's wells, less the blank's mean (**Take off the blank**). With standards of two or more concentrations, **Read each value off the standard curve** turns each into a concentration from a straight line through the standards; the line and its r² are shown, and a value past the highest or lowest standard is marked. |
+6. Below the plate, each animal's wells, their mean and spread (CV), and the value it gets. Set the **Day**, then **Save readings**.
+
+| A readout of your own, or another measure | (**Readout → Something else…** at the top, such as IL-6 in pg/mL, or **Another measure…** in the plate.) The mean of each animal's wells, less the blank's mean (**Take off the blank**). With standards of two or more concentrations, **Read each value off the standard curve** turns each into a concentration, and **Curve** chooses the curve: **Linear**, a straight line through the standards; **Log–log**, a straight line on log axes, for standards over several tenfold dilutions; or **4PL**, the four-parameter logistic, the S-shaped curve of an ELISA, for five or more concentrations. BioManager starts with 4PL when there are five or more standards spanning a tenfold dilution, and a straight line otherwise. The curve is drawn beside the plate, with the standards as dots and each animal as a square on it, and its equation and r² below. A value past the highest or lowest standard is marked; one past where a 4PL levels off can't be read at all, and says so (dilute the sample and read it again). A 4PL that doesn't fit the standards is refused, in words, rather than used. |
 |---|---|
 | Absorbance, blank subtracted | The mean OD less the blank's, kept with both. |
 | ΔCt, ΔΔCt, fold change | Choose the **Target gene** and the **Reference gene** from the run; each animal's mean Ct of each is used, and ΔΔCt and fold change are against the **Control group** as when you type them. |
 
-Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment: **Plates read**, under the layout, lists each with its day, layout and file. Only the experiment's owner (or an admin) lays out and reads plates, as with the rest of the experiment.
+Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment: **Plates read**, under the layout, lists each with its day, layout, what it filled and its file. A saved plate is one step in **Batch history**: **Undo** there takes back all its readings and the plate together, and puts back any readings it replaced. Only the experiment's owner (or an admin) lays out and reads plates, as with the rest of the experiment.
+
+#### Another measure beside the main readout
+
+An experiment has one main readout: the one its plan, **Main readout day**, tests by day and bench mode are about. Something else measured on the same animals, such as an IL-6 ELISA at the end of a tumour experiment, is another measure, kept beside it rather than in its place. Each gets its own button on the sheet, next to the main readout's: the sheet shows its days (a cell can be typed or corrected there), and the chart below and its tests by day follow the button chosen. **Export** gives each measure a sheet of its own, and its tests under the main readout's in **Tests by day**. Changing the main readout keeps the other measures.
 
 ### The page
 
@@ -1057,7 +1063,7 @@ From then on, four changes ask for a one-line reason, because each can change wh
 
 - **Bench mode** (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers — type each weight or count, or give each today's manipulation and tap **Given ✓**; record it at the end, with the **Reagent used** and its **Lot** filled in as on the page. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
 
-- **Export** downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations with the reagent and lot it got, and the tests by day.
+- **Export** downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations with the reagent and lot it got, the tests by day, and a sheet for each other measure.
 
 - **Add to notebook** makes your notebook page for the experiment, with a live view of its manipulations and readout (`/experiment` adds one to any page; **Freeze a copy** keeps it as it is now).
 

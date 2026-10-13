@@ -1499,7 +1499,11 @@ def _reading_check(s, exp, v) -> list[str]:
     """The lines a readout change shows; refuses inputs for a readout typed
     as a number, and a number for one BioManager works out."""
     from . import experiments as xp
-    readout = xp.readout_of(exp, _place(s, exp))
+    readout = xp.readout_for(exp, _place(s, exp), v.get("measure"))
+    if readout is None:
+        raise ActionError(gettext("Experiment %(name)s has no measure “%(measure)s”; its other measures: %(names)s.",
+                                  name=exp.name, measure=v.get("measure"),
+                                  names=", ".join(m["label"] for m in xp.measures_of(exp)) or gettext("none yet")))
     if not v.get("values") and not v.get("inputs"):
         raise ActionError(gettext("experiment_reading needs values (or, for a readout BioManager works out, inputs)."))
     if readout.get("formula"):
@@ -1523,11 +1527,15 @@ def _reading_check(s, exp, v) -> list[str]:
         fields=(Field("values", "object", "Each animal's reading, by its key or label: {\"1043\": 24.5}"),
                 Field("inputs", "object", "For a readout BioManager works out: each animal's measurements, by its key "
                       "or label: {\"1043\": {\"length\": 12.1, \"width\": 8.4}}"),
-                Field("date", "date", "The day (today if left out)")),
+                Field("date", "date", "The day (today if left out)"),
+                Field("measure", "text", "Another measure of the experiment to record instead of its main readout "
+                      "(its name, e.g. IL-6 ELISA, as plate_readout gives it)")),
         describe=lambda s, e, v: _reading_summary(s, e, v))
 def _experiment_reading(s, exp, v):
     _reading_check(s, exp, v)
     body = {"date": v.get("date") or date.today().isoformat()}
+    if v.get("measure"):
+        body["measure"] = v["measure"]
     if v.get("inputs"):
         body["inputs"] = v["inputs"]
     else:
@@ -1537,8 +1545,12 @@ def _experiment_reading(s, exp, v):
 
 def _reading_summary(s, exp, v) -> str:
     lines = _reading_check(s, exp, v)
-    head = gettext("Experiment “%(name)s”: readout%(on)s for %(n)s animals", name=exp.name, on=_on(v.get("date")),
-                   n=len(v.get("inputs") or v.get("values") or {}))
+    if v.get("measure"):
+        head = gettext("Experiment “%(name)s”: %(measure)s%(on)s for %(n)s animals", name=exp.name,
+                       measure=v["measure"], on=_on(v.get("date")), n=len(v.get("inputs") or v.get("values") or {}))
+    else:
+        head = gettext("Experiment “%(name)s”: readout%(on)s for %(n)s animals", name=exp.name, on=_on(v.get("date")),
+                       n=len(v.get("inputs") or v.get("values") or {}))
     return f"{head}: {'; '.join(lines)}" if lines else head
 
 
