@@ -608,7 +608,8 @@ TOOLS.update({
 TOOLS.update({
     "animal_use": (
         "Animal use for an IACUC or animal-care annual review, counted by BioManager: for a period (the last twelve "
-        "months unless start and end are given) and optionally one protocol, the mice and zebrafish per protocol, "
+        "months unless start and end are given) and optionally one protocol, the mice, zebrafish and the lab's own "
+        "organisms per protocol, "
         "species and strain: born, added to the records, new (both), used in experiments, died or euthanized (with "
         "each reason, died_by_reason), and breeding; each per protocol and in all. basis says what each count is "
         "based on, flags what the records can't say (animals with no protocol, deaths with no reason). Use its "

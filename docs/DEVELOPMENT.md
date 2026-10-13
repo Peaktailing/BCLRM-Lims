@@ -2397,7 +2397,8 @@ them.
 
 **Write-ups (`app/assistant_reports.py`).** BioManager counts and lists;
 the model writes. `GET /animal-use?start=&end=&protocol=` (the twelve months
-to `end`, today, unless asked; `year_before`) counts mice and zebrafish per
+to `end`, today, unless asked; `year_before`) counts mice, zebrafish and each
+organism database the person may see (`_organism_entries`) per
 protocol, species and strain: `born`, `added` (record made in the period,
 born before it or undated), `new`, `used_in_experiments` (in an experiment
 whose status isn't planned and which ran during the period), `died_or_euthanized`
@@ -2406,7 +2407,10 @@ in `totals`, with `basis` (what each column is based on) and `flags` (no
 protocol, no reason, no birth date, transfers). The schema has no protocol on a
 mouse or a mouse strain, so a mouse's is the colony's own column (custom_fields)
 whose key or label matches `PROTOCOL_COLUMN` (`protocol_columns`,
-`protocol_of`); a zebrafish row's is its tank's such column, else its line's
+`protocol_of`), else its litter's mother's, else father's (`from_parents`);
+a litter's pups without records (`total_pups` less its mice) are one entry
+under the parents' protocol and strain, counted as born; an organism's is
+its `protocol`, else its housing's, else its line's; a zebrafish row's is its tank's such column, else its line's
 `iacuc_protocol`. A mouse's strain is the lab's Strain named in its genotype
 (`strain_of`), else the genotype. A death's reason is read from the words of
 the mouse's note or the sac log's reason (`REASONS`, in order), else its status
