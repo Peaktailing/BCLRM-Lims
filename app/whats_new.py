@@ -30,6 +30,19 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.14.2": {
+        "new": [
+            "**Set field** offers **Pack size**, to give many items theirs at once.",
+        ],
+        "changed": [
+            "**Not weighed in their experiment** covers every animal weighed in an experiment, not only mice.",
+        ],
+        "fixed": [
+            "A picture added while someone else has the page open shows for them at once, not after it saves.",
+            "One of an item is written in the singular: **1 ampoule used**.",
+            "An AI assistant no longer offers an admin other people's mice as theirs to use.",
+        ],
+    },
     "1.14.1": {
         "new": [
             "Kimi Code takes the BioManager plugin too; the guide's **Connect an AI assistant** has the one command that adds it.",

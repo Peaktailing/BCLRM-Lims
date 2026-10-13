@@ -25,5 +25,6 @@
   "%(num)s note that may need a look": "%(num)s 条备注可能需要查看",
   "%(num)s notes that may need a look": "%(num)s 条备注可能需要查看",
   "Animals that may need a look: %(what)s": "可能需要查看的动物：%(what)s",
-  "%(num)s animal not weighed in its experiment": "%(num)s 只动物在实验中未按时称重"
+  "%(num)s animal not weighed in its experiment": "%(num)s 只动物在实验中未按时称重",
+  "%(num)s animals not weighed in their experiments": "%(num)s 只动物在实验中未按时称重"
 }
