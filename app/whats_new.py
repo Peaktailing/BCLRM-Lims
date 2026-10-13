@@ -30,12 +30,16 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.13.0": {
+        "new": [
+            "Samples has a tab for each type (tissue, DNA, RNA…), each with its own columns, such as **Fixation** for tissue and **260/280** for DNA; **+** adds a type.",
+            "**Split notes** moves each *Column: value* in the ticked samples' notes into that column.",
+        ],
+    },
     "1.12.0": {
         "new": [
             "A plate can fill another measure beside the main readout, chosen under **Readout** in **Plate layout**; each measure has its own button on the sheet and its own sheet in **Export**.",
             "Standard curves can be Linear, Log–log or 4PL, chosen under **Curve**, with the curve drawn beside the plate.",
-            "Samples has a tab for each type (tissue, DNA, RNA…), each with its own columns, such as **Fixation** for tissue and **260/280** for DNA; **+** adds a type.",
-            "**Split notes** moves each *Column: value* in the ticked samples' notes into that column.",
         ],
         "changed": [
             "Saving a plate's readings is one **Undo** in **Batch history**.",
