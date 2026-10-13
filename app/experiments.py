@@ -25,6 +25,8 @@ when you point at it.
 from __future__ import annotations
 
 import json
+import math
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
@@ -33,7 +35,7 @@ from sqlalchemy import func, select
 
 from . import access, derived, i18n, lab
 from .db import SessionLocal
-from .i18n import gettext
+from .i18n import gettext, ngettext
 from .models import (CageRecord, ClutchRecord, Experiment, ExperimentMouse, ExperimentReading, ExperimentSubject,
                      FishRecord, MouseRecord, MouseWeight, OrgCohort, Organism, StockUnit, TankRecord)
 
@@ -240,8 +242,11 @@ def readout_json(key: str, control: str = "") -> str | None:
 # animals beside it (an IL-6 ELISA in a tumour experiment): kept in the
 # readout's JSON, {"measures": [{"id", "label", "unit"}]}, with readings
 # keyed "measure:<id>", shown on the page's sheet and chart (a chip each),
-# in Export and in the assistant's experiment_summary.
+# in Export and in the assistant's experiment_summary. A measure may be one
+# BioManager works out from two Cts ({"formula": "delta_ct"}, or ΔΔCt and
+# fold change with their "control" group), as the main readout can be.
 MEASURE = "measure:"
+MEASURE_FORMULAS = ("delta_ct", "delta_delta_ct", "fold_change")
 
 
 def _chosen(exp: Experiment) -> dict:
@@ -252,9 +257,14 @@ def _chosen(exp: Experiment) -> dict:
     return chosen if isinstance(chosen, dict) else {}
 
 
-def measure_readout(ident: int, label: str, unit: str = "") -> dict:
-    return {"key": f"{MEASURE}{ident}", "label": " ".join(str(label).split())[:60],
-            "unit": str(unit or "").strip()[:20], "kind": "value", "verb": "Record", "measure": True}
+def measure_readout(ident: int, label: str, unit: str = "", formula: str = "", control: str = "") -> dict:
+    out = {"key": f"{MEASURE}{ident}", "id": ident, "label": " ".join(str(label).split())[:60],
+           "unit": str(unit or "").strip()[:20], "kind": "value", "verb": "Record", "measure": True}
+    f = derived.FORMULAS.get(str(formula or "")) if formula in MEASURE_FORMULAS else None
+    if f is not None:
+        out = {**derived_readout(f, str(control or "").strip()[:80]), **out, "unit": f.unit, "verb": f.verb,
+               "kind_label": f.label}
+    return out
 
 
 def measures_of(exp: Experiment) -> list[dict]:
@@ -262,7 +272,8 @@ def measures_of(exp: Experiment) -> list[dict]:
     out = []
     for m in _chosen(exp).get("measures") or []:
         if isinstance(m, dict) and str(m.get("id") or "").isdigit() and str(m.get("label") or "").strip():
-            out.append(measure_readout(int(m["id"]), m["label"], m.get("unit") or ""))
+            out.append(measure_readout(int(m["id"]), m["label"], m.get("unit") or "", m.get("formula") or "",
+                                       m.get("control") or ""))
     return out
 
 
@@ -279,26 +290,88 @@ def readout_for(exp: Experiment, place: Place, key) -> dict | None:
     return None
 
 
-def add_measure(exp: Experiment, place: Place, label, unit="") -> dict:
-    """Another measure of the experiment's animals, kept with it (the one of
-    that name when it has one already); a ValueError, in words, without a
-    name or for the main readout's own."""
+def _measure_name(exp: Experiment, place: Place, label, keep: str = "") -> str:
+    """A measure's name, tidied; a ValueError, in words, without one or for
+    the main readout's or another measure's (`keep`: the measure renamed)."""
     label = " ".join(str(label or "").split())[:60]
     if not label:
         raise ValueError(gettext("Name the measure, e.g. IL-6 ELISA."))
     main = readout_of(exp, place)
     if label.lower() in {main["label"].lower(), i18n.translate_value(main["label"]).lower()}:
         raise ValueError(gettext("%(label)s is already the main readout: choose it in the list.", label=label))
+    other = readout_for(exp, place, label)
+    if other is not None and keep and other["key"] != keep:
+        raise ValueError(gettext("This experiment already has a measure called “%(label)s”.", label=label))
+    return label
+
+
+def add_measure(exp: Experiment, place: Place, label, unit="", formula="", control="") -> dict:
+    """Another measure of the experiment's animals, kept with it (the one of
+    that name when it has one already); a ValueError, in words, without a
+    name or for the main readout's own. `formula` makes it one BioManager
+    works out from two Cts (MEASURE_FORMULAS), against `control` for ΔΔCt."""
+    label = _measure_name(exp, place, label)
+    formula = str(formula or "").strip()
+    if formula in ("", "value"):
+        formula = ""
+    elif formula not in MEASURE_FORMULAS:
+        raise ValueError(gettext("“%(kind)s” isn't a kind of measure: a number, or one of %(formulas)s.",
+                                 kind=formula, formulas=", ".join(MEASURE_FORMULAS)))
     found = readout_for(exp, place, label)
     if found is not None:
+        if (found.get("formula") or "") != formula:
+            raise ValueError(gettext("This experiment already has a measure called “%(label)s”, of another kind: choose it in the list, or give the new one another name.",  # noqa: E501
+                                     label=found["label"]))
         return found
     chosen = _chosen(exp)
     kept = [m for m in chosen.get("measures") or [] if isinstance(m, dict)]
-    ident = max([int(m["id"]) for m in kept if str(m.get("id") or "").isdigit()] + [0]) + 1
-    kept.append({"id": ident, "label": label, "unit": str(unit or "").strip()[:20]})
-    chosen["measures"] = kept
+    # A deleted measure's number is never given again: its plates keep it.
+    last = chosen.get("last_measure") if isinstance(chosen.get("last_measure"), int) else 0
+    ident = max([int(m["id"]) for m in kept if str(m.get("id") or "").isdigit()] + [last]) + 1
+    entry = {"id": ident, "label": label, "unit": str(unit or "").strip()[:20]}
+    if formula:
+        entry["formula"] = formula
+        if derived.FORMULAS[formula].per_group and str(control or "").strip():
+            entry["control"] = str(control).strip()[:80]
+    kept.append(entry)
+    chosen["measures"], chosen["last_measure"] = kept, ident
     exp.readout = json.dumps(chosen, ensure_ascii=False)
-    return measure_readout(ident, label, unit)
+    return measure_readout(ident, label, entry["unit"], formula, entry.get("control", ""))
+
+
+def change_measure(exp: Experiment, place: Place, key: str, data: dict) -> dict:
+    """A measure renamed (`label`), its unit or its control group changed
+    (`unit`, `control`); its id, and so its readings, stay. A ValueError,
+    in words, for a name it can't have; a LookupError for no such measure."""
+    m = readout_for(exp, place, key)
+    if m is None or not m.get("measure"):
+        raise LookupError(key)
+    chosen = _chosen(exp)
+    for entry in chosen.get("measures") or []:
+        if isinstance(entry, dict) and str(entry.get("id")) == str(m["id"]):
+            if "label" in data:
+                entry["label"] = _measure_name(exp, place, data.get("label"), keep=m["key"])
+            if "unit" in data and not m.get("formula"):
+                entry["unit"] = str(data.get("unit") or "").strip()[:20]
+            if "control" in data and m.get("per_group"):
+                entry["control"] = str(data.get("control") or "").strip()[:80]
+    exp.readout = json.dumps(chosen, ensure_ascii=False)
+    return readout_for(exp, place, m["key"])
+
+
+def drop_measure(exp: Experiment, place: Place, key: str) -> dict:
+    """A measure taken out of the experiment's JSON (the caller deletes its
+    readings); a LookupError for no such measure."""
+    m = readout_for(exp, place, key)
+    if m is None or not m.get("measure"):
+        raise LookupError(key)
+    chosen = _chosen(exp)
+    chosen["measures"] = [e for e in chosen.get("measures") or []
+                          if not (isinstance(e, dict) and str(e.get("id")) == str(m["id"]))]
+    last = chosen.get("last_measure") if isinstance(chosen.get("last_measure"), int) else 0
+    chosen["last_measure"] = max(last, m["id"])
+    exp.readout = json.dumps(chosen, ensure_ascii=False)
+    return m
 
 
 def keep_measures(new_json: str | None, before: str | None) -> str | None:
@@ -307,11 +380,12 @@ def keep_measures(new_json: str | None, before: str | None) -> str | None:
         old = json.loads(before or "{}")
     except ValueError:
         old = {}
-    measures = old.get("measures") if isinstance(old, dict) else None
-    if not measures:
+    if not isinstance(old, dict) or not (old.get("measures") or old.get("last_measure")):
         return new_json
     chosen = json.loads(new_json or "{}")
-    chosen["measures"] = measures
+    for name in ("measures", "last_measure"):
+        if old.get(name):
+            chosen[name] = old[name]
     return json.dumps(chosen, ensure_ascii=False)
 
 
@@ -648,27 +722,55 @@ def _blank(raw) -> bool:
 
 
 def derive_day(session, exp: Experiment, place: Place, on: date, given: dict[str, dict],
-               subs: list[Subject] | None = None) -> dict[str, float]:
-    """What a day's readings would be, for a readout BioManager works out:
-    {subject key: value} for the animals `given` ({key: inputs}, checked),
-    against what that day already has (a control group's mean ΔCt takes
-    every control animal of the day). A DerivedError, in words, otherwise."""
-    readout = readout_of(exp, place)
+               subs: list[Subject] | None = None, readout: dict | None = None) -> dict[str, float]:
+    """What a day's readings would be, for a readout (or another measure)
+    BioManager works out: {subject key: value} for the animals `given`
+    ({key: inputs}, checked), against what that day already has (a control
+    group's mean ΔCt takes every control animal of the day). A
+    DerivedError, in words, otherwise."""
+    readout = readout or readout_of(exp, place)
     f = derived.formula(readout["formula"])
     if not f.per_group:
         return {k: derived.compute(f.key, v) for k, v in given.items()}
+    if not readout.get("control") and readout.get("measure"):
+        raise derived.DerivedError(gettext("Say which group is the control of %(measure)s (its Control group): it is worked out against that group's mean ΔCt.",  # noqa: E501
+                                           measure=readout["label"]))
     if not readout.get("control"):
         raise derived.DerivedError(gettext("Say which group is the control (Control group, beside the readout): %(readout)s is worked out against its mean ΔCt.",  # noqa: E501
                                            readout=i18n.translate_value(f.label)))
     subs = subjects(session, exp, place) if subs is None else subs
     groups = {x.key: x.group for x in subs}
-    day = {k: v[on] for k, v in reading_inputs(session, exp, place, subs).items() if on in v}
+    day = {k: v[on] for k, v in reading_inputs(session, exp, place, subs, readout).items() if on in v}
     day.update(given)
     if not any(groups.get(k, "").strip().lower() == readout["control"].strip().lower() for k in day):
         raise derived.DerivedError(gettext("No animal of the control group “%(group)s” has its Ct values on %(day)s yet: enter theirs first.",  # noqa: E501
                                            group=readout["control"], day=on.isoformat()))
     values = _group_values(readout, day, groups) or {}
     return {k: values[k] for k in given if k in values}
+
+
+_TWO_CTS = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*(?:[-−–/;:]|\s)\s*(\d+(?:[.,]\d+)?)\s*$")
+
+
+def typed_cts(f: derived.Formula, raw) -> dict | float:
+    """What was typed in a Ct measure's cell: two Cts ("24.8 − 18.2", the
+    target's then the reference's) as inputs, or for ΔCt the ΔCt itself
+    as a number. A DerivedError, in words, for anything else."""
+    text = str(raw or "").strip().replace("−", "-")
+    two = _TWO_CTS.match(text)
+    if two:
+        return {"ct_target": two.group(1).replace(",", "."), "ct_reference": two.group(2).replace(",", ".")}
+    try:
+        value = float(text.replace(",", "."))
+    except ValueError:
+        value = None
+    if f.key == "delta_ct" and value is not None and math.isfinite(value):
+        if abs(value) > derived.CT_MAX:
+            raise derived.DerivedError(gettext("A ΔCt of %(value)s isn't one a run gives (at most %(max)s cycles either way).",
+                                               value=f"{value:g}", max=f"{derived.CT_MAX:g}"))
+        return derived.tidy(value)
+    raise derived.DerivedError(gettext("Type the two Cts, the target's then the reference's, e.g. 24.8 − 18.2: %(readout)s is worked out from them.",  # noqa: E501
+                                       readout=i18n.translate_value(f.label)))
 
 
 def _set_derived(session, exp: Experiment, place: Place, readout: dict, subject: Subject, on: date, raw) -> str | None:
@@ -684,7 +786,7 @@ def _set_derived(session, exp: Experiment, place: Place, readout: dict, subject:
         if row is None:
             return None
         if f.per_group and is_control(readout, subject):
-            day = {k: v[on] for k, v in reading_inputs(session, exp, place, subs).items() if on in v}
+            day = {k: v[on] for k, v in reading_inputs(session, exp, place, subs, readout).items() if on in v}
             controls = [x for x in subs if x.key in day and is_control(readout, x)]
             if len(controls) == 1 and len(day) > 1:
                 return gettext("The other animals' %(readout)s on %(day)s is worked out against the control group: remove theirs first, or keep a control.",  # noqa: E501
@@ -695,18 +797,23 @@ def _set_derived(session, exp: Experiment, place: Place, readout: dict, subject:
             _store_day(session, exp, readout, on, subs)
         return None
     try:
-        inputs = derived.check(f.key, raw)
-        value = derive_day(session, exp, place, on, {subject.key: inputs}, subs)[subject.key]
+        if readout.get("measure") and not isinstance(raw, dict):
+            raw = typed_cts(f, raw)
+        if isinstance(raw, float):            # a ΔCt typed as it is: nothing to work it out from
+            inputs, value = None, raw
+        else:
+            inputs = derived.check(f.key, raw)
+            value = derive_day(session, exp, place, on, {subject.key: inputs}, subs, readout)[subject.key]
     except derived.DerivedError as e:
         return f"{subject.label}: {e}"
     if value < 0 and not f.can_be_negative:
         return gettext("A readout can't be below zero.")
+    note = derived.note(inputs) if inputs is not None else ""
     if row is None:
         session.add(ExperimentReading(experiment_id_fk=exp.id, subject=subject.key, readout_key=readout["key"],
-                                      read_on=on, value=value, note=derived.note(inputs),
-                                      recorded_by=g.user.username))
+                                      read_on=on, value=value, note=note, recorded_by=g.user.username))
     else:
-        row.value, row.note, row.recorded_by = value, derived.note(inputs), g.user.username
+        row.value, row.note, row.recorded_by = value, note, g.user.username
     if f.per_group:
         session.flush()
         _store_day(session, exp, readout, on, subs)
@@ -780,12 +887,19 @@ def payload(session, exp: Experiment, place: Place) -> dict:
         "steps": [xs.step_dict(st, place.family, session) for st in exp.steps],
         "schedule": xs.schedule(session, exp, place, subs),
         "table": table,
-        "measures": [{**m, "table": readout_table(session, exp, place, subs, m)} for m in measures_of(exp)],
+        "measures": [{**m, "table": readout_table(session, exp, place, subs, m),
+                      "count": measure_count(session, exp, m["key"])} for m in measures_of(exp)],
         "regimens": xs.regimens_for(session, place.family),
         "reagents": reagent_choices(session),
         "sample_inventories": sample_inventories(session),
         **experiment_plan.page_data(session, exp, place, subs, table),
     }
+
+
+def measure_count(session, exp: Experiment, key: str) -> int:
+    """How many readings a measure holds (what deleting it takes with it)."""
+    return session.scalar(select(func.count(ExperimentReading.id)).where(
+        ExperimentReading.experiment_id_fk == exp.id, ExperimentReading.readout_key == key)) or 0
 
 
 def reagent_choices(session, limit: int = 400) -> list[dict]:
@@ -1367,6 +1481,68 @@ def save_readings(experiment_id: int):
         s.commit()
         s.refresh(exp)
         return jsonify({"ok": True, "problems": problems, **payload(s, exp, place)})
+
+
+@bp.post("/<int:experiment_id>/measures/<int:measure_id>/update")
+def update_measure(experiment_id: int, measure_id: int):
+    """{"label", "unit", "control"}: another measure renamed, its unit or
+    (for ΔΔCt and fold change) its control group changed. Its id stays, so
+    its readings stay with it."""
+    data = request.get_json(silent=True) or request.form.to_dict()
+    with SessionLocal() as s:
+        exp, place = _load(s, experiment_id)
+        refused = _refuse(exp)
+        if refused:
+            return refused
+        try:
+            m = change_measure(exp, place, f"{MEASURE}{measure_id}", data)
+        except LookupError:
+            return jsonify({"ok": False, "error": gettext("This experiment has no measure “%(measure)s”.",
+                                                          measure=measure_id)}), 404
+        except ValueError as e:
+            return jsonify({"ok": False, "error": str(e)}), 409
+        if m.get("per_group"):
+            # A new control group: each day's ΔΔCt is against its animals now.
+            subs = subjects(s, exp, place)
+            s.flush()
+            for on in set(s.scalars(select(ExperimentReading.read_on).where(
+                    ExperimentReading.experiment_id_fk == exp.id, ExperimentReading.readout_key == m["key"]))):
+                _store_day(s, exp, m, on, subs)
+        exp.updated_at = datetime.utcnow()
+        s.commit()
+        s.refresh(exp)
+        return jsonify({"ok": True, "measure": m["key"], **payload(s, exp, place)})
+
+
+@bp.post("/<int:experiment_id>/measures/<int:measure_id>/delete")
+def delete_measure(experiment_id: int, measure_id: int):
+    """Another measure deleted with its readings, as one batch that Batch
+    history's Undo brings back whole (the measure is in the experiment's
+    readout JSON, so the experiment's own change is in the batch)."""
+    from . import audit
+    with SessionLocal() as s:
+        exp, place = _load(s, experiment_id)
+        refused = _refuse(exp)
+        if refused:
+            return refused
+        m = readout_for(exp, place, f"{MEASURE}{measure_id}")
+        if m is None or not m.get("measure"):
+            return jsonify({"ok": False, "error": gettext("This experiment has no measure “%(measure)s”.",
+                                                          measure=measure_id)}), 404
+        rows = list(s.scalars(select(ExperimentReading).where(ExperimentReading.experiment_id_fk == exp.id,
+                                                              ExperimentReading.readout_key == m["key"])))
+        with audit.batch(s, "delete", f"Measure “{m['label']}” of {exp.name} deleted, with its {len(rows)} readings",
+                         "experiments"):
+            for row in rows:
+                s.delete(row)
+            drop_measure(exp, place, m["key"])
+            exp.updated_at = datetime.utcnow()
+        s.commit()
+        s.refresh(exp)
+        return jsonify({"ok": True, "message": ngettext("Deleted %(measure)s and its %(num)s reading. Batch history can undo it.",
+                                                        "Deleted %(measure)s and its %(num)s readings. Batch history can undo it.",
+                                                        len(rows), measure=m["label"]),
+                        **payload(s, exp, place)})
 
 
 @bp.post("/<int:experiment_id>/delete")

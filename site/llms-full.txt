@@ -858,7 +858,7 @@ What you stop doing: ordering a second one because nobody knew the first had arr
 
 One engine, ten starting points, each with its own columns and statuses. Viruses, Primers and Glycerol stocks each name the plasmid they came from, so they sit with [Plasmids](https://biomanager.org/guide/plasmids) as tabs of one area, **Molecular biology** in the sidebar, rather than on their own:
 
-| Samples | Tissue and material, linked to the animal it came from — pick the colony and type its ID in the **Source** cell, or tick a whole harvest and set it on all of them at once. Beside it, **Custom tag** shows that mouse's tag, straight from the colony, so re-tagging a mouse there updates every sample of it at once. If you hide **Custom tag** under **Columns** on the Mice tab, it goes from Samples too. Stored at RT, 4 °C, −20 °C, −80 °C or LN₂ in a freezer box position, with what was measured as numbers: *Conc.* and its unit, *260/280*, *260/230*, *Volume (µL)*. Available, in use, used up, discarded. |
+| Samples | Tissue and material, linked to the animal it came from — pick the colony and type its ID in the **Source** cell, or tick a whole harvest and set it on all of them at once. Beside it, **Custom tag** shows that mouse's tag, straight from the colony, so re-tagging a mouse there updates every sample of it at once. If you hide **Custom tag** under **Columns** on the Mice tab, it goes from Samples too. Rest the pointer on the arrow after the ID for that mouse's sex, age, genotype, status, owner and cage, and the notebook pages that mention it, as the notebook shows over **@mouse**; click it to open the mouse in the colony. A tab for each type, each with its own columns ([Samples by type](https://biomanager.org/guide/samples-and-orders#samples-by-type)): a tissue's *Tissue*, *Fixation* and *Orientation*; a DNA's or RNA's *Conc.* and its unit, *260/280*, *260/230* and *Volume (µL)*; and for every sample its *Genotype* and *Condition*. Stored at RT, 4 °C, −20 °C, −80 °C or LN₂ in a freezer box position. Available, in use, used up, discarded. |
 |---|---|
 | Orders | What the lab has asked for: vendor, catalogue number, quantity, price, grant account. Requested, ordered, received, cancelled — on a table or a **Board** you drag cards across. |
 | Reagents | Quantity, concentration, CAS number, storage temperature, hazards, lot and expiry. In stock, low, empty, discarded. |
@@ -869,6 +869,24 @@ One engine, ten starting points, each with its own columns and statuses. Viruses
 | Glycerol stocks | Bacteria carrying a plasmid, frozen in glycerol: the plasmid (**Plasmid**), strain, colony, resistance, how it was checked (digest, colony PCR, Sanger, whole plasmid), the date frozen, and its place in a −80 °C box. The plasmid's **Storage** tab lists its glycerol stocks and the box each is in. In stock, low, used up, discarded. |
 | Cell lines | A frozen vial of each line or clone: species, parent, passage, freeze date, cells per vial, medium, selection, mycoplasma result and date, and its place in the LN₂ boxes. In stock, thawed, used up, discarded. |
 | Custom list | Whatever you define. |
+
+### Samples by type
+
+Tissue blocks and tubes of DNA are kept differently and described differently, so Samples has a tab for each type above the sheet: **All**, then **tissue**, **blood**, **serum**, **DNA**, **RNA**, **protein** and the rest, each with how many it holds.
+
+- **A tab shows only its own columns.** **tissue** has *Tissue* (the organ: lung, DRG…), *Fixation* (fresh frozen, 4% PFA, formalin, RNAlater…) and *Orientation* (sagittal, coronal…), and no 260/280; **DNA** and **RNA** have the concentration, its unit, 260/280, 260/230 and volume, and no fixation. **All** shows every column, with a dash where one isn't used for that sample's type.
+
+- **The boxes follow the tab.** In **tissue**, **Box grid** and the box buttons show the boxes holding tissue, and the empty ones; a box still shows everything in it, so a cell another sample is in never looks free.
+
+- **A new sample from a tab is of that type**, and its dialog asks only for that type's columns. Changing the **Type** in the dialog changes the fields it shows.
+
+- **Genotype** comes from the source mouse: left empty, it shows that mouse's genotype from the colony, in grey, and follows it when the mouse is re-genotyped. Type one to give the sample its own. Search finds samples by either.
+
+- **+** at the end of the tabs adds a type (slides, plasma, CSF…): anyone can, and it gets a tab of its own with the columns every type has. Renaming or removing a type is in **Configure**, under *Type choices*.
+
+- Which columns a type has is each column's **Used for** in **Configure**: the types it is for, separated by commas, or empty for every type. Any inventory can have tabs: tick **A tab for each type** under *What it tracks*.
+
+Brought your samples in from another database, with everything in the notes (*Tissue: Lung; Fixation: 4% PFA; control 6OHDA 2w*)? Tick them (**All** under the page size shows every row at once), then **Split notes** in the bar that appears. Each *Column: value* whose name is a column goes into it; the rest stays in the notes. A sample with no type that gets a column of one type only (a fixation) becomes that type. A column already holding something else is left as it is, and a name with no column is listed, so you can add it in Configure and split again. **Batch history** undoes it.
 
 ### Ordering, start to shelf
 
@@ -998,7 +1016,7 @@ An ELISA, a viability assay or a qPCR run gives one number per well, and the wor
 
 3. **Read a plate →**, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.
 
-4. **Readout** says what the plate fills: the experiment's main readout, or another measure of the same animals kept beside it (below). **Another measure…** asks its name and unit, such as *IL-6 ELISA* in pg/mL; the next plate offers it by name.
+4. **Readout** says what the plate fills: the experiment's main readout, or another measure of the same animals kept beside it (below). **Another measure…** asks its name and its **Kind**: **A number**, with a unit, such as *IL-6 ELISA* in pg/mL, or one worked out from two genes' Cts, **ΔCt: target − reference**, **ΔΔCt, against a control group** or **Fold change (2^−ΔΔCt)** (the last two ask for the **Control group**), so a qPCR run can fill a gene's ΔCt beside a tumour volume. The next plate offers it by name, and asks for the genes again.
 
 5. Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD over 10, a Ct over 50, *OVRFLW*) in red, and left out, as is *Undetermined*. Click any well to leave it out, and again to put it back.
 
@@ -1007,13 +1025,17 @@ An ELISA, a viability assay or a qPCR run gives one number per well, and the wor
 | A readout of your own, or another measure | (**Readout → Something else…** at the top, such as IL-6 in pg/mL, or **Another measure…** in the plate.) The mean of each animal's wells, less the blank's mean (**Take off the blank**). With standards of two or more concentrations, **Read each value off the standard curve** turns each into a concentration, and **Curve** chooses the curve: **Linear**, a straight line through the standards; **Log–log**, a straight line on log axes, for standards over several tenfold dilutions; or **4PL**, the four-parameter logistic, the S-shaped curve of an ELISA, for five or more concentrations. BioManager starts with 4PL when there are five or more standards spanning a tenfold dilution, and a straight line otherwise. The curve is drawn beside the plate, with the standards as dots and each animal as a square on it, and its equation and r² below. A value past the highest or lowest standard is marked; one past where a 4PL levels off can't be read at all, and says so (dilute the sample and read it again). A 4PL that doesn't fit the standards is refused, in words, rather than used. |
 |---|---|
 | Absorbance, blank subtracted | The mean OD less the blank's, kept with both. |
-| ΔCt, ΔΔCt, fold change | Choose the **Target gene** and the **Reference gene** from the run; each animal's mean Ct of each is used, and ΔΔCt and fold change are against the **Control group** as when you type them. |
+| ΔCt, ΔΔCt, fold change | Choose the **Target gene** and the **Reference gene** from the run (a housekeeping gene on it, such as Gapdh or Actb, starts as the reference); each animal's mean Ct of each is used, and ΔΔCt and fold change are against the **Control group** as when you type them. |
 
 Saving a day that already has readings replaces them, and says so first. The plate is kept with the experiment: **Plates read**, under the layout, lists each with its day, layout, what it filled and its file. A saved plate is one step in **Batch history**: **Undo** there takes back all its readings and the plate together, and puts back any readings it replaced. Only the experiment's owner (or an admin) lays out and reads plates, as with the rest of the experiment.
 
 #### Another measure beside the main readout
 
 An experiment has one main readout: the one its plan, **Main readout day**, tests by day and bench mode are about. Something else measured on the same animals, such as an IL-6 ELISA at the end of a tumour experiment, is another measure, kept beside it rather than in its place. Each gets its own button on the sheet, next to the main readout's: the sheet shows its days (a cell can be typed or corrected there), and the chart below and its tests by day follow the button chosen. **Export** gives each measure a sheet of its own, and its tests under the main readout's in **Tests by day**. Changing the main readout keeps the other measures.
+
+A measure worked out from Cts is typed in its cell as the two Cts, the target's then the reference's (*24.8 − 18.2*); a ΔCt measure also takes the ΔCt itself. Pointing at a cell shows the Cts it was worked out from, and its sheet in **Export** has them beside each value. ΔΔCt and fold change are against the control group's mean ΔCt on the same day, as for the main readout.
+
+The **•••** beside the measure shown opens it: change its name or unit (its readings stay with it), or the **Control group** of a ΔΔCt or fold change, or **Delete measure**. Deleting asks first, saying how many readings go with it; it is one step in **Batch history**, whose **Undo** brings back the measure and its readings together.
 
 ### The page
 
@@ -1061,7 +1083,7 @@ From then on, four changes ask for a one-line reason, because each can change wh
 
 ### At the bench, and afterwards
 
-- **Bench mode** (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers — type each weight or count, or give each today's manipulation and tap **Given ✓**; record it at the end, with the **Reagent used** and its **Lot** filled in as on the page. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
+- **Bench mode** (scan its QR code with a phone): pick what you are doing — the main readout, another measure of the experiment, or a manipulation due — then one animal at a time with big numbers: type each weight, count or value, or give each today's manipulation and tap **Given ✓**; record it at the end, with the **Reagent used** and its **Lot** filled in as on the page. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
 
 - **Export** downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations with the reagent and lot it got, the tests by day, and a sheet for each other measure.
 
@@ -1119,7 +1141,7 @@ On a narrow screen it scrolls sideways. All of it stays readable Markdown: a cal
 
 - **Experiments**: aim, setup, samples and lot numbers, steps, results and a summary. *Start* and *Finished* stamp the times; planned, running, done or failed shows in the sidebar. (The colony's **Experiments** tab groups the animals.)
 
-- **Colony experiment** (`/experiment`) shows an experiment on any of your animals in the page: each day's manipulation, the reagent and lot it used (*(expired)* when the lot was past its expiry that day), when it was done and by whom, the amount each mouse got, and the body weights as a table and a chart (grams or % of the first weight, with the manipulation days marked). It stays up to date; **Freeze a copy** keeps what it shows now in the page, so later changes to the experiment don't alter your record. On the experiment itself, **Add to notebook** makes your page for it with this block already in.
+- **Colony experiment** (`/experiment`) shows an experiment on any of your animals in the page: each day's manipulation, the reagent and lot it used (*(expired)* when the lot was past its expiry that day), when it was done and by whom, the amount each mouse got, and the body weights as a table and a chart (grams or % of the first weight, with the manipulation days marked). When the experiment has other measures beside its main readout (an ELISA a plate filled), a button for each switches the table and chart to it, and the page keeps the one you picked. It stays up to date; **Freeze a copy** keeps what it shows now in the page, so later changes to the experiment don't alter your record. On the experiment itself, **Add to notebook** makes your page for it with this block already in.
 
 - **Protocols** with numbered versions. *Start an experiment from it* copies the steps as a checklist and records the version; **Run mode** takes you through it at the bench, one step at a time.
 

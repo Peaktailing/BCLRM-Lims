@@ -30,6 +30,24 @@ RELEASES_URL = "https://github.com/gaspolymerase/biomanager/releases/tag/v{versi
 # Newest first. Each line is plain text; **bold** names a button or a page.
 # Each line's Chinese goes in app/translations/zh/whats_new.json (a test checks).
 NOTES: dict[str, dict[str, list[str]]] = {
+    "1.14.0": {
+        "new": [
+            "A measure can be ΔCt, ΔΔCt or fold change, chosen under **Kind** in **Another measure…**.",
+            "Rename or delete a measure from the **•••** beside it on the sheet; **Undo** brings a deleted one back with its readings.",
+            "**Bench mode** records other measures too.",
+        ],
+        "changed": [
+            "The notebook's experiment block is in Chinese on a Chinese page, and can show any of the experiment's measures.",
+            "Reading a qPCR plate, a housekeeping gene such as Gapdh starts as the reference gene.",
+        ],
+    },
+    "1.13.0": {
+        "new": [
+            "Samples has a tab for each type (tissue, DNA, RNA…), each with its own columns, such as **Fixation** for tissue and **260/280** for DNA; **+** adds a type.",
+            "**Split notes** moves each *Column: value* in the ticked samples' notes into that column.",
+            "Hovering the arrow after a sample's source ID shows that mouse's sex, age, genotype, status, owner and cage; the notebook's **@mouse** card shows the age too.",
+        ],
+    },
     "1.12.0": {
         "new": [
             "A plate can fill another measure beside the main readout, chosen under **Readout** in **Plate layout**; each measure has its own button on the sheet and its own sheet in **Export**.",

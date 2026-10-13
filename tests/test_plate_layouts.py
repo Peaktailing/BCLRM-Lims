@@ -191,6 +191,20 @@ class LayingItOnTheLayout(unittest.TestCase):
             plates.analyse(plates.clean_layout(layout, 96), 96, plates.read_export(text=QPCR), readout,
                            subjects("mouse:1"), {"target": "Il6", "reference": "Il6"})
 
+    def test_a_housekeeping_gene_is_the_reference_unless_chosen(self):
+        layout = {"A1": "mouse:1", "A2": "mouse:1", "A3": "mouse:1", "A4": "mouse:1"}
+        readout = {"formula": "delta_ct", "label": "ΔCt"}
+        # Gapdh sorts first, but it is the one normalised to.
+        out = plates.analyse(plates.clean_layout(layout, 96), 96, plates.read_export(text=QPCR), readout,
+                             subjects("mouse:1"))
+        self.assertEqual((out["target"], out["reference"]), ("Il6", "Gapdh"))
+        self.assertEqual(self.by(out)["mouse:1"]["value"], 6.95)
+        # Neither a usual reference: the first is the target, as before.
+        other = QPCR.replace("Gapdh", "Tnf")
+        out = plates.analyse(plates.clean_layout(layout, 96), 96, plates.read_export(text=other), readout,
+                             subjects("mouse:1"))
+        self.assertEqual(out["reference"], [t for t in out["targets"] if t != out["target"]][0])
+
     def test_a_ct_replicate_half_a_cycle_out_is_flagged(self):
         text = QPCR.replace("2,A2,false,m1,Gapdh,UNKNOWN,SYBR,18.2", "2,A2,false,m1,Gapdh,UNKNOWN,SYBR,19.9")
         layout = {"A1": "mouse:1", "A2": "mouse:1", "A3": "mouse:1", "A4": "mouse:1"}

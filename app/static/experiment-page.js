@@ -52,7 +52,9 @@
   // A readout BioManager works out (app/derived.py): typed as what was measured (length and width), never as the result.
   const derivedRO = () => Boolean(D.readout.formula);
   const inputsOf = () => D.readout.inputs || [];
-  const measuredText = (inputs) => (inputs ? inputsOf().filter((i) => inputs[i.key] != null)
+  // The main readout's own cells open its day; another measure worked out from Cts is typed in its cell.
+  const workedOut = () => Boolean(VR().formula) && !viewed();
+  const measuredText = (inputs, of) => (inputs ? (of || inputsOf()).filter((i) => inputs[i.key] != null)
     .map((i) => `${t(i.label)} ${num(inputs[i.key], 3)}${i.unit ? ` ${i.unit}` : ''}`).join(', ') : '');
   const STATE = { done: t('Done'), today: t('Today'), overdue: t('Overdue'), upcoming: t('To come'), planned: t('Planned') };
 
@@ -163,7 +165,8 @@
     if (title) title.textContent = `${vRL()}${VR().unit && !vFraction() ? ` (${vUnit()})` : ''}`;
     const chips = $('[data-xp-measures]');
     if (chips) {
-      chips.innerHTML = (D.measures || []).map((m) => `<button type="button" class="dt-chip" role="tab" data-xp-view="${esc(m.key)}" aria-pressed="false" title="${esc(t('Another measure, beside the main readout'))}">${icon('chart')} ${esc(m.label)}</button>`).join('');
+      // The measure shown has its ••• beside it: rename it, or delete it with its readings.
+      chips.innerHTML = (D.measures || []).map((m) => `<button type="button" class="dt-chip" role="tab" data-xp-view="${esc(m.key)}" aria-pressed="false" title="${esc(m.formula ? `${t('Another measure, beside the main readout')} · ${t(m.kind_label)}: ${m.expression}` : t('Another measure, beside the main readout'))}">${icon('chart')} ${esc(m.label)}</button>${D.editable && m.key === view ? `<button type="button" class="dt-chip xp-measure-more" data-xp-measure-edit="${esc(m.key)}" aria-label="${esc(t('Rename or delete %(measure)s', { measure: m.label }))}" title="${esc(t('Rename or delete %(measure)s', { measure: m.label }))}">${icon('ellipsis')}</button>` : ''}`).join('');
     }
     const [raw, pct] = $$('[data-xp-scale]');
     if (raw && pct) {
@@ -205,7 +208,7 @@
         <span class="xp-dayhead">${t('Day %(n)s', { n: c.day })}</span><span class="xp-daywhat">${esc(titleOf(c))}</span><span class="xp-daydate">${esc(niceDate(c.date))}${c.group ? ` · ${esc(c.group)}` : ''}</span></th>`));
     } else {
       VT().dates.forEach((d, i) => head.push(`<th class="xp-daycol"><span class="xp-dayhead">${VT().days[i] !== null ? t('Day %(n)s', { n: VT().days[i] }) : ''}</span><span class="xp-daydate">${esc(niceDate(d))}</span></th>`));
-      if (D.editable && VR().formula) head.push(`<th class="xp-daycol xp-newday"><button type="button" class="xp-link" data-xp-open="reading">${t('Another day')}</button></th>`);
+      if (D.editable && workedOut()) head.push(`<th class="xp-daycol xp-newday"><button type="button" class="xp-link" data-xp-open="reading">${t('Another day')}</button></th>`);
       else if (D.editable) head.push(`<th class="xp-daycol xp-newday"><span class="xp-dayhead">${t('Another day')}</span><input type="date" class="xp-newday-date" value="${today()}" max="${today()}" aria-label="${esc(t('The day of the new column'))}"></th>`);
     }
     if (D.editable) head.push('<th class="xp-actions"></th>');
@@ -223,8 +226,8 @@
         cols.forEach((c) => cells.push(treatmentCell(s, c)));
       } else {
         const row = rowsByKey[s.key] || { values: [] };
-        VT().dates.forEach((d, i) => cells.push(VR().formula ? derivedCell(d, row.values[i], (row.inputs || [])[i]) : readingCell(s, d, row.values[i])));
-        if (D.editable) cells.push(VR().formula ? '<td></td>' : readingCell(s, '', null, true));
+        VT().dates.forEach((d, i) => cells.push(workedOut() ? derivedCell(d, row.values[i], (row.inputs || [])[i]) : readingCell(s, d, row.values[i], false, (row.inputs || [])[i])));
+        if (D.editable) cells.push(workedOut() ? '<td></td>' : readingCell(s, '', null, true));
       }
       if (D.editable) {
         const leave = s.left_out
@@ -264,10 +267,13 @@
       : `<td class="xp-t" data-t="${entry ? 'given' : 'missed'}" title="${esc(title)}">${inner}</td>`;
   }
 
-  function readingCell(subject, date, value, fresh = false) {
+  // A measure worked out from two Cts takes them typed in its cell, "24.8 − 18.2" (a ΔCt also as it is).
+  function readingCell(subject, date, value, fresh = false, inputs = null) {
     const of = vFraction() && subject.start != null ? `<span class="xp-of">/ ${subject.start}</span>` : '';
+    const cts = VR().formula ? (VR().formula === 'delta_ct' ? t('The ΔCt, or the two Cts: target − reference, e.g. 24.8 − 18.2') : t('The two Cts: target − reference, e.g. 24.8 − 18.2')) : '';
+    const tip = [measuredText(inputs, VR().inputs), cts].filter(Boolean).join(' · ');
     return `<td class="xp-r"><span class="xp-rwrap"><input class="xp-cell xp-num" data-xp-reading="${esc(subject.key)}" data-date="${esc(date)}" ${fresh ? 'data-fresh="1"' : ''}
-      value="${value === null || value === undefined ? '' : num(value, 2)}" inputmode="decimal" aria-label="${esc(date ? t('%(readout)s of %(label)s on %(date)s', { readout: vRL(), label: subject.label, date }) : t('%(readout)s of %(label)s', { readout: vRL(), label: subject.label }))}" ${D.editable ? '' : 'disabled'}>${of}</span></td>`;
+      value="${value === null || value === undefined ? '' : num(value, 2)}" inputmode="${VR().formula ? 'text' : 'decimal'}"${tip ? ` title="${esc(tip)}"` : ''} aria-label="${esc(date ? t('%(readout)s of %(label)s on %(date)s', { readout: vRL(), label: subject.label, date }) : t('%(readout)s of %(label)s', { readout: vRL(), label: subject.label }))}" ${D.editable ? '' : 'disabled'}>${of}</span></td>`;
   }
 
   // A readout BioManager works out: the value, what was measured on hover; a click opens the day to change it.
@@ -304,7 +310,15 @@
       try {
         const data = await send(`${XP}/readings`, { on, values: { [t.dataset.xpReading]: t.value }, ...(viewed() ? { measure: viewed().key } : {}) });
         t.classList.remove('is-error');
-        apply(data, { sheet: Boolean(t.dataset.fresh) });       // a new day becomes its own column
+        // A new day becomes its own column; two Cts become their ΔCt (and a ΔΔCt moves the day's others).
+        const redraw = Boolean(t.dataset.fresh) || Boolean(VR().formula);
+        const next = redraw && document.activeElement && document.activeElement.matches('[data-xp-reading]')
+          ? [document.activeElement.dataset.xpReading, document.activeElement.dataset.date] : null;
+        apply(data, { sheet: redraw });
+        if (next) {
+          const again = $$('[data-xp-reading]').find((el) => el.dataset.xpReading === next[0] && el.dataset.date === next[1]);
+          if (again) again.focus();
+        }
       } catch (_e) { t.classList.add('is-error'); }
     }
   });
@@ -347,6 +361,10 @@
         if (answer === null || answer === undefined || !String(answer).trim()) return;
         apply(await send(url, { reason: String(answer).trim() }));
       } catch (_e) { /* shown */ }
+    } else if (btn.dataset.xpMeasureEdit) {
+      openMeasure(btn.dataset.xpMeasureEdit);
+    } else if (btn.matches('[data-xp-measure-delete]')) {
+      deleteMeasure();
     } else if (btn.dataset.xpOpen) {
       open(btn.dataset.xpOpen, btn.dataset.on);
     } else if (btn.matches('[data-xp-close]')) {
@@ -862,6 +880,65 @@
         if (data.problems && data.problems.length) alertSay(`${t('Saved, except:')}\n${data.problems.join('\n')}`);
       } catch (error) { showError(dialog, error.message); }
     });
+  }
+
+  // ---------------------------------------------------------------- another measure: rename, delete
+
+  let measureKey = '';
+  const measureNow = () => (D.measures || []).find((m) => m.key === measureKey) || null;
+  function openMeasure(key) {
+    measureKey = key;
+    const m = measureNow();
+    const dialog = $('#xp-measure');
+    if (!m || !dialog) return;
+    const f = $('[data-xp-form="measure"]').elements;
+    f.label.value = m.label;
+    f.unit.value = m.unit || '';
+    f.control.value = m.control || '';
+    $('[data-xp-measure-unit]', dialog).hidden = Boolean(m.formula);
+    $('[data-xp-measure-control]', dialog).hidden = !m.per_group;
+    $('[data-xp-measure-kind]', dialog).textContent = m.formula ? `${t(m.kind_label)}: ${m.expression}. ${t(m.description)}` : '';
+    $('[data-xp-measure-count]', dialog).textContent = m.count
+      ? t(m.count === 1 ? 'It holds %(n)s reading; renaming keeps it.' : 'It holds %(n)s readings; renaming keeps them.', { n: m.count })
+      : t('It holds no readings yet.');
+    showError(dialog, '');
+    if (!dialog.open) dialog.showModal();
+    f.label.focus();
+  }
+  const measureForm = $('[data-xp-form="measure"]');
+  if (measureForm) {
+    measureForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const m = measureNow();
+      const dialog = measureForm.closest('dialog');
+      if (!m) { dialog.close(); return; }
+      const f = measureForm.elements;
+      const body = { label: f.label.value };
+      if (!m.formula) body.unit = f.unit.value;
+      if (m.per_group) body.control = f.control.value;
+      try {
+        apply(await send(`${XP}/measures/${m.id}/update`, body));
+        dialog.close();
+      } catch (error) { showError(dialog, error.message); }
+    });
+  }
+  async function deleteMeasure() {
+    const m = measureNow();
+    const dialog = $('#xp-measure');
+    if (!m) return;
+    const question = m.count
+      ? t(m.count === 1 ? 'Delete %(measure)s and its %(n)s reading? Batch history can undo it.' : 'Delete %(measure)s and its %(n)s readings? Batch history can undo it.', { measure: m.label, n: m.count })
+      : t('Delete %(measure)s? It holds no readings.', { measure: m.label });
+    if (!(await confirmAsk(question, true))) return;
+    try {
+      const data = await send(`${XP}/measures/${m.id}/delete`, {});
+      if (dialog && dialog.open) dialog.close();
+      view = 'readout';
+      try { sessionStorage.setItem(`xp:view:${D.id}`, view); } catch (_e) { /* no storage */ }
+      scale = null;
+      apply(data);
+      if (data.message) say('saved', data.message);
+    } catch (error) { if (dialog) showError(dialog, error.message); }
   }
 
   // ---------------------------------------------------------------- the details, autosaved

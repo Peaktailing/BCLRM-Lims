@@ -308,7 +308,15 @@
           <label title="{{ _('The experiment’s main readout, or another measure of the same animals saved beside it (an ELISA in a tumour experiment)') }}">{{ _('Readout') }}
             <select data-plate-measure></select></label>
           <label data-plate-new-measure hidden>{{ _('Measure') }} <input data-plate-measure-label maxlength="60" placeholder="{{ _('e.g. IL-6 ELISA') }}" autocomplete="off"></label>
-          <label data-plate-new-measure hidden>{{ _('Unit') }} <input data-plate-measure-unit maxlength="20" placeholder="pg/mL" autocomplete="off"></label>
+          <label data-plate-new-measure hidden title="{{ _('A number for each animal, or one BioManager works out from two genes’ Cts as the main readout can be') }}">{{ _('Kind') }}
+            <select data-plate-measure-kind>
+              <option value="">{{ _('A number') }}</option>
+              <option value="delta_ct">{{ _('ΔCt: target − reference') }}</option>
+              <option value="delta_delta_ct">{{ _('ΔΔCt, against a control group') }}</option>
+              <option value="fold_change">{{ _('Fold change (2^−ΔΔCt)') }}</option>
+            </select></label>
+          <label data-plate-new-measure data-plate-new-unit hidden>{{ _('Unit') }} <input data-plate-measure-unit maxlength="20" placeholder="pg/mL" autocomplete="off"></label>
+          <label data-plate-new-control hidden>{{ _('Control group') }} <input data-plate-measure-control list="xp-groups" placeholder="{{ _('e.g. Vehicle') }}" autocomplete="off"></label>
         </div>
         <div class="pl-bar" data-plate-options></div>
         <div class="pl-preview" data-plate-preview><div class="pl-read-top" data-plate-top><figure class="pl-curve" data-plate-curve hidden></figure></div></div>
@@ -338,6 +346,28 @@
       <p class="xp-error" data-xp-error hidden></p>
     </div>
     <footer class="csv-modal-foot"><span class="xp-spacer"></span>
+      <button type="button" class="dt-bottom-action" data-xp-close>{{ _('Cancel') }}</button>
+      <button type="submit" class="dt-bottom-action is-primary">{{ _('Save') }}</button></footer>
+  </form>
+</dialog>
+
+{# Another measure, from the ••• beside its button: renamed (its readings stay) or deleted with them #}
+<dialog class="xp-dialog" id="xp-measure" aria-labelledby="xp-measure-title">
+  <form method="dialog" class="xp-form" data-xp-form="measure">
+    <header class="xp-dialog-head"><div><h3 id="xp-measure-title">{{ _('Measure') }}</h3><p class="xp-sub" data-xp-measure-kind></p></div>
+      <button type="button" class="csv-modal-close" data-xp-close aria-label="{{ _('Close') }}">×</button></header>
+    <div class="xp-dialog-body">
+      <div class="xp-grid">
+        <label class="xp-span2">{{ _('Name') }} <input name="label" maxlength="60" required autocomplete="off"></label>
+        <label data-xp-measure-unit>{{ _('Unit') }} <input name="unit" maxlength="20" autocomplete="off"></label>
+        <label data-xp-measure-control hidden>{{ _('Control group') }} <input name="control" list="xp-groups" placeholder="{{ _('e.g. Vehicle') }}" autocomplete="off"></label>
+      </div>
+      <p class="xp-sub" data-xp-measure-count></p>
+      <p class="xp-error" data-xp-error hidden></p>
+    </div>
+    <footer class="csv-modal-foot">
+      <button type="button" class="dt-bottom-action xp-undo" data-xp-measure-delete>{{ _('Delete measure') }}</button>
+      <span class="xp-spacer"></span>
       <button type="button" class="dt-bottom-action" data-xp-close>{{ _('Cancel') }}</button>
       <button type="submit" class="dt-bottom-action is-primary">{{ _('Save') }}</button></footer>
   </form>

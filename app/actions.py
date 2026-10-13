@@ -1474,7 +1474,7 @@ def _derived_readings(s, exp, v) -> list[str]:
     from . import derived
     from . import experiments as xp
     place = _place(s, exp)
-    readout = xp.readout_of(exp, place)
+    readout = xp.readout_for(exp, place, v.get("measure")) or xp.readout_of(exp, place)
     names = list(v["inputs"])
     keys = _subject_keys(s, exp, names)
     labels = {x.key: x.label for x in xp.subjects(s, exp, place)}
@@ -1486,7 +1486,7 @@ def _derived_readings(s, exp, v) -> list[str]:
         except derived.DerivedError as e:
             raise ActionError(f"{_show(name)}: {e}") from None
     try:
-        values = xp.derive_day(s, exp, place, on, checked)
+        values = xp.derive_day(s, exp, place, on, checked, readout=readout)
     except derived.DerivedError as e:
         raise ActionError(str(e)) from None
     unit = f" {readout['unit']}" if readout["unit"] else ""
@@ -1552,6 +1552,49 @@ def _reading_summary(s, exp, v) -> str:
         head = gettext("Experiment “%(name)s”: readout%(on)s for %(n)s animals", name=exp.name, on=_on(v.get("date")),
                        n=len(v.get("inputs") or v.get("values") or {}))
     return f"{head}: {'; '.join(lines)}" if lines else head
+
+
+def _measure_of(s, exp, v) -> dict:
+    """The other measure a change names (its name or key); an ActionError, in words, for none."""
+    from . import experiments as xp
+    m = xp.readout_for(exp, _place(s, exp), v.get("measure"))
+    if m is None or not m.get("measure"):
+        raise ActionError(gettext("Experiment %(name)s has no measure “%(measure)s”; its other measures: %(names)s.",
+                                  name=exp.name, measure=v.get("measure"),
+                                  names=", ".join(x["label"] for x in xp.measures_of(exp)) or gettext("none yet")))
+    return m
+
+
+def _measure_change_said(s, exp, v) -> str:
+    from . import experiments as xp
+    m = _measure_of(s, exp, v)
+    if v.get("delete"):
+        return gettext("Experiment “%(name)s”: delete the measure %(measure)s, with its %(n)s readings", name=exp.name,
+                       measure=m["label"], n=xp.measure_count(s, exp, m["key"]))
+    return gettext("Experiment “%(name)s”, measure %(measure)s: %(fields)s", name=exp.name, measure=m["label"],
+                   fields=", ".join(f"{k} → {v[k]}" for k in ("label", "unit", "control") if k in v))
+
+
+@action(name="experiment_measure_change", area="experiments", title="Rename or delete a measure",
+        help="Another measure of an experiment (beside its main readout; GET /api/v1/experiments/{id} lists "
+             "page.measures): rename it or change its unit (its readings stay), change the control group a ΔΔCt "
+             "or fold change measure is worked out against, or delete it with all its readings (delete: true).",
+        target="experiment",
+        fields=(Field("measure", "text", "The measure: its name, e.g. IL-6 ELISA, or key, measure:1", required=True),
+                Field("label", "text", "Its new name"),
+                Field("unit", "text", "Its unit (not for one worked out from Cts)"),
+                Field("control", "text", "The control group, for a ΔΔCt or fold change measure"),
+                Field("delete", "bool", "Delete the measure and every reading of it")),
+        describe=_measure_change_said)
+def _experiment_measure_change(s, exp, v):
+    m = _measure_of(s, exp, v)
+    if v.get("delete"):
+        return [Call("POST", f"/experiments/{exp.id}/measures/{m['id']}/delete", json={})]
+    body = {k: v[k] for k in ("label", "unit", "control") if k in v}
+    if not body:
+        raise ActionError(gettext("Say what to change on the measure %(measure)s: label, unit, control, or delete.",
+                                  measure=m["label"]))
+    return [Call("POST", f"/experiments/{exp.id}/measures/{m['id']}/update", json=body)]
 
 
 @action(name="experiment_add_animals", area="experiments", title="Add animals to an experiment",

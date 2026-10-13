@@ -547,7 +547,7 @@ def arrive(facts: dict) -> list[dict]:
              if readout.get("days_measured") else "",
              ("Secondary measures: " + "; ".join(
                  f"{m['label']}" + (f" ({m['unit']})" if m.get("unit") else "")
-                 + f", measured on {m['days_measured']} day(s)" for m in readout["other_measures"] if m["days_measured"])
+                 + (f", {m['expression']}" if m.get("expression") else "") + f", measured on {m['days_measured']} day(s)" for m in readout["other_measures"] if m["days_measured"])
               + ".") if any(m["days_measured"] for m in readout.get("other_measures") or []) else ""],
          ["Which outcome is primary, and how it was measured (and by whom)."])
     tests = facts["statistics"]["tests"]
@@ -1478,6 +1478,8 @@ def experiment_summary(session, experiment_id: int) -> dict:
         mt = xp.readout_table(session, exp, place, subs, m)
         days = [d for i, d in enumerate(mt["dates"]) if any(r["values"][i] is not None for r in mt["rows"])]
         others.append({"label": m["label"], "unit": m["unit"], "days_measured": len(days),
+                       **({"formula": m["formula"], "expression": m["expression"],
+                           **({"control": m["control"]} if m.get("per_group") else {})} if m.get("formula") else {}),
                        "first": days[0] if days else None, "last": days[-1] if days else None,
                        "by_day": [{"date": d["date"], "day": d["day"], "test": d["test"],
                                    "p": round(d["p"], 4) if d["p"] is not None else None, "groups": d["groups"]}

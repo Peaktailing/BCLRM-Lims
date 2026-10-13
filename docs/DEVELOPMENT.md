@@ -968,8 +968,40 @@ pages are in `app/lab_routes.py`.
   setup survey) include `chemicals`, `primers`, `glycerol_stocks` and `cell_lines`; Samples has number
   columns for what was measured (`SAMPLE_MEASURES`), which revision 0008
   adds to Samples databases made earlier unless a column of that key or
-  name is there. The same revision adds `plasmids.concentration`
+  name is there. Samples also has *Tissue*, *Genotype*, *Condition*,
+  *Fixation* and *Orientation* (`SAMPLE_DETAILS`), which revision 0041 adds
+  the same way, and gives the measured columns their types. The same revision adds `plasmids.concentration`
   and `plasmids.a260_280` (typed numbers, checked by `_plasmid_measure`).
+- **Type tabs:** the *tabs* feature (Samples has it; revision 0041 adds it
+  to Samples made earlier) puts a tab for each category above the sheet
+  (`ModuleView.tabs`, the category choices). `?type=` picks one
+  (`ModuleView.tab()`, any case; anything else is All): `module()` keeps
+  that type's items, the columns used for it (`ModuleView.fields_for()`,
+  `inventory.used_for()`), and the boxes holding it or nothing, each still
+  with everything it holds so no taken cell looks free. A field's `types`
+  (Configure's **Used for**, `_used_for()`: the list's spellings, a type
+  renamed in the same save followed, all of them stored as none) names
+  the categories it is for; none is every category, and so is an item with
+  no category. The tab's columns change `col_sig`, so each tab keeps its own
+  widths and hidden columns. Under All, a cell not used for the row's type
+  and empty is a dash (`rows[].unused`). The item dialog wraps each field in
+  `data-for-types` and hides and disables those not for the Type chosen, so
+  they post nothing and keep their values; `_item_from_form` doesn't hold a
+  required column to a type it isn't used for. `add_type` (the **+**,
+  anyone who can open the database) appends a category; renaming and
+  removing stay in Configure, as they relabel items. Samples' *Genotype*
+  (`GENOTYPE_KEY`), empty, shows the source mouse's (`_mouse_links` reads
+  `genotype` with the tag; `_source_genotype`) as an italic placeholder
+  (`input.from-colony`) and as the row's `data-mouse-genotype` for search.
+- **Split notes:** the selection bar's `action=split_notes` runs
+  `inventory_service.split_notes()` on each ticked row: the notes split on
+  `;` (an allele with no header after one, `Ai9/+`, joins the part before
+  it, as a genotype's loci are written: `ALLELE`), and each `Header: value` part whose header is a field's label or key
+  (or the category's label) goes into it, through `_note_value()` (a number
+  or date that doesn't read as one stays); a field already holding another
+  value, a source, person, link or plasmid field, and the rest stay in the
+  notes, in order. An item with no category whose moved fields share exactly
+  one type takes it. Headers naming no column are flashed. One batch.
 - **Set field:** the selection bar's `action=field` (`bulk_fields()`: the
   built-in columns the inventory uses, every custom one and notes) runs
   each ticked row through `_item_from_form` with that one column, inside
@@ -997,6 +1029,14 @@ pages are in `app/lab_routes.py`.
   hidden there. data-table.js keeps such a column hidden, out of the
   Columns menu and the export, without saving it, so the column numbers
   the Samples sheet saves stay those of its columns as drawn.
+  The arrow that opens the mouse carries `data-mouse-peek="<mouse ID>"`
+  (and `data-mouse-peek-tag`, dropped by that same script when the tag is
+  hidden): `static/mouse-peek.js` shows the notebook's @mouse card over
+  it, from the same `/notebook/lookup/mouse/<id>` and
+  `/notebook/backlinks/mouse/<id>`, in `.mouse-peek` (the notebook's
+  `.entity-popover` lives in the editor's own CSS, not on this page).
+  The lookup sends the mouse's `age_days`/`age_weeks` from its litter's
+  birth date (`calculate_age_fields`, as the colony sheet counts it).
   What the save would have said
   (a source naming no mouse in the colony) is flashed once, not per row. Organisms do the same for custom fields (`bulk_animals`,
   `bulk_housing`, `_set_custom`), and their sheet edits custom cells in
@@ -1627,9 +1667,18 @@ log over time is drawn as a line).
 
 **Colony experiments in a page.** The `experiment` block
 (`frontend/src/blocks/experiment.js`) keeps only `{"id", "show",
-"percent"}` and reads `/colony/experiments/<id>/notebook.json`; *Freeze a
+"percent", "measure"}` and reads `/colony/experiments/<id>/notebook.json`; *Freeze a
 copy* stores that payload in the block as `frozen`, so the page's
-versions keep it. A recorded day's reagent and lot (its record's
+versions keep it. The payload's `measures` are the experiment's other
+measures, each with its `table` as the page has it; `measure` (a
+`measure:<id>` key, none for the main readout) is the one the block shows,
+switched by a button each (`readouts()`, `chosenReadout()`; a reader who
+can't edit switches without saving). Every word goes through `tr()`, its
+Chinese in `js-notebook.json`; the readout's, kinds' and status's names
+arrive in English and are translated where they show, as on the
+experiment page (`tc()` for `experiment::<status>`).
+`tests/js/experiment-zh.check.mjs` checks each literal has its Chinese and
+no English is shown outside `tr()`. A recorded day's reagent and lot (its record's
 `reagent`) show under the manipulation, *(expired)* as on the experiment
 page (`reagentUsed()`, `reagentText()`; `tests/js/experiment.check.mjs`).
 The payload, the plan and the records are `app/experiment_steps.py`:
@@ -1801,6 +1850,28 @@ and its tests under **Tests by day**; `experiment_summary` has
 `experiment_reading` and `POST /api/v1/experiments/<id>/readings` take
 `measure`, and `plate_readout` takes `measure` (an existing one) and
 `curve`.
+
+A measure can be worked out from two Cts (`MEASURE_FORMULAS`: `delta_ct`,
+`delta_delta_ct`, `fold_change`): its JSON entry has `formula` (and
+`control` for the last two), chosen as **Kind** (`measure_kind`,
+`measure_control`) when the plate dialog makes it, and `measure_readout`
+gives it a derived readout's fields (`inputs`, `per_group`, `expression`)
+under its own key, so `mode_for` asks for the target and reference genes,
+`derive_day(…, readout)` and `_store_day` work out its ΔΔCt against its
+own control, and Export adds the Ct columns. On the sheet its cell is
+typed, not opened as a day: `typed_cts` takes "24.8 − 18.2" (target then
+reference) as inputs, or, for ΔCt only, the ΔCt itself, kept with an
+empty note. The ••• beside the measure shown (`#xp-measure`) posts
+`…/measures/<id>/update` (`label`, `unit`, `control`; `change_measure`
+keeps the id, so the readings stay; a new control stores each day again)
+and `…/measures/<id>/delete`, which deletes its readings and takes it out
+of the JSON (`drop_measure`) inside one `audit.batch`, so Undo puts back
+both the experiments row and the readings. `last_measure` in the JSON
+keeps a deleted measure's number from being given again (its plates keep
+that key). The page data gives each measure its `count`. Both are the
+`experiment_measure_change` action (`delete: true` to delete). Bench mode
+lists each measure after the main readout (`data-reading` its key) and
+posts `measure` to the same `/readings`. Tested in `tests/test_measures.py`.
 
 **Planned experiments and changes from the plan** (`app/experiment_plan.py`,
 revision 0033). Status `planned` comes before `active`: an assistant's

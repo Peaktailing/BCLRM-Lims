@@ -180,10 +180,14 @@ never what you may edit.
     its r², and a value past the standards is marked. **Readout** in the
     plate says what the plate fills: the experiment's main readout, or
     **Another measure…** of the same animals kept beside it, such as an
-    IL-6 ELISA in a tumour experiment. Each measure gets its own button
-    on the sheet, its own chart and its own sheet in **Export**; the main
-    readout stays the one the plan and the tests are about. A saved plate
-    is one step in **Batch history**, so **Undo** takes all of it back.
+    IL-6 ELISA in a tumour experiment, or a gene's ΔCt (ΔΔCt, fold
+    change) from a qPCR run, typed on the sheet as the two Cts or the ΔCt.
+    Each measure gets its own button on the sheet, its own chart and its
+    own sheet in **Export**; its **•••** renames it, keeping its
+    readings, or deletes it with them (Batch history can undo that). The
+    main readout stays the one the plan and the tests are about. A saved
+    plate is one step in **Batch history**, so **Undo** takes all of it
+    back.
   - **The regimen reminds you; you record it.** Days still to do are on
     the calendar, and the experiment's owner gets a notification each
     morning of what is due (Settings → Notifications → Experiments).
@@ -219,7 +223,8 @@ never what you may edit.
     **Planned → done**, and the export gets a sheet of them.
   - **Bench mode**, on a phone (scan its QR code): one animal at a time,
     with big numbers: weigh or count each (or type what you measured, a
-    tumour's length and width, and see the volume), or give each today's
+    tumour's length and width, and see the volume), record another
+    measure of the experiment the same way, or give each today's
     manipulation and tick it. **Scan a card** reads a cage, tank or vial
     card with the phone's camera and jumps to the animal in it.
 
@@ -414,7 +419,7 @@ change:
 
 | Preset | Tracks |
 | --- | --- |
-| 🧫 **Samples** | harvested tissue and material, linked to the animal it came from (type its ID in **Source**, or set a whole harvest at once), with that mouse's **Custom tag** beside it; stored at RT / 4 °C / −20 °C / −80 °C / LN₂ in a box position, with its concentration, unit, 260/280, 260/230 and volume as numbers |
+| 🧫 **Samples** | harvested tissue and material, linked to the animal it came from (type its ID in **Source**, or set a whole harvest at once), with that mouse's **Custom tag** beside it and its **Genotype** from the colony, and its sex, age, genotype, status, owner and cage on hovering the arrow that opens it; a tab for each type (tissue, blood, DNA, RNA… and any you add with **+**), each with its own columns: a tissue's **Tissue**, **Fixation** and **Orientation**, a DNA's or RNA's concentration, unit, 260/280, 260/230 and volume as numbers; stored at RT / 4 °C / −20 °C / −80 °C / LN₂ in a box position |
 | 🛒 **Orders** | a board from *requested* to *ordered* to *received*, with vendor, catalogue number, price and grant account |
 | ⚗️ **Reagents** | quantity (with a **Low at** level that marks a bottle low as it runs down), concentration, CAS number, hazards (several per bottle), supplier and lot, and expiry dates with warnings |
 | 🧂 **Chemicals** | your lab's chemical list: name, abbreviation, CAS number, molecular weight, purity and density, with lot, expiry and where each bottle is, and its hazards, several at once, including the controlled classes a safety office asks about (drug and explosive precursors, highly toxic); a **Formulation** in the notebook picks from it and works out the moles, and Utilities' calculators know each molecular weight |
@@ -432,6 +437,18 @@ working, so printed labels, bookmarks and `@mentions` still find it. Every
 database has a name of its own (one another database has is refused), so
 `@` and a name in a notebook page always means one database.
 
+- **A tab for each type** — Samples opens on **All**, with a tab beside it
+  for each type: **Tissue** shows only tissue, with the columns a tissue
+  has, and its boxes; **DNA** shows its concentrations and purities. A new
+  sample made from a tab is of that type, and the dialog asks only for the
+  columns used for the type chosen. **+** at the end adds a type; which
+  columns each type uses is **Used for** in Configure, and any inventory can
+  turn on **A tab for each type**.
+- **Split notes** — a sheet brought in from somewhere else often left
+  everything in the notes ("Tissue: Lung; Fixation: 4% PFA; control 2w").
+  Tick the rows and **Split notes**: each "Column: value" goes into the
+  column of that name, the rest stays in the notes, and Batch history can
+  undo it.
 - **Filter orders by status** — one tap shows only what is requested,
   ordered, received or cancelled.
 - **Expired is red** — a reagent, chemical, antibody or virus past its expiry date
@@ -566,7 +583,9 @@ database has a name of its own (one another database has is refused), so
     day used (marked *(expired)* when the lot was past its expiry), when
     each was done and by whom, the amount each animal got, and its readout as a table and a
     chart (body weight in grams or % of the first, manipulation days
-    marked), kept up to date.
+    marked), kept up to date. An experiment with other measures (an ELISA
+    a plate filled) has a button for each beside the main readout; the one
+    you pick is kept with the block. The block is in the app's language.
     **Freeze a copy** keeps what it shows at that moment in the page. On
     the experiment itself, **Add to notebook** makes your notebook page
     for it with that block already in.
