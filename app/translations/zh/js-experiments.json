@@ -192,5 +192,15 @@
   "Expired on %(date)s, before this day.": "已于 %(date)s 过期，早于这一天。",
   "There are %(n)s of %(name)s in the inventory: pick the one used.": "库存里有 %(n)s 个 %(name)s：请选出用的那一个。",
   "Taken off the inventory: %(what)s": "已从库存扣除：%(what)s",
-  "Another measure, beside the main readout": "其他指标，与主要观测指标并列"
+  "Another measure, beside the main readout": "其他指标，与主要观测指标并列",
+  "Rename or delete %(measure)s": "重命名或删除 %(measure)s",
+  "The ΔCt, or the two Cts: target − reference, e.g. 24.8 − 18.2": "ΔCt，或两个 Ct：目的基因 − 内参基因，如 24.8 − 18.2",
+  "The two Cts: target − reference, e.g. 24.8 − 18.2": "两个 Ct：目的基因 − 内参基因，如 24.8 − 18.2",
+  "It holds %(n)s reading; renaming keeps it.": "它有 %(n)s 个读数；重命名会保留。",
+  "It holds %(n)s readings; renaming keeps them.": "它有 %(n)s 个读数；重命名会保留。",
+  "It holds no readings yet.": "它还没有读数。",
+  "Delete %(measure)s and its %(n)s reading? Batch history can undo it.": "删除 %(measure)s 及其 %(n)s 个读数？可以在批量操作记录中撤销。",
+  "Delete %(measure)s and its %(n)s readings? Batch history can undo it.": "删除 %(measure)s 及其 %(n)s 个读数？可以在批量操作记录中撤销。",
+  "Delete %(measure)s? It holds no readings.": "删除 %(measure)s？它没有读数。",
+  "Another measure · today, %(count)s %(nouns)s, one at a time": "其他指标 · 今天，%(nouns)s %(count)s 个，逐个进行"
 }

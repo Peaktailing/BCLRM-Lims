@@ -208,8 +208,11 @@
           row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen
           between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.</li>
         <li><b>Readout</b> says what the plate fills: the experiment's main readout, or another measure of the same animals
-          kept beside it (below). <b>Another measure…</b> asks its name and unit, such as <i>IL-6 ELISA</i> in pg/mL; the
-          next plate offers it by name.</li>
+          kept beside it (below). <b>Another measure…</b> asks its name and its <b>Kind</b>: <b>A number</b>, with a unit,
+          such as <i>IL-6 ELISA</i> in pg/mL, or one worked out from two genes' Cts, <b>ΔCt: target − reference</b>,
+          <b>ΔΔCt, against a control group</b> or <b>Fold change (2^−ΔΔCt)</b> (the last two ask for the
+          <b>Control group</b>), so a qPCR run can fill a gene's ΔCt beside a tumour volume. The next plate offers it by
+          name, and asks for the genes again.</li>
         <li>Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a
           cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD
           over 10, a Ct over 50, <i>OVRFLW</i>) in red, and left out, as is <i>Undetermined</i>. Click any well to leave it
@@ -246,6 +249,14 @@
         readout's: the sheet shows its days (a cell can be typed or corrected there), and the chart below and its tests by day
         follow the button chosen. <b>Export</b> gives each measure a sheet of its own, and its tests under the main readout's
         in <b>Tests by day</b>. Changing the main readout keeps the other measures.</p>
+      <p>A measure worked out from Cts is typed in its cell as the two Cts, the target's then the reference's
+        (<i>24.8 − 18.2</i>); a ΔCt measure also takes the ΔCt itself. Pointing at a cell shows the Cts it was worked out
+        from, and its sheet in <b>Export</b> has them beside each value. ΔΔCt and fold change are against the control
+        group's mean ΔCt on the same day, as for the main readout.</p>
+      <p>The <b>•••</b> beside the measure shown opens it: change its name or unit (its readings stay with it), or the
+        <b>Control group</b> of a ΔΔCt or fold change, or <b>Delete measure</b>. Deleting asks first, saying how many
+        readings go with it; it is one step in <b>Batch history</b>, whose <b>Undo</b> brings back the measure and its
+        readings together.</p>
       <h2 id="the-page">The page</h2>
       <ul>
         <li><b>The experiment</b> on top: name, status, start (day 1), end, readout and description, saved as you type.</li>
@@ -313,8 +324,9 @@
 
       <h2 id="at-the-bench-and-afterwards">At the bench, and afterwards</h2>
       <ul>
-        <li><b>Bench mode</b> (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers —
-          type each weight or count, or give each today's manipulation and tap <b>Given ✓</b>; record it at the end, with the
+        <li><b>Bench mode</b> (scan its QR code with a phone): pick what you are doing — the main readout, another measure of
+          the experiment, or a manipulation due — then one animal at a time with big numbers:
+          type each weight, count or value, or give each today's manipulation and tap <b>Given ✓</b>; record it at the end, with the
           <b>Reagent used</b> and its <b>Lot</b> filled in as on the page. <b>Scan a card</b> reads a
           cage, tank or vial card with the phone's camera and jumps to the animal in it.</li>
         <li><b>Export</b> downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations
@@ -331,7 +343,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 13 min read</p>
+      <p>On this page · 14 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your week</a></li>
         <li class="lvl2"><a href="#derived">Readouts worked out from what you measure</a></li>

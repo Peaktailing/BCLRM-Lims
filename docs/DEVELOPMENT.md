@@ -1842,6 +1842,28 @@ and its tests under **Tests by day**; `experiment_summary` has
 `measure`, and `plate_readout` takes `measure` (an existing one) and
 `curve`.
 
+A measure can be worked out from two Cts (`MEASURE_FORMULAS`: `delta_ct`,
+`delta_delta_ct`, `fold_change`): its JSON entry has `formula` (and
+`control` for the last two), chosen as **Kind** (`measure_kind`,
+`measure_control`) when the plate dialog makes it, and `measure_readout`
+gives it a derived readout's fields (`inputs`, `per_group`, `expression`)
+under its own key, so `mode_for` asks for the target and reference genes,
+`derive_day(…, readout)` and `_store_day` work out its ΔΔCt against its
+own control, and Export adds the Ct columns. On the sheet its cell is
+typed, not opened as a day: `typed_cts` takes "24.8 − 18.2" (target then
+reference) as inputs, or, for ΔCt only, the ΔCt itself, kept with an
+empty note. The ••• beside the measure shown (`#xp-measure`) posts
+`…/measures/<id>/update` (`label`, `unit`, `control`; `change_measure`
+keeps the id, so the readings stay; a new control stores each day again)
+and `…/measures/<id>/delete`, which deletes its readings and takes it out
+of the JSON (`drop_measure`) inside one `audit.batch`, so Undo puts back
+both the experiments row and the readings. `last_measure` in the JSON
+keeps a deleted measure's number from being given again (its plates keep
+that key). The page data gives each measure its `count`. Both are the
+`experiment_measure_change` action (`delete: true` to delete). Bench mode
+lists each measure after the main readout (`data-reading` its key) and
+posts `measure` to the same `/readings`. Tested in `tests/test_measures.py`.
+
 **Planned experiments and changes from the plan** (`app/experiment_plan.py`,
 revision 0033). Status `planned` comes before `active`: an assistant's
 `experiment_new` makes one through `POST /experiments/in/<db>/design` (the

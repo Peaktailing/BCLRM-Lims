@@ -671,13 +671,17 @@ def measures(exp, place) -> dict:
     except PlateError:
         fits_plate = False
     return {"main": {"key": main["key"], "label": main["label"], "unit": main.get("unit", ""), "plate": fits_plate},
-            "others": [{"key": m["key"], "label": m["label"], "unit": m["unit"]} for m in xp.measures_of(exp)]}
+            "others": [{"key": m["key"], "label": m["label"], "unit": m["unit"],
+                        **({"formula": m["formula"], "control": m.get("control", "")} if m.get("formula") else {})}
+                       for m in xp.measures_of(exp)]}
 
 
 def readout_from(exp, place, form, create: bool = False) -> dict:
     """The readout a plate fills, from the dialog's choice (`measure`: blank
     or "main" for the main readout, another measure's key or name, or "new"
-    with `measure_label` and `measure_unit`). A new measure is kept with
+    with `measure_label` and `measure_unit`, and `measure_kind` for one
+    worked out from two Cts, delta_ct, delta_delta_ct or fold_change, with
+    `measure_control` for the last two). A new measure is kept with
     the experiment (its JSON; the caller commits or rolls back). A
     PlateError, in words, for a measure it doesn't have."""
     from . import experiments as xp
@@ -686,7 +690,8 @@ def readout_from(exp, place, form, create: bool = False) -> dict:
         if not create and not str(form.get("measure_label") or "").strip():
             raise PlateError(gettext("Name the measure, e.g. IL-6 ELISA."))
         try:
-            return xp.add_measure(exp, place, form.get("measure_label"), form.get("measure_unit") or "")
+            return xp.add_measure(exp, place, form.get("measure_label"), form.get("measure_unit") or "",
+                                  form.get("measure_kind") or "", form.get("measure_control") or "")
         except ValueError as e:
             raise PlateError(str(e)) from None
     readout = xp.readout_for(exp, place, chosen)
@@ -708,7 +713,7 @@ def work_out(session, exp, place, layout_row, export: dict, options: dict, on: d
     rows = [{"key": x.key, "label": x.label, "group": x.group} for x in subs]
     wells = clean_layout(layout_row.wells, layout_row.format)
     result = analyse(wells, layout_row.format, export, readout, rows, options,
-                     group_values=lambda given: xp.derive_day(session, exp, place, on, given, subs))
+                     group_values=lambda given: xp.derive_day(session, exp, place, on, given, subs, readout))
     keys = [r["key"] for r in result["subjects"] if "value" in r]
     from .models import ExperimentReading
     result["replaces"] = session.scalar(select(func.count(ExperimentReading.id)).where(

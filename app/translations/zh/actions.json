@@ -194,5 +194,8 @@
   ", taken off its quantity": "，并从其数量中扣除",
   "take_off needs the reagent used: this step has no inventory item; name it with reagent.": "take_off 需要知道所用试剂：这一步没有库存记录，请用 reagent 说明。",
   "Experiment %(name)s has no measure “%(measure)s”; its other measures: %(names)s.": "实验 %(name)s 没有指标「%(measure)s」；它的其他指标：%(names)s。",
-  "Experiment “%(name)s”: %(measure)s%(on)s for %(n)s animals": "实验“%(name)s”：%(n)s 只动物的%(measure)s%(on)s"
+  "Experiment “%(name)s”: %(measure)s%(on)s for %(n)s animals": "实验“%(name)s”：%(n)s 只动物的%(measure)s%(on)s",
+  "Experiment “%(name)s”: delete the measure %(measure)s, with its %(n)s readings": "实验“%(name)s”：删除指标 %(measure)s 及其 %(n)s 个读数",
+  "Experiment “%(name)s”, measure %(measure)s: %(fields)s": "实验“%(name)s”，指标 %(measure)s：%(fields)s",
+  "Say what to change on the measure %(measure)s: label, unit, control, or delete.": "请说明要修改指标 %(measure)s 的什么：label、unit、control 或 delete。"
 }

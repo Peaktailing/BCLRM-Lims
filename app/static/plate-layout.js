@@ -242,6 +242,9 @@
     if ($('[data-plate-measure]').value === 'new') {
       form.set('measure_label', $('[data-plate-measure-label]').value.trim());
       form.set('measure_unit', $('[data-plate-measure-unit]').value.trim());
+      // A measure worked out from two genes' Cts (ΔCt, ΔΔCt, fold change): the genes are asked for below, as for the main readout.
+      form.set('measure_kind', $('[data-plate-measure-kind]').value);
+      form.set('measure_control', $('[data-plate-measure-control]').value.trim());
     }
     form.set('skip', Array.from(S.skip).join(','));
     return form;
@@ -390,11 +393,17 @@
     select.value = last && keys.includes(last) ? last : (main.plate ? 'main' : (keys[0] || 'new'));
     $('[data-plate-measure-label]').value = '';
     $('[data-plate-measure-unit]').value = '';
+    $('[data-plate-measure-kind]').value = '';
+    $('[data-plate-measure-control]').value = '';
     showNewMeasure();
   }
   function showNewMeasure() {
     const fresh = $('[data-plate-measure]').value === 'new';
+    const kind = $('[data-plate-measure-kind]').value;
     $$('[data-plate-new-measure]').forEach((el) => { el.hidden = !fresh; });
+    // From Cts there is no unit to give; ΔΔCt and fold change are against a control group.
+    $('[data-plate-new-unit]').hidden = !fresh || Boolean(kind);
+    $('[data-plate-new-control]').hidden = !fresh || !['delta_delta_ct', 'fold_change'].includes(kind);
   }
 
   async function savePlate() {
@@ -545,6 +554,9 @@
       if (el.files.length) $('[data-plate-text]').value = '';
       S.skip = new Set();
       preview();
+    } else if (el.matches('[data-plate-measure-kind]')) {
+      showNewMeasure();
+      preview();
     } else if (el.matches('[data-plate-measure]')) {
       showNewMeasure();
       if ($('[data-plate-measure]').value === 'new') $('[data-plate-measure-label]').focus();
@@ -559,6 +571,6 @@
     if (e.target.matches('[data-plate-name]')) { S.dirty = true; }
     if (e.target.matches('[data-plate-conc]')) { S.conc = e.target.value; }
     if (e.target.matches('[data-plate-text]')) { $('[data-plate-file]').value = ''; S.skip = new Set(); later(); }
-    if (e.target.matches('[data-plate-measure-label], [data-plate-measure-unit]')) later();
+    if (e.target.matches('[data-plate-measure-label], [data-plate-measure-unit], [data-plate-measure-control]')) later();
   });
 }());

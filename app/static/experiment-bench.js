@@ -1,5 +1,6 @@
 /* Bench mode (templates/experiment_bench.html): pick what you are doing
-   now — the readout (weigh, count) or a manipulation due — then go through
+   now — the readout (weigh, count), another measure of the experiment, or
+   a manipulation due — then go through
    the animals one at a time, with big numbers and big buttons. A readout
    is saved animal by animal; a manipulation is recorded at the end, with
    the animals you ticked as given. */
@@ -12,22 +13,26 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const nice = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(window.BM_LANG === 'zh' ? 'zh-CN' : undefined, { day: 'numeric', month: 'short' }) : '');
+  // What is being recorded: the main readout, or another measure picked
+  // (its readings keyed as the sheet keys them, measure:<id>), and its table.
+  let R = D.readout;
+  const T = () => (R.measure ? ((D.measures || []).find((m) => m.key === R.key) || {}).table : D.table) || { dates: [], rows: [] };
   // Labels that arrive as values (the readout, the animals' noun), in the page's language.
-  const RL = () => t(D.readout.label);
+  const RL = () => t(R.label);
   const tc = (ctx, s) => { const k = `${ctx}::${s}`; const v = t(k); return v === k ? t(s) : v; };
-  const verb = () => tc('readout', D.readout.verb || 'Record');
-  const unitOf = () => (D.readout.unit ? t(D.readout.unit) : '');
+  const verb = () => tc('readout', R.verb || 'Record');
+  const unitOf = () => (R.unit ? t(R.unit) : '');
   const nouns = () => t(D.nouns);
   // A day's title in the page's language, from its manipulation: what was given, or its kind.
   const titleOf = (r) => {
     const s = (D.steps || []).find((x) => x.id === r.step_id);
     if (!s) return t(r.title);
-    if (s.reading) return RL();
+    if (s.reading) return t(D.readout.label);
     return [s.agent || t(s.kind_label), s.dose, s.route].filter(Boolean).join(' ');
   };
-  const fraction = D.readout.kind === 'fraction';
+  let fraction = false;
   // A readout BioManager works out (app/derived.py): type what was measured, one box each; it works out the rest.
-  const inputs = D.readout.formula ? (D.readout.inputs || []) : null;
+  let inputs = null;
   let task = null;      // {kind: 'reading'} | {kind: 'step', stepId, day, title, animals}
   let at = 0;
   let saved = '';       // the value BioManager worked out for the animal just saved
@@ -58,7 +63,7 @@
       if (window.BioDialog) BioDialog.alert(anchor ? t('No animal of this experiment is on that card.') : t("“%(text)s” isn't a card of this experiment.", { text }));
       return;
     }
-    if (!task) { start('reading').then(() => { at = index; show(); }); return; }
+    if (!task) { start('reading', R.key).then(() => { at = index; show(); }); return; }
     at = index;
     show();
   };
@@ -98,16 +103,21 @@
       <span>${t('Day %(n)s', { n: r.day })}${r.date ? ` · ${esc(nice(r.date))}` : ''}${r.group ? ` · ${esc(r.group)}` : ''} · ${r.state === 'overdue' ? t('overdue') : r.state === 'today' ? t('due today') : t('to come')}</span></button>`;
     $('[data-xb-pick]').innerHTML = `
       <div class="xb-pick-head"><h2>${t('What are you doing now?')}</h2>${scanButton()}</div>
-      ${D.editable ? `<button type="button" class="xb-choice xb-main" data-reading><b>${esc(verb())}: ${esc(RL())}</b><span>${t('Today, %(count)s %(nouns)s, one at a time', { count: D.subjects.length, nouns: esc(nouns()) })}</span></button>
+      ${D.editable ? `<button type="button" class="xb-choice xb-main" data-reading="${esc(D.readout.key)}"><b>${esc(tc('readout', D.readout.verb || 'Record'))}: ${esc(t(D.readout.label))}</b><span>${t('Today, %(count)s %(nouns)s, one at a time', { count: D.subjects.length, nouns: esc(nouns()) })}</span></button>
+      ${(D.measures || []).map((m) => `<button type="button" class="xb-choice" data-reading="${esc(m.key)}"><b>${esc(tc('readout', m.verb || 'Record'))}: ${esc(m.label)}</b><span>${t('Another measure · today, %(count)s %(nouns)s, one at a time', { count: D.subjects.length, nouns: esc(nouns()) })}</span></button>`).join('')}
       ${due.map(button).join('')}
       ${later.length ? `<details class="xb-later"><summary>${t('Planned for other days (%(n)s)', { n: later.length })}</summary>${later.map(button).join('')}</details>` : ''}`
         : `<p class="xp-empty">${t('This experiment is read only for you.')}</p>`}`;
   }
 
-  async function start(which) {
+  async function start(which, key) {
     at = 0;
     given.clear();
+    saved = '';
     if (which === 'reading') {
+      R = (D.measures || []).find((m) => m.key === key) || D.readout;
+      fraction = R.kind === 'fraction';
+      inputs = R.formula ? (R.inputs || []) : null;
       task = { kind: 'reading', animals: D.subjects };
     } else {
       const [stepId, day] = which.split(':');
@@ -124,10 +134,11 @@
   }
 
   function previous(key) {
-    const row = D.table.rows.find((r) => r.key === key);
+    const tb = T();
+    const row = tb.rows.find((r) => r.key === key);
     if (!row) return null;
-    for (let i = D.table.dates.length - 1; i >= 0; i -= 1) {
-      if (row.values[i] != null) return { value: row.values[i], date: D.table.dates[i], today: D.table.dates[i] === today(), inputs: (row.inputs || [])[i] || null };
+    for (let i = tb.dates.length - 1; i >= 0; i -= 1) {
+      if (row.values[i] != null) return { value: row.values[i], date: tb.dates[i], today: tb.dates[i] === today(), inputs: (row.inputs || [])[i] || null };
     }
     return null;
   }
@@ -144,11 +155,11 @@
     const head = `<div class="xb-who"><span class="xb-label">${esc(a.label)}</span><span>${esc([a.group, a.housing, a.sex].filter(Boolean).join(' · '))}</span></div>`;
     if (task.kind === 'reading') {
       const prev = previous(key);
-      const unitText = D.readout.unit && !fraction ? ` ${esc(unitOf())}` : '';
+      const unitText = R.unit && !fraction ? ` ${esc(unitOf())}` : '';
       const field = inputs
         ? `<div class="xb-inputs">${inputs.map((i) => `<label class="xb-input"><span>${esc(t(i.label))}${i.unit ? ` (${esc(i.unit)})` : ''}</span>
             <input type="text" inputmode="decimal" autocomplete="off" data-xb-input="${esc(i.key)}" value="${prev && prev.today && prev.inputs && prev.inputs[i.key] != null ? prev.inputs[i.key] : ''}"></label>`).join('')}</div>
-          <p class="xb-prev">${esc(t('BioManager works out the rest: %(expression)s.', { expression: D.readout.expression }))}</p>`
+          <p class="xb-prev">${esc(t('BioManager works out the rest: %(expression)s.', { expression: R.expression }))}</p>`
         : '';
       $('[data-xb-card]').innerHTML = inputs ? `${head}${field}
         <p class="xb-prev">${prev && !prev.today ? t('Last: %(value)s on %(date)s', { value: `${shownValue(prev.value)}${unitText}`, date: esc(nice(prev.date)) }) : prev ? t('Already recorded today: %(value)s. Change it or go on.', { value: `${shownValue(prev.value)}${unitText}` }) : t('No readout yet.')}</p>
@@ -157,10 +168,10 @@
         <div class="xb-buttons"><button type="button" class="btn" data-xb-back ${at ? '' : 'disabled'}>${t('Back')}</button>
           <button type="button" class="btn" data-xb-skip>${t('Skip')}</button>
           <button type="button" class="btn btn-primary" data-xb-save>${t('Save and next')}</button></div>` : `${head}
-        <label class="xb-input"><span>${fraction && D.readout.unit ? esc(unitOf().charAt(0).toUpperCase() + unitOf().slice(1)) : esc(RL())}${D.readout.unit && !fraction ? ` (${esc(unitOf())})` : ''}</span>
+        <label class="xb-input"><span>${fraction && R.unit ? esc(unitOf().charAt(0).toUpperCase() + unitOf().slice(1)) : esc(RL())}${R.unit && !fraction ? ` (${esc(unitOf())})` : ''}</span>
           <input type="text" inputmode="decimal" autocomplete="off" data-xb-value value="${prev && prev.today ? prev.value : ''}">
           ${fraction && a.start != null ? `<em>${t('of %(n)s', { n: a.start })}</em>` : ''}</label>
-        <p class="xb-prev">${prev && !prev.today ? t('Last: %(value)s on %(date)s', { value: `${prev.value}${D.readout.unit && !fraction ? ` ${esc(unitOf())}` : ''}`, date: esc(nice(prev.date)) }) : prev ? t('Already recorded today: change it or go on.') : t('No readout yet.')}</p>
+        <p class="xb-prev">${prev && !prev.today ? t('Last: %(value)s on %(date)s', { value: `${prev.value}${R.unit && !fraction ? ` ${esc(unitOf())}` : ''}`, date: esc(nice(prev.date)) }) : prev ? t('Already recorded today: change it or go on.') : t('No readout yet.')}</p>
         <p class="xp-error" data-xb-error hidden></p>
         <div class="xb-buttons"><button type="button" class="btn" data-xb-back ${at ? '' : 'disabled'}>${t('Back')}</button>
           <button type="button" class="btn" data-xb-skip>${t('Skip')}</button>
@@ -201,10 +212,11 @@
     }
     if (value) {
       try {
-        const data = await post(`/experiments/${D.id}/readings`, { on: today(), values: { [a.key]: value } });
+        const data = await post(`/experiments/${D.id}/readings`, { on: today(), values: { [a.key]: value }, ...(R.measure ? { measure: R.key } : {}) });
         D.table = data.table;
+        D.measures = data.measures || D.measures;
         const now = previous(a.key);
-        saved = inputs && now && now.today ? t('Saved %(label)s: %(value)s', { label: a.label, value: `${shownValue(now.value)}${D.readout.unit ? ` ${unitOf()}` : ''}` }) : '';
+        saved = inputs && now && now.today ? t('Saved %(label)s: %(value)s', { label: a.label, value: `${shownValue(now.value)}${R.unit ? ` ${unitOf()}` : ''}` }) : '';
       } catch (error) {
         const box = $('[data-xb-error]');
         box.textContent = error.message;
@@ -267,7 +279,7 @@
     const btn = event.target.closest('button');
     if (!btn) return;
     if (btn.matches('[data-xb-scan]')) { if (native) native.postMessage('scan'); else scanHere(); return; }
-    if (btn.matches('[data-reading]')) start('reading');
+    if (btn.matches('[data-reading]')) start('reading', btn.dataset.reading);
     else if (btn.dataset.step) start(btn.dataset.step);
     else if (btn.matches('[data-xb-save]')) saveReading();
     else if (btn.matches('[data-xb-skip]')) { at += 1; show(); }

@@ -122,5 +122,18 @@
   "%(item)s: %(amount)s put back on the inventory.": "%(item)s：%(amount)s 已放回库存。",
   "Name the measure, e.g. IL-6 ELISA.": "请给这个指标起个名字，如 IL-6 ELISA。",
   "%(label)s is already the main readout: choose it in the list.": "%(label)s 已经是主要观测指标：请在列表中选择它。",
-  "This experiment has no measure “%(measure)s”.": "这个实验没有指标「%(measure)s」。"
+  "This experiment has no measure “%(measure)s”.": "这个实验没有指标「%(measure)s」。",
+  "This experiment already has a measure called “%(label)s”.": "这个实验已经有名为「%(label)s」的指标。",
+  "“%(kind)s” isn't a kind of measure: a number, or one of %(formulas)s.": "「%(kind)s」不是一种指标：可以是一个数值，或 %(formulas)s 之一。",
+  "This experiment already has a measure called “%(label)s”, of another kind: choose it in the list, or give the new one another name.": "这个实验已经有名为「%(label)s」的另一种指标：请在列表中选择它，或给新指标另起一个名字。",
+  "Say which group is the control of %(measure)s (its Control group): it is worked out against that group's mean ΔCt.": "请说明 %(measure)s 的对照组（它的「对照组」）：它以该组的平均 ΔCt 为准计算。",
+  "A ΔCt of %(value)s isn't one a run gives (at most %(max)s cycles either way).": "ΔCt 为 %(value)s 不是一次运行能得到的值（正负最多 %(max)s 个循环）。",
+  "Type the two Cts, the target's then the reference's, e.g. 24.8 − 18.2: %(readout)s is worked out from them.": "请输入两个 Ct，先目的基因、后内参基因，如 24.8 − 18.2：%(readout)s 由它们算出。",
+  "Deleted %(measure)s and its %(num)s reading. Batch history can undo it.": "已删除 %(measure)s 及其 %(num)s 个读数。可以在批量操作记录中撤销。",
+  "Deleted %(measure)s and its %(num)s readings. Batch history can undo it.": "已删除 %(measure)s 及其 %(num)s 个读数。可以在批量操作记录中撤销。",
+  "A number for each animal, or one BioManager works out from two genes’ Cts as the main readout can be": "每只动物一个数值，或像主要观测指标那样由 BioManager 根据两个基因的 Ct 算出",
+  "A number": "数值",
+  "ΔCt: target − reference": "ΔCt：目的基因 − 内参基因",
+  "ΔΔCt, against a control group": "ΔΔCt，相对于对照组",
+  "Delete measure": "删除指标"
 }

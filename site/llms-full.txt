@@ -1016,7 +1016,7 @@ An ELISA, a viability assay or a qPCR run gives one number per well, and the wor
 
 3. **Read a plate →**, then paste the export or choose its file (CSV, TSV or Excel). BioManager reads a grid with row letters A–H and column numbers 1–12 (several reads in one file, such as two wavelengths, can be chosen between), or a list of wells and values: Well and OD, or Well, Target and Ct (or Cq) from a qPCR run.
 
-4. **Readout** says what the plate fills: the experiment's main readout, or another measure of the same animals kept beside it (below). **Another measure…** asks its name and unit, such as *IL-6 ELISA* in pg/mL; the next plate offers it by name.
+4. **Readout** says what the plate fills: the experiment's main readout, or another measure of the same animals kept beside it (below). **Another measure…** asks its name and its **Kind**: **A number**, with a unit, such as *IL-6 ELISA* in pg/mL, or one worked out from two genes' Cts, **ΔCt: target − reference**, **ΔΔCt, against a control group** or **Fold change (2^−ΔΔCt)** (the last two ask for the **Control group**), so a qPCR run can fill a gene's ΔCt beside a tumour volume. The next plate offers it by name, and asks for the genes again.
 
 5. Each well's value shows on the plate, before anything is saved. A replicate far from the others (more than half a cycle for a Ct, a fifth of the value otherwise) is ringed in orange; a well past what the instrument reads (an OD over 10, a Ct over 50, *OVRFLW*) in red, and left out, as is *Undetermined*. Click any well to leave it out, and again to put it back.
 
@@ -1032,6 +1032,10 @@ Saving a day that already has readings replaces them, and says so first. The pla
 #### Another measure beside the main readout
 
 An experiment has one main readout: the one its plan, **Main readout day**, tests by day and bench mode are about. Something else measured on the same animals, such as an IL-6 ELISA at the end of a tumour experiment, is another measure, kept beside it rather than in its place. Each gets its own button on the sheet, next to the main readout's: the sheet shows its days (a cell can be typed or corrected there), and the chart below and its tests by day follow the button chosen. **Export** gives each measure a sheet of its own, and its tests under the main readout's in **Tests by day**. Changing the main readout keeps the other measures.
+
+A measure worked out from Cts is typed in its cell as the two Cts, the target's then the reference's (*24.8 − 18.2*); a ΔCt measure also takes the ΔCt itself. Pointing at a cell shows the Cts it was worked out from, and its sheet in **Export** has them beside each value. ΔΔCt and fold change are against the control group's mean ΔCt on the same day, as for the main readout.
+
+The **•••** beside the measure shown opens it: change its name or unit (its readings stay with it), or the **Control group** of a ΔΔCt or fold change, or **Delete measure**. Deleting asks first, saying how many readings go with it; it is one step in **Batch history**, whose **Undo** brings back the measure and its readings together.
 
 ### The page
 
@@ -1079,7 +1083,7 @@ From then on, four changes ask for a one-line reason, because each can change wh
 
 ### At the bench, and afterwards
 
-- **Bench mode** (scan its QR code with a phone): pick what you are doing, then one animal at a time with big numbers — type each weight or count, or give each today's manipulation and tap **Given ✓**; record it at the end, with the **Reagent used** and its **Lot** filled in as on the page. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
+- **Bench mode** (scan its QR code with a phone): pick what you are doing — the main readout, another measure of the experiment, or a manipulation due — then one animal at a time with big numbers: type each weight, count or value, or give each today's manipulation and tap **Given ✓**; record it at the end, with the **Reagent used** and its **Lot** filled in as on the page. **Scan a card** reads a cage, tank or vial card with the phone's camera and jumps to the animal in it.
 
 - **Export** downloads an Excel workbook: the readout, long (for Prism or R) and wide, each animal's manipulations with the reagent and lot it got, the tests by day, and a sheet for each other measure.
 

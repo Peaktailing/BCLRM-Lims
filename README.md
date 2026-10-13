@@ -180,10 +180,14 @@ never what you may edit.
     its r², and a value past the standards is marked. **Readout** in the
     plate says what the plate fills: the experiment's main readout, or
     **Another measure…** of the same animals kept beside it, such as an
-    IL-6 ELISA in a tumour experiment. Each measure gets its own button
-    on the sheet, its own chart and its own sheet in **Export**; the main
-    readout stays the one the plan and the tests are about. A saved plate
-    is one step in **Batch history**, so **Undo** takes all of it back.
+    IL-6 ELISA in a tumour experiment, or a gene's ΔCt (ΔΔCt, fold
+    change) from a qPCR run, typed on the sheet as the two Cts or the ΔCt.
+    Each measure gets its own button on the sheet, its own chart and its
+    own sheet in **Export**; its **•••** renames it, keeping its
+    readings, or deletes it with them (Batch history can undo that). The
+    main readout stays the one the plan and the tests are about. A saved
+    plate is one step in **Batch history**, so **Undo** takes all of it
+    back.
   - **The regimen reminds you; you record it.** Days still to do are on
     the calendar, and the experiment's owner gets a notification each
     morning of what is due (Settings → Notifications → Experiments).
@@ -219,7 +223,8 @@ never what you may edit.
     **Planned → done**, and the export gets a sheet of them.
   - **Bench mode**, on a phone (scan its QR code): one animal at a time,
     with big numbers: weigh or count each (or type what you measured, a
-    tumour's length and width, and see the volume), or give each today's
+    tumour's length and width, and see the volume), record another
+    measure of the experiment the same way, or give each today's
     manipulation and tick it. **Scan a card** reads a cage, tank or vial
     card with the phone's camera and jumps to the animal in it.
 
