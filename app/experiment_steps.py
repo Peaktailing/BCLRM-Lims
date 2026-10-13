@@ -218,12 +218,22 @@ def _record_dict(r: ExperimentStepRecord) -> dict:
             "reagent": load(r.reagent, {}), "samples": load(r.samples, [])}
 
 
+# A stimulation's settings (ExperimentStep), each as typed.
+STIM_FIELDS = ("frequency", "intensity", "pulse_width", "duration")
+
+
+def stimulation(step) -> dict:
+    """A step's stimulation settings that are set, by name."""
+    return {k: getattr(step, k, "") for k in STIM_FIELDS if getattr(step, k, "")}
+
+
 def step_dict(step: ExperimentStep, family: str = "mouse", session=None) -> dict:
     label, icon = ex.kind_info(family, step.kind)
     reagent = reagent_snapshot(session, step.reagent_item_id_fk) if session is not None and step.reagent_item_id_fk else {}
     return {"id": step.id, "days": step.days, "days_label": days_label(safe_days(step)) or step.days,
             "kind": "reading" if step.kind == "weigh" else step.kind, "kind_label": label, "icon": icon,
             "agent": step.agent, "dose": step.dose, "route": step.route, "concentration": step.concentration,
+            **{k: getattr(step, k) or "" for k in STIM_FIELDS},
             "group": step.treatment_group, "notes": step.notes, "per_weight": per_weight(step.dose),
             "reading": ex.is_reading(step.kind), "reagent_id": step.reagent_item_id_fk, "reagent": reagent}
 
@@ -391,7 +401,7 @@ def step_title(step: ExperimentStep, family: str = "mouse", readout: dict | None
     if ex.is_reading(step.kind):
         return tr((readout or {}).get("label") or "Readout")
     what = step.agent or tr(ex.kind_info(family, step.kind)[0])
-    return " ".join(filter(None, [what, step.dose, step.route]))
+    return " ".join(filter(None, [what, step.dose, step.route, *stimulation(step).values()]))
 
 
 def schedule(session, exp: Experiment, place, subs=None, today: date | None = None) -> list[dict]:
@@ -559,6 +569,8 @@ def _fill_step(session, exp, place, data, days, step=None):
     step.dose = str(data.get("dose") or "").strip()[:80]
     step.route = str(data.get("route") or "").strip()[:60]
     step.concentration = str(data.get("concentration") or "").strip()[:60]
+    for key in STIM_FIELDS:
+        setattr(step, key, str(data.get(key) or "").strip()[:60])
     step.treatment_group = str(data.get("group") or "").strip()[:80]
     step.notes = str(data.get("notes") or "").strip()
     if "reagent_id" in data:
@@ -935,8 +947,8 @@ def save_regimen(experiment_id: int):
         if not exp.steps:
             return jsonify({"ok": False, "error": gettext("This experiment has nothing planned to save yet.")}), 400
         steps = [{"kind": st.kind, "agent": st.agent, "dose": st.dose, "route": st.route,
-                  "concentration": st.concentration, "days": st.days, "group": st.treatment_group, "notes": st.notes,
-                  "reagent_id": st.reagent_item_id_fk} for st in exp.steps]
+                  "concentration": st.concentration, **stimulation(st), "days": st.days, "group": st.treatment_group,
+                  "notes": st.notes, "reagent_id": st.reagent_item_id_fk} for st in exp.steps]
         s.add(ExperimentRegimen(name=name, family=place.family, steps=json.dumps(steps), owner=g.user.username))
         s.commit()
         return _answer(s, exp, place, message=gettext("Saved the regimen %(name)s.", name=name))

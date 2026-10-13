@@ -136,5 +136,11 @@
   "ΔCt: target − reference": "ΔCt：目的基因 − 内参基因",
   "ΔΔCt, against a control group": "ΔΔCt，相对于对照组",
   "Delete measure": "删除指标",
-  "Control group, e.g. Vehicle": "对照组，如 Vehicle"
+  "Control group, e.g. Vehicle": "对照组，如 Vehicle",
+  "Frequency": "频率",
+  "Intensity": "强度",
+  "Pulse width": "脉宽",
+  "Duration": "时长",
+  "30 min, or 10 s on / 20 s off": "30 min，或 开 10 s / 关 20 s",
+  "Stimulation": "刺激"
 }

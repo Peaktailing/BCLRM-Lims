@@ -160,7 +160,7 @@
         them. One page shows each experiment, and <b>All experiments</b> on it goes back to the tab.</p>
       <table class="gtable">
         <tr><th>Mice</th><td>Mice, or a whole cage. Body weight (or tumour volume, a clinical score, survival). Injections,
-          challenges, treatments, surgery, behaviour, sampling, imaging.</td></tr>
+          challenges, treatments, surgery, behaviour, stimulation, sampling, imaging.</td></tr>
         <tr><th>Zebrafish</th><td>Fish rows, a whole tank, or a clutch's larvae. Survival (how many of those at the start are
           alive), standard length or a phenotype. Drug in the water, microinjection, heat shock, injury or fin clip.</td></tr>
         <tr><th>Flies and worms</th><td>Vials or plates, or a whole rack; say how many each started with. They have no body weight:
@@ -173,7 +173,8 @@
       <h2 id="derived">Readouts worked out from what you measure</h2>
       <p>Some readouts are a sum, not a reading: a tumour's volume from the calipers, fold change from a qPCR run. Choose one
         under <b>Readout → Worked out by BioManager from what you measure</b>, then type what you measured and let
-        BioManager do the arithmetic, the same way every time.</p>
+        BioManager do the arithmetic, the same way every time. <b>New experiment</b> offers them too, with the
+        <b>Control group</b> for ΔΔCt and fold change.</p>
       <table class="gtable">
         <tr><th>Tumour volume (L × W² / 2)</th><td>Length and width in mm, the length the longer side. In mm³.</td></tr>
         <tr><th>Tumour volume (π/6 × L × W × H)</th><td>Three diameters in mm, for a lab that measures the height too.
@@ -253,8 +254,11 @@
         (<i>24.8 − 18.2</i>); a ΔCt measure also takes the ΔCt itself. Pointing at a cell shows the Cts it was worked out
         from, and its sheet in <b>Export</b> has them beside each value. ΔΔCt and fold change are against the control
         group's mean ΔCt on the same day, as for the main readout.</p>
-      <p>The <b>•••</b> beside the measure shown opens it: change its name or unit (its readings stay with it), or the
-        <b>Control group</b> of a ΔΔCt or fold change, or <b>Delete measure</b>. Deleting asks first, saying how many
+      <p>The <b>•••</b> beside the measure shown opens it: change its name or unit (its readings stay with it), its
+        <b>Kind</b>, or the <b>Control group</b> of a ΔΔCt or fold change, or <b>Delete measure</b>. Another kind works its
+        readings out again: a number keeps each value, ΔCt takes each from its two Cts, and ΔΔCt or fold change needs the
+        two Cts of every reading (a number or a typed ΔCt has none, so it says so and changes nothing). Each change is one
+        step in <b>Batch history</b>. Deleting asks first, saying how many
         readings go with it; it is one step in <b>Batch history</b>, whose <b>Undo</b> brings back the measure and its
         readings together.</p>
       <h2 id="the-page">The page</h2>
@@ -281,7 +285,9 @@
       </ul>
       <h2 id="the-regimen">The regimen</h2>
       <p><b>Regimen</b> lists what is to be done and on which days: the kind, what, dose, route, solution, group and days
-        (<code>1</code>, <code>2-5</code>, <code>2/3/4/5</code>, <code>1, 8, 15</code>). Day 1 is the start date. The days to do
+        (<code>1</code>, <code>2-5</code>, <code>2/3/4/5</code>, <code>1, 8, 15</code>). Day 1 is the start date. A <b>Stimulation</b> (optogenetic,
+        electrical, TMS…) also has its <b>Frequency</b>, <b>Intensity</b>, <b>Pulse width</b> and <b>Duration</b>, as you
+        write them: <i>20 Hz</i>, <i>5 mW</i>, <i>5 ms</i>, <i>30 min</i>. The days to do
         are on the calendar, and the experiment's owner gets a notification each morning of what is due (turn it off in
         <b>Settings → Notifications → Experiments</b>). Nothing is done until someone records it on the page. <b>Save as a
         regimen…</b> keeps it to plan the next cohort from.</p>
@@ -343,7 +349,7 @@
       </div>
   </main>
   <nav class="docs-rail" aria-label="On this page">
-      <p>On this page · 14 min read</p>
+      <p>On this page · 15 min read</p>
       <ol>
         <li class="lvl2"><a href="#a-week">What this does for your week</a></li>
         <li class="lvl2"><a href="#derived">Readouts worked out from what you measure</a></li>

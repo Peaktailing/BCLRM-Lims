@@ -202,5 +202,6 @@
   "Delete %(measure)s and its %(n)s reading? Batch history can undo it.": "删除 %(measure)s 及其 %(n)s 个读数？可以在批量操作记录中撤销。",
   "Delete %(measure)s and its %(n)s readings? Batch history can undo it.": "删除 %(measure)s 及其 %(n)s 个读数？可以在批量操作记录中撤销。",
   "Delete %(measure)s? It holds no readings.": "删除 %(measure)s？它没有读数。",
-  "Another measure · today, %(count)s %(nouns)s, one at a time": "其他指标 · 今天，%(nouns)s %(count)s 个，逐个进行"
+  "Another measure · today, %(count)s %(nouns)s, one at a time": "其他指标 · 今天，%(nouns)s %(count)s 个，逐个进行",
+  "Stimulation": "刺激"
 }

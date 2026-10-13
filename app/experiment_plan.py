@@ -208,6 +208,7 @@ def snapshot(session, exp: Experiment, place) -> dict:
         "test": exp.planned_test or "",
         "steps": [{"days": st.days, "kind": st.kind, "kind_label": ex.kind_info(place.family, st.kind)[0],
                    "agent": st.agent, "dose": st.dose, "route": st.route, "concentration": st.concentration,
+                   **xs.stimulation(st),
                    "group": st.treatment_group, "day_count": len(xs.safe_days(st))} for st in exp.steps],
     }
 
@@ -244,7 +245,8 @@ def _regimen(steps: list[dict]) -> str:
 
 
 def _step_sig(st: dict) -> tuple:
-    return tuple(str(st.get(k) or "") for k in ("days", "kind", "agent", "dose", "route", "concentration", "group"))
+    return tuple(str(st.get(k) or "") for k in ("days", "kind", "agent", "dose", "route", "concentration",
+                                                "frequency", "intensity", "pulse_width", "duration", "group"))
 
 
 def comparison(session, exp: Experiment, place, subs, table: dict) -> list[dict]:
@@ -292,7 +294,8 @@ def comparison(session, exp: Experiment, place, subs, table: dict) -> list[dict]
                  "planned": i18n.translate_value(planned_test) or NONE, "done": done_test,
                  "changed": (plan.get("test") or "") != (exp.planned_test or "")})
     steps_now = [{"days": st.days, "kind": st.kind, "agent": st.agent, "dose": st.dose, "route": st.route,
-                  "concentration": st.concentration, "group": st.treatment_group, "day_count": len(xs.safe_days(st))}
+                  "concentration": st.concentration, **xs.stimulation(st), "group": st.treatment_group,
+                  "day_count": len(xs.safe_days(st))}
                  for st in exp.steps]
     done_days = sum(len(st.records) for st in exp.steps)
     regimen_now = _regimen(steps_now)
@@ -332,10 +335,12 @@ def export_rows(session, exp: Experiment, place) -> list[list]:
         rows.append([grp["name"] or "(no group)", ", ".join(a["label"] for a in grp.get("animals", [])), grp.get("n"),
                      "; ".join(f"{a['label']}: {a['left_out']}" for a in grp.get("animals", []) if a.get("left_out"))])
     rows.append([])
-    rows.append(["Regimen: days", "Kind", "What", "Dose", "Route", "Solution", "Group"])
+    rows.append(["Regimen: days", "Kind", "What", "Dose", "Route", "Solution", "Group", "Stimulation"])
     for st in plan.get("steps", []):
         rows.append([st.get("days"), st.get("kind_label") or st.get("kind"), st.get("agent"), st.get("dose"),
-                     st.get("route"), st.get("concentration"), st.get("group")])
+                     st.get("route"), st.get("concentration"), st.get("group"),
+                     " ".join(str(st.get(k) or "") for k in ("frequency", "intensity", "pulse_width", "duration")
+                              if st.get(k))])
     rows.append([])
     rows.append(["Changes from the plan", "Before", "After", "Reason", "Who", "When", "Each change"])
     for d in exp.deviations:

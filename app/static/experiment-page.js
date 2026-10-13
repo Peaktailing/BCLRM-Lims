@@ -623,17 +623,28 @@
     const list = $('[data-xp-plan-list]', dialog);
     list.innerHTML = D.steps.length ? `<table class="dense-table fit-table xp-plan"><thead><tr><th>${t('Days')}</th><th>${t('Kind')}</th><th>${t('What')}</th><th>${t('Dose')}</th><th>${t('Route')}</th><th>${t('Group')}</th><th></th></tr></thead><tbody>${D.steps.map((s) => `
       <tr><td class="xp-days-cell">${t('Day %(n)s', { n: esc(s.days_label) })}</td><td><span class="xp-kind">${icon(s.icon)}${esc(s.reading ? t('%(readout)s day', { readout: RL() }) : t(s.kind_label))}</span></td>
-      <td><b>${esc(s.agent)}</b>${s.notes ? `<div class="xp-muted">${esc(s.notes)}</div>` : ''}</td><td>${esc(s.dose)}${s.concentration ? `<div class="xp-muted">${esc(s.concentration)}</div>` : ''}</td>
+      <td><b>${esc(s.agent)}</b>${s.notes ? `<div class="xp-muted">${esc(s.notes)}</div>` : ''}</td><td>${esc(s.dose)}${s.concentration ? `<div class="xp-muted">${esc(s.concentration)}</div>` : ''}${stimText(s) ? `<div class="xp-muted">${esc(stimText(s))}</div>` : ''}</td>
       <td>${esc(s.route)}</td><td>${s.group ? esc(s.group) : `<span class="xp-muted">${esc(t('every %(noun)s', { noun: noun() }))}</span>`}</td>
       <td class="xp-actions"><button type="button" class="xp-link" data-xp-edit="${s.id}">${t('Edit')}</button><button type="button" class="xp-link xp-danger" data-xp-delete="${s.id}" aria-label="${esc(t('Delete'))}">×</button></td></tr>`).join('')}</tbody></table>`
       : `<p class="xp-empty">${t('Nothing planned yet.')}</p>`;
     resetStepForm(dialog, editing && D.steps.find((s) => s.id === editing));
   }
+  // A stimulation's settings show only for a Stimulation.
+  const STIM = ['frequency', 'intensity', 'pulse_width', 'duration'];
+  function stimShown(form) {
+    $$('[data-xp-stim]', form).forEach((label) => { label.hidden = form.elements.kind.value !== 'stimulation'; });
+  }
+  ['plan', 'record'].forEach((name) => {
+    const form = $(`[data-xp-form="${name}"]`);
+    if (form && form.elements.kind) form.elements.kind.addEventListener('change', () => stimShown(form));
+  });
+  const stimText = (s) => STIM.map((k) => s[k]).filter(Boolean).join(' · ');
   function resetStepForm(dialog, step) {
     const f = $('[data-xp-form="plan"]').elements;
     fillKinds(f.kind, step ? step.kind : D.kinds[0].key);
     fillGroups(f.group, step ? step.group : '');
-    ['id', 'agent', 'days', 'dose', 'route', 'concentration', 'notes'].forEach((n) => { f[n].value = step ? (step[n] || '') : ''; });
+    ['id', 'agent', 'days', 'dose', 'route', 'concentration', 'notes', ...STIM].forEach((n) => { f[n].value = step ? (step[n] || '') : ''; });
+    stimShown($('[data-xp-form="plan"]'));
     fillReagents(f.reagent_id, step ? step.reagent_id : '');
     $('[data-xp-plan-form-title]', dialog).textContent = step ? t('Change this line') : t('Add to the regimen');
     $('[data-xp-plan-save]', dialog).textContent = step ? t('Save') : t('Add to the regimen');
@@ -646,7 +657,7 @@
       event.preventDefault();
       const dialog = planForm.closest('dialog');
       const f = planForm.elements;
-      const body = Object.fromEntries(['id', 'kind', 'agent', 'days', 'dose', 'route', 'concentration', 'group', 'notes', 'reagent_id'].map((n) => [n, f[n].value]));
+      const body = Object.fromEntries(['id', 'kind', 'agent', 'days', 'dose', 'route', 'concentration', ...STIM, 'group', 'notes', 'reagent_id'].map((n) => [n, f[n].value]));
       try {
         apply(await send(`${API}/steps/save`, body));
         editing = null;
@@ -704,6 +715,7 @@
     f.which.value = preset || (due[0] ? `${due[0].step_id}:${due[0].day}` : 'adhoc');
     fillKinds(f.kind, D.kinds[0].key);
     fillGroups(f.group, '');
+    stimShown($('[data-xp-form="record"]'));
     f.done_on.value = today();
     f.done_on.max = today();
     const inventories = D.sample_inventories || [];
@@ -801,7 +813,7 @@
         sample_name: f.sample_name ? f.sample_name.value : '' };
       try {
         const data = recordCtx.adhoc
-          ? await send(`${API}/record-now`, { ...common, kind: f.kind.value, agent: f.agent.value, dose: f.dose.value, route: f.route.value, concentration: f.concentration.value, group: f.group.value })
+          ? await send(`${API}/record-now`, { ...common, kind: f.kind.value, agent: f.agent.value, dose: f.dose.value, route: f.route.value, concentration: f.concentration.value, ...Object.fromEntries(STIM.map((k) => [k, f[k].value])), group: f.group.value })
           : await send(`${API}/steps/${recordCtx.stepId}/day/${recordCtx.day}/record`, common);
         apply(data);
         dialog.close();

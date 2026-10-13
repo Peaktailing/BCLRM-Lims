@@ -980,7 +980,7 @@ What you stop doing: transcribing a dosing sheet, recalculating mg/kg at the cag
 
 Mice, zebrafish, flies, worms and your own organisms all have an **Experiments** tab beside their other tabs (Mice and Cages; Tanks and Fish; the vials or plates). **New experiment** there can start with a whole cage, tank, rack or housing of them. One page shows each experiment, and **All experiments** on it goes back to the tab.
 
-| Mice | Mice, or a whole cage. Body weight (or tumour volume, a clinical score, survival). Injections, challenges, treatments, surgery, behaviour, sampling, imaging. |
+| Mice | Mice, or a whole cage. Body weight (or tumour volume, a clinical score, survival). Injections, challenges, treatments, surgery, behaviour, stimulation, sampling, imaging. |
 |---|---|
 | Zebrafish | Fish rows, a whole tank, or a clutch's larvae. Survival (how many of those at the start are alive), standard length or a phenotype. Drug in the water, microinjection, heat shock, injury or fin clip. |
 | Flies and worms | Vials or plates, or a whole rack; say how many each started with. They have no body weight: survival, or eclosion and climbing for flies, brood size and paralysis for worms. Drug in the food or on the plate, RNAi feeding, temperature shifts, starvation, infection, flipping to fresh food. |
@@ -990,7 +990,7 @@ Any experiment can follow a readout of its own (**Readout → Something else…*
 
 ### Readouts worked out from what you measure
 
-Some readouts are a sum, not a reading: a tumour's volume from the calipers, fold change from a qPCR run. Choose one under **Readout → Worked out by BioManager from what you measure**, then type what you measured and let BioManager do the arithmetic, the same way every time.
+Some readouts are a sum, not a reading: a tumour's volume from the calipers, fold change from a qPCR run. Choose one under **Readout → Worked out by BioManager from what you measure**, then type what you measured and let BioManager do the arithmetic, the same way every time. **New experiment** offers them too, with the **Control group** for ΔΔCt and fold change.
 
 | Tumour volume (L × W² / 2) | Length and width in mm, the length the longer side. In mm³. |
 |---|---|
@@ -1035,7 +1035,7 @@ An experiment has one main readout: the one its plan, **Main readout day**, test
 
 A measure worked out from Cts is typed in its cell as the two Cts, the target's then the reference's (*24.8 − 18.2*); a ΔCt measure also takes the ΔCt itself. Pointing at a cell shows the Cts it was worked out from, and its sheet in **Export** has them beside each value. ΔΔCt and fold change are against the control group's mean ΔCt on the same day, as for the main readout.
 
-The **•••** beside the measure shown opens it: change its name or unit (its readings stay with it), or the **Control group** of a ΔΔCt or fold change, or **Delete measure**. Deleting asks first, saying how many readings go with it; it is one step in **Batch history**, whose **Undo** brings back the measure and its readings together.
+The **•••** beside the measure shown opens it: change its name or unit (its readings stay with it), its **Kind**, or the **Control group** of a ΔΔCt or fold change, or **Delete measure**. Another kind works its readings out again: a number keeps each value, ΔCt takes each from its two Cts, and ΔΔCt or fold change needs the two Cts of every reading (a number or a typed ΔCt has none, so it says so and changes nothing). Each change is one step in **Batch history**. Deleting asks first, saying how many readings go with it; it is one step in **Batch history**, whose **Undo** brings back the measure and its readings together.
 
 ### The page
 
@@ -1051,7 +1051,7 @@ The **•••** beside the measure shown opens it: change its name or unit (it
 
 ### The regimen
 
-**Regimen** lists what is to be done and on which days: the kind, what, dose, route, solution, group and days (`1`, `2-5`, `2/3/4/5`, `1, 8, 15`). Day 1 is the start date. The days to do are on the calendar, and the experiment's owner gets a notification each morning of what is due (turn it off in **Settings → Notifications → Experiments**). Nothing is done until someone records it on the page. **Save as a regimen…** keeps it to plan the next cohort from.
+**Regimen** lists what is to be done and on which days: the kind, what, dose, route, solution, group and days (`1`, `2-5`, `2/3/4/5`, `1, 8, 15`). Day 1 is the start date. A **Stimulation** (optogenetic, electrical, TMS…) also has its **Frequency**, **Intensity**, **Pulse width** and **Duration**, as you write them: *20 Hz*, *5 mW*, *5 ms*, *30 min*. The days to do are on the calendar, and the experiment's owner gets a notification each morning of what is due (turn it off in **Settings → Notifications → Experiments**). Nothing is done until someone records it on the page. **Save as a regimen…** keeps it to plan the next cohort from.
 
 ### Animals that may need a look
 

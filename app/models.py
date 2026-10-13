@@ -977,6 +977,11 @@ class ExperimentStep(Base):
     dose: Mapped[str] = mapped_column(String(80), default="")            # 20 mg/kg, 25 µg
     route: Mapped[str] = mapped_column(String(60), default="")           # i.p., intranasal
     concentration: Mapped[str] = mapped_column(String(60), default="")   # 10 mg/mL: gives the volume
+    # A stimulation's settings (optogenetic, electrical, TMS…), as typed.
+    frequency: Mapped[str] = mapped_column(String(60), default="")       # 20 Hz
+    intensity: Mapped[str] = mapped_column(String(60), default="")       # 5 mW, 1 mA
+    pulse_width: Mapped[str] = mapped_column(String(60), default="")     # 5 ms
+    duration: Mapped[str] = mapped_column(String(60), default="")        # 30 min, 10 s on / 20 s off
     treatment_group: Mapped[str] = mapped_column(String(80), default="")  # blank: every mouse
     notes: Mapped[str] = mapped_column(Text, default="")
     # The inventory item used (a reagent, its lot): offered when it is recorded.

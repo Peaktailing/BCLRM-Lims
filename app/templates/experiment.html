@@ -209,6 +209,10 @@
         <label>{{ _('Dose') }} <input name="dose" placeholder="20 mg/kg, 25 µg, 10 µM" autocomplete="off"></label>
         <label>{{ _('Route') }} <input name="route" list="xp-routes" autocomplete="off"></label>
         <label>{{ _('Solution') }} <input name="concentration" placeholder="{{ _('10 mg/mL: gives each volume') }}" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Frequency') }} <input name="frequency" placeholder="20 Hz" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Intensity') }} <input name="intensity" placeholder="5 mW, 1 mA" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Pulse width') }} <input name="pulse_width" placeholder="5 ms" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Duration') }} <input name="duration" placeholder="{{ _('30 min, or 10 s on / 20 s off') }}" autocomplete="off"></label>
         <label>{{ _('Group') }} <select name="group" data-xp-group-select></select></label>
         <label class="xp-wide">{{ _('Reagent') }} <select name="reagent_id" data-xp-reagents></select></label>
         <label class="xp-wide">{{ _('Notes') }} <input name="notes" placeholder="{{ _('Vehicle, volume, what to watch for') }}" autocomplete="off"></label>
@@ -237,6 +241,10 @@
         <label>{{ _('Dose') }} <input name="dose" placeholder="20 mg/kg" autocomplete="off"></label>
         <label>{{ _('Route') }} <input name="route" list="xp-routes" autocomplete="off"></label>
         <label>{{ _('Solution') }} <input name="concentration" placeholder="10 mg/mL" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Frequency') }} <input name="frequency" placeholder="20 Hz" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Intensity') }} <input name="intensity" placeholder="5 mW, 1 mA" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Pulse width') }} <input name="pulse_width" placeholder="5 ms" autocomplete="off"></label>
+        <label data-xp-stim hidden>{{ _('Duration') }} <input name="duration" placeholder="{{ _('30 min, or 10 s on / 20 s off') }}" autocomplete="off"></label>
         <label>{{ _('Group') }} <select name="group" data-xp-group-select></select></label>
       </div>
       <div class="xp-record-top">

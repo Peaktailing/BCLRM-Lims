@@ -74,6 +74,23 @@ class Recording(AppTestCase):
         self.assertEqual(len(rows), 5)
         self.assertEqual(data["steps"][1]["days"], "2–5")
 
+    def test_a_stimulation_keeps_its_settings(self):
+        data = self.step(kind="stimulation", agent="473 nm laser", frequency="20 Hz", intensity="5 mW",
+                         pulse_width="5 ms", duration="30 min", days="1-3")
+        st = data["steps"][0]
+        self.assertEqual((st["kind_label"], st["frequency"], st["intensity"], st["pulse_width"], st["duration"]),
+                         ("Stimulation", "20 Hz", "5 mW", "5 ms", "30 min"))
+        self.assertEqual(data["schedule"][0]["title"], "473 nm laser 20 Hz 5 mW 5 ms 30 min")
+        self.assertIn("stimulation", [k["key"] for k in data["kinds"]])
+        # A saved regimen carries them to the next experiment.
+        r = self.a.post(f"/colony/experiments/{self.exp}/regimens/save", json={"name": uniq("Opto ")})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        kept = json.loads(one("select steps from experiment_regimens order by id desc limit 1"))
+        self.assertEqual((kept[0]["frequency"], kept[0]["duration"]), ("20 Hz", "30 min"))
+        # Changed: they go with the line, and a blank one is taken off.
+        data = self.step(id=st["id"], kind="stimulation", agent="473 nm laser", frequency="10 Hz", days="1-3")
+        self.assertEqual((data["steps"][0]["frequency"], data["steps"][0]["intensity"]), ("10 Hz", ""))
+
     def test_recording_a_day_keeps_each_mouse_s_dose(self):
         data = self.step(kind="injection", agent="Tamoxifen", dose="20 mg/kg", concentration="10 mg/mL", days="1")
         step_id = data["steps"][0]["id"]

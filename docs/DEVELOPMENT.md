@@ -1710,7 +1710,7 @@ animals it starts with.
 | `experiment_subjects` | the animals of an experiment that isn't the colony's: a fish row, a vial or plate, an organism; its treatment group and how many there were at the start |
 | `experiment_readings` | one readout per animal, readout and day (a mouse's body weight is a `mouse_weights` row instead) |
 | `experiment_regimens` | saved regimens: an experiment's lines and days, per kind of animal, to plan the next one from (planning never records anything done) |
-| `experiment_steps` | an experiment's manipulations: days (`"2–5"`, day 1 = the start date), kind, agent, dose, route, concentration, treatment group |
+| `experiment_steps` | an experiment's manipulations: days (`"2–5"`, day 1 = the start date), kind, agent, dose, route, concentration, a stimulation's frequency, intensity, pulse_width and duration (`experiment_steps.STIM_FIELDS`, as typed; revision 0042), treatment group |
 | `experiment_step_records` | one per step and day done: date, who, and per mouse the weight used and the amount and volume given (`mice`, JSON) |
 | `plate_layouts` | a plate layout kept with an experiment: name, format (24/48/96/384), `wells` (JSON: each well's role, `sample` with its animal's key, `blank`, or `standard` with `conc`), `used_at` (the last read onto) |
 | `plate_reads` | a plate read onto a layout and saved as readings: the layout as it was, the day and readout, the choices (`options`), every well's value as exported (`data`), each animal's value (`results`), and the file (`file_path`, an upload) |
@@ -1764,7 +1764,10 @@ length); the arithmetic is pure functions. The experiment keeps
 (`readout_json`), and `readout_of` gives it the key `derived:<formula>`
 (also each reading's `readout_key`), its unit, inputs and control; the page's
 **Readout** select lists `derived_choices(place)` in an optgroup, and
-**Control group** (`readout_control`) shows for a per-group one. Readings
+**Control group** (`readout_control`) shows for a per-group one; both New
+experiment forms take the same choice from `templates/_readout_choice.html`
+(the `experiment_readouts` template global, `new_readout_choices(family)`),
+posting `readout` and `readout_control`. Readings
 take `{input: value}` instead of a number (the page's `/readings`, bench
 mode, a reading step's `values`, `POST /api/v1/experiments/<id>/readings`
 with `inputs`); `set_reading` → `_set_derived` stores the value with the
@@ -1866,8 +1869,12 @@ own control, and Export adds the Ct columns. On the sheet its cell is
 typed, not opened as a day: `typed_cts` takes "24.8 − 18.2" (target then
 reference) as inputs, or, for ΔCt only, the ΔCt itself, kept with an
 empty note. The ••• beside the measure shown (`#xp-measure`) posts
-`…/measures/<id>/update` (`label`, `unit`, `control`; `change_measure`
-keeps the id, so the readings stay; a new control stores each day again)
+`…/measures/<id>/update` (`label`, `unit`, `kind`, `control`; `change_measure`
+keeps the id, so the readings stay; a new control stores each day again;
+a new `kind` goes through `rekind_readings` in one `audit.batch`: a number
+clears the notes, ΔCt computes each from its inputs (an input-less value
+kept as a typed ΔCt within `CT_MAX`), ΔΔCt and fold change `_store_day`
+every day, refused while any reading has no inputs)
 and `…/measures/<id>/delete`, which deletes its readings and takes it out
 of the JSON (`drop_measure`) inside one `audit.batch`, so Undo puts back
 both the experiments row and the readings. `last_measure` in the JSON

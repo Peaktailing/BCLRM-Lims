@@ -146,8 +146,10 @@ never what you may edit.
   20 mg/kg i.p. to the HDM group, today), or a day of the **Regimen**
   (HDM 25 µg intranasal on days 2–5), with each mouse's dose worked out
   from its latest weight, and the volume given the solution's
-  concentration. Day 1 is the start date. The readout can be body weight,
-  tumour volume, a clinical score, survival or your own.
+  concentration. Day 1 is the start date. A **Stimulation** (optogenetic,
+  electrical, TMS…) keeps its frequency, intensity, pulse width and
+  duration. The readout can be body weight, tumour volume, a clinical
+  score, survival or your own, chosen in **New experiment** or later.
   - **Readouts worked out from what you measure.** Under **Readout**,
     *Worked out by BioManager from what you measure* has tumour volume
     from caliper length and width (L × W² / 2) or three diameters
@@ -184,7 +186,8 @@ never what you may edit.
     change) from a qPCR run, typed on the sheet as the two Cts or the ΔCt.
     Each measure gets its own button on the sheet, its own chart and its
     own sheet in **Export**; its **•••** renames it, keeping its
-    readings, or deletes it with them (Batch history can undo that). The
+    readings, makes it another kind (its readings worked out again, where
+    they can be), or deletes it with them (Batch history can undo each). The
     main readout stays the one the plan and the tests are about. A saved
     plate is one step in **Batch history**, so **Undo** takes all of it
     back.

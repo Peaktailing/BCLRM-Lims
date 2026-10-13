@@ -123,7 +123,8 @@ _DESIGN_STEP = {"type": "object", "additionalProperties": False, "required": ["d
     "days": {"type": ["string", "integer"], "description": "Its days: 1, \"1-5\", \"1, 3, 5\" (day 1 = the start "
                                                           "date)"},
     "kind": {"type": "string", "description": "What is done. Mice and other organisms: injection, challenge, "
-                                              "treatment, surgery, behavior, sample, imaging; zebrafish: immersion, "
+                                              "treatment, surgery, behavior, stimulation, sample, imaging; "
+                                              "zebrafish: immersion, "
                                               "microinjection, heat_shock, injury, feeding…; flies: food, "
                                               "temperature…; worms: plate, rnai…; a readout day is \"reading\""},
     "agent": {"type": "string", "description": "What is given (Tamoxifen, HDM): needed for an injection, "
@@ -131,6 +132,10 @@ _DESIGN_STEP = {"type": "object", "additionalProperties": False, "required": ["d
     "dose": {"type": "string", "description": "e.g. 75 mg/kg"},
     "route": {"type": "string", "description": "e.g. i.p."},
     "concentration": {"type": "string", "description": "e.g. 20 mg/mL"},
+    "frequency": {"type": "string", "description": "A stimulation's frequency, e.g. 20 Hz"},
+    "intensity": {"type": "string", "description": "A stimulation's intensity, e.g. 5 mW or 1 mA"},
+    "pulse_width": {"type": "string", "description": "A stimulation's pulse width, e.g. 5 ms"},
+    "duration": {"type": "string", "description": "How long it lasts, e.g. 30 min or 10 s on / 20 s off"},
     "group": {"type": "string", "description": "The group it is for (every animal if left out)"},
     "notes": {"type": "string"}}}
 
@@ -1689,7 +1694,8 @@ _DESIGN_ANIMALS = {"colony": {"mouse": lambda r: str(r.id)},
                    "organisms": {"org_animal": lambda r: f"organism:{r.id}", "org_cohort": lambda r: f"cohort:{r.id}"}}
 _DESIGN_HOUSING = {"colony": ("cage", lambda r: r.cage_id), "zebrafish": ("tank", lambda r: str(r.id)),
                    "stocks": ("stock_rack", lambda r: str(r.id)), "organisms": ("org_housing", lambda r: str(r.id))}
-_STEP_KEYS = ("days", "kind", "agent", "dose", "route", "concentration", "group", "notes")
+_STEP_KEYS = ("days", "kind", "agent", "dose", "route", "concentration", "frequency", "intensity", "pulse_width",
+              "duration", "group", "notes")
 
 
 def _design_database(s, v) -> str:

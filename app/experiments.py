@@ -72,11 +72,12 @@ READOUT_CHOICES = {
 KINDS = {
     "mouse": [("injection", "Injection", "syringe"), ("challenge", "Challenge", "virus"),
               ("treatment", "Treatment", "droplet"), ("surgery", "Surgery", "stethoscope"),
-              ("behavior", "Behaviour", "gauge"), ("sample", "Sample", "vial"), ("imaging", "Imaging", "microscope")],
+              ("behavior", "Behaviour", "gauge"), ("stimulation", "Stimulation", "bolt"), ("sample", "Sample", "vial"),
+              ("imaging", "Imaging", "microscope")],
     "fish": [("immersion", "Drug in the water", "droplet"), ("microinjection", "Microinjection", "syringe"),
              ("heat_shock", "Heat shock", "temperature"), ("injury", "Injury or fin clip", "stethoscope"),
-             ("feeding", "Feeding", "flask"), ("behavior", "Behaviour", "gauge"), ("imaging", "Imaging", "microscope"),
-             ("sample", "Sample", "vial")],
+             ("feeding", "Feeding", "flask"), ("behavior", "Behaviour", "gauge"), ("stimulation", "Stimulation", "bolt"),
+             ("imaging", "Imaging", "microscope"), ("sample", "Sample", "vial")],
     "fly": [("food", "Drug in the food", "flask"), ("temperature", "Temperature shift", "temperature"),
             ("starvation", "Starvation", "clock"), ("infection", "Infection", "virus"),
             ("irradiation", "Irradiation", "bolt"), ("transfer", "Flip to fresh food", "repeat"),
@@ -87,7 +88,8 @@ KINDS = {
              ("transfer", "Transfer to a fresh plate", "repeat")],
     "organism": [("injection", "Injection", "syringe"), ("treatment", "Treatment", "droplet"),
                  ("challenge", "Challenge", "virus"), ("surgery", "Surgery", "stethoscope"),
-                 ("behavior", "Behaviour", "gauge"), ("sample", "Sample", "vial"), ("imaging", "Imaging", "microscope")],
+                 ("behavior", "Behaviour", "gauge"), ("stimulation", "Stimulation", "bolt"), ("sample", "Sample", "vial"),
+                 ("imaging", "Imaging", "microscope")],
 }
 READING_KIND = ("reading", "Readout day", "chart")
 OTHER_KIND = ("other", "Other", "note")
