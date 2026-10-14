@@ -228,6 +228,7 @@
        fields are what the row showed for the box and position: the box
        grid can move a plasmid while its row is on screen, and the server
        only moves it when these differ (app/formutil.py). #}
+    <template data-row-forms>
     {% for r in rows %}
       <form id="plasmid-{{ r.p.id }}" method="post" action="{{ url_for('update_plasmid', row_id=r.p.id) }}"
             data-record-label="{{ _('plasmid #%(id)s', id=r.p.plasmid_id) }}">
@@ -235,6 +236,7 @@
         <input type="hidden" name="position_was" value="{{ r.position }}">
       </form>
     {% endfor %}
+    </template>
   </div>{# /plasmid-view-table #}
 
   {# The shared rack grid (static/rack-grid.js): pick the freezer, then the
@@ -548,7 +550,9 @@
 
   /* A sheet row's Open button follows what was saved, and what the grid moved. */
   (function () {
-    const openOf = (id) => document.querySelector(`tr[data-id="${id}"] [data-open-payload]`);
+    // A row may wait off the page until it is shown (data-table.js, BioSheets).
+    const rowOf = (id) => window.BioSheets.row(id, document.getElementById('plasmids-section'));
+    const openOf = (id) => rowOf(id)?.querySelector('[data-open-payload]') || null;
     document.addEventListener('sheet:saved', (event) => {
       const { form, body } = event.detail || {};
       const open = form && body && body.payload && openOf(form.id.replace('plasmid-', ''));
@@ -559,16 +563,16 @@
     document.addEventListener('rack-grid:moved', (event) => {
       const { view, id, rackId, position } = event.detail || {};
       if (view !== 'plasmid-boxes') return;
-      const form = document.getElementById(`plasmid-${id}`);
+      const form = BioRowForms.get(`plasmid-${id}`);
       if (!form) return;
       const set = (name, v) => {
-        document.querySelectorAll(`[form="plasmid-${id}"][name="${name}"]`).forEach((el) => { el.value = v; });
+        rowOf(id)?.querySelectorAll(`[form="plasmid-${id}"][name="${name}"]`).forEach((el) => { el.value = v; });
         const was = form.querySelector(`[name="${name}_was"]`);
         if (was) was.value = v;
       };
       if (rackId) set('box_id', String(rackId));
       set('position', position || '');
-      const tr = document.querySelector(`tr[data-id="${id}"]`);
+      const tr = rowOf(id);
       if (tr && window.BioSheet) window.BioSheet.refreshDot(tr, Boolean(rackId && position));
       const open = openOf(id);
       if (open) {

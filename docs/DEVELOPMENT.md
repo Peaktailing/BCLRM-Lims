@@ -382,7 +382,51 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
   most two), and a toast names the first and last rows filled.
 - A sheet's search (`data-table.js`, `_rowText`) reads a menu by its chosen
   option only; the row's `textContent` would hold every option, so a box
-  or status name matched every row.
+  or status name matched every row. Each row's text is kept while someone
+  types a search (`_texts`), and forgotten on the search box's focus and
+  on any edit, save or rack move in the sheet.
+- Each row of a sheet saves through a form of its own, outside the table,
+  that its cells join with `form="…"`. The forms come inside
+  `<template data-row-forms>`, and `static/row-forms.js` (loaded in the
+  head, before any page script) puts a row's form on the page, before its
+  template, when one of its cells is pressed, focused, typed or pasted
+  into. Anything that looks a row's form up by its id uses
+  `BioRowForms.get(id)` (null if there is none); its cells are found by
+  `[form="…"]` as before, whether or not the form has joined. Sent as
+  part of the page, a thousand row forms made Chromium (Chrome, Edge, the
+  Windows app) walk the whole page once for each form's fields as it
+  loaded, up to two seconds on a sheet of a few hundred rows, and the
+  square of that as the sheet grows. `_revealHashTarget` finds the row of
+  a `#mouse-update-39` link by its cells.
+- A long list of choices the same on every row (a fish row's **Tank**: every
+  tank of the lab) is sent once, as `<template id="choices-<key>">`, and each
+  row's `<select data-choices="<key>">` holds only its own choice until it
+  is pressed, focused or typed in (`BiomanagerShell.fillChoices`,
+  `static/shell.js`; `sheet.js`'s pasted blocks fill it before matching).
+  On the fish sheet it was the tank list once a row: 130 KB a row in a lab
+  of 3,000 tanks.
+- Rows past a sheet's first page (100) are `display: none` from the
+  stylesheet until `data-table.js` has drawn it
+  (`.data-table-card[data-table-id]:not(.dt-ready)`): the browser would
+  otherwise style and lay out every row first. `render()` then touches only
+  the rows whose state changes, and moves rows into a new order only when
+  the order has changed (a sort, a search, a chip).
+- A sheet of more than 1,000 rows (`PARK_OVER`) takes the rows it has not
+  shown off the page (`_parkLater`), and `render()` puts each back when it
+  is shown; it then stays. Chromium's autofill reads every field on a page
+  as it loads (Chrome, Edge, the Windows app; not Safari or the Mac app),
+  shown or not: on a sheet of a few thousand rows that took one to two
+  minutes. The rows leave in the window's `DOMContentLoaded`, after the
+  document's, so every script that wires rows as the page loads has seen
+  them, and before Chromium looks. Search, sort, export, print, the count
+  and the column choices work on all of them (`this.rows`). Code that
+  looks a row up later uses `BioSheets.row(id, el)` / `BioSheets.rows(el)`,
+  which find a row off the page too, and `BioSheets.show(tr)` to turn the
+  sheet to it first (a click on a row off the page reaches no listener on
+  the document). `#mouse-update-39` and `#cage-12` links find their row
+  either way. A sheet whose page scripts need every row on the page says
+  `data-dt-keep-rows` (the cage sheet: its cards, **Open all** and a
+  scanned cage look for its rows there).
 - `static/data-table.js` keeps a sheet's sort in `localStorage`
   (`dt:<id>:sort`, restored before the first render) and its chip in the
   address (`?chip=<spec>`; `?scope=mine` picks the chip reading *Mine*).
@@ -409,8 +453,10 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
 - The page scrolls, not the sheet. `.data-table-card` is `overflow: clip`
   (not a scroller), so its `.dt-toolbar` sticks to the top of
   `.shell-scroll` and its `.dt-bottom-bar` to the bottom;
-  `_wireStickyParts` puts their heights on the card as `--dt-toolbar-h`
-  and `--dt-bottom-h` (the selection bar sits above the bottom bar). A
+  `_wireStickyParts` puts their heights where they are used, as
+  `--dt-toolbar-h` on the table's header row and `--dt-bottom-h` on the
+  selection bar (which sits above the bottom bar): set on the card, a new
+  value restyled every row of the sheet. A
   table no wider than its card gets `.dt-scroll.is-fit` (`overflow:
   visible`), and its header row is CSS-sticky under the toolbar; a wider
   one scrolls sideways in `.dt-scroll`, and its header cells are moved
@@ -2936,10 +2982,33 @@ What keeps the sheets usable at that size:
   (`stock_routes`). The sheet says how many and links to them. Search,
   exports and the box grid still see everything.
 
-At 100k mice on SQLite, the mouse and cage sheets take 2–3 s and stream
-30–60 MB of rows (about 3 KB a row, a third of it whitespace). The next
-step, if a lab needs it, is paging on the server instead of the sheet's
-client-side pages.
+What a person waits for is mostly the browser, not the server:
+`--browser` also opens each page in Chromium and reports the time to its
+load event, the main thread's busy time, its DOM nodes and JS heap.
+
+```bash
+.venv/bin/python scripts/load-test.py /tmp/bm-load --reuse --browser
+```
+
+What keeps the browser's side short is under *Small shared rules*: row
+forms in a `<template>` (`row-forms.js`), long choice lists sent once
+(`data-choices`), the rows past the first page hidden until the sheet is
+drawn, and a sheet of over 1,000 rows keeping the rows it has not shown
+off the page (`_parkLater`).
+
+At 100k mice on SQLite (2.0.0), the server makes the mouse, cage and
+litter sheets in 3–6 s, 20–25 MB each, and an inventory in 7 s, 60 MB.
+In Chromium the mouse sheet then opens in 7.5 s (77 s before 2.0.0), the
+tanks in 11 s (127 s), the fly vials in 6.6 s (97 s), the cages and
+litters in about 10 s. Still slow at that size: an inventory (23–27 s:
+its rows carry the most fields, 13 KB of markup a row) and the
+**Breeders** tab (40 s: a card for every breeder cage, a million
+elements, not a sheet). The next step for those, if a lab needs it, is
+paging on the server instead of the sheet's client-side pages.
+
+In a lab of 4,000 mice, in Chromium (before 2.0.0 → 2.0.0): mice
+6.2 → 2.7 s, cages 8.0 → 3.1 s, litters 4.0 → 1.5 s, fish 31.5 → 3.2 s,
+reagents 5.2 → 2.6 s, samples 6.0 → 2.8 s.
 
 ## Languages
 

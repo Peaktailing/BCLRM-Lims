@@ -238,6 +238,7 @@
           </tbody>
         </table>
       </div>
+      <template data-row-forms>
       {% for r in rows %}
         <form id="unit-{{ r.unit.id }}" method="post" action="{{ url_for('stocks.update_unit', key=key, unit_id=r.unit.id) }}" data-record-label="{{ r.code }}">
           {% for name in ['genotype', 'purpose', 'female_genotype', 'male_genotype', 'owner', 'set_up_on', 'notes', 'rack_id', 'position'] %}
@@ -245,6 +246,7 @@
           {% endfor %}
         </form>
       {% endfor %}
+      </template>
       <div class="dt-bottom-bar">
         {{ sheet_ui.quick_add(url_for('stocks.save_unit', key=key), _('New %(noun)s', noun=unit_w), new_payload) }}
         <span class="dt-bottom-count dt-count">{{ rows|length }} {{ units_w }}</span>
@@ -836,10 +838,8 @@
   /* Inline editing is static/sheet.js (data-autosave-sheet on the card).
      What is particular to vials: */
   (function () {
-    const rowOf = (form) => {
-      const cell = document.querySelector(`[form="${form.id}"]`);
-      return cell && cell.closest('tr');
-    };
+    // A row may wait off the page until it is shown (data-table.js, BioSheets).
+    const rowOf = (form) => window.BioSheets.rows().find((tr) => tr.querySelector(`[form="${form.id}"]`)) || null;
     // A new purpose shows or hides the cross parents and the egg button.
     document.addEventListener('sheet:change', (event) => {
       const { input } = event.detail;
@@ -863,9 +863,9 @@
     // A move on the grid updates the row (cells, stale-guard copies, payload).
     document.addEventListener('rack-grid:moved', (event) => {
       const { id, rackId, position } = event.detail || {};
-      const form = document.getElementById(`unit-${id}`);
+      const form = BioRowForms.get(`unit-${id}`);
       if (!form) return;
-      const set = (name, v) => { const el = document.querySelector(`[form="unit-${id}"][name="${name}"]`); if (el) el.value = v || ''; };
+      const set = (name, v) => { const el = rowOf(form)?.querySelector(`[form="unit-${id}"][name="${name}"]`); if (el) el.value = v || ''; };
       set('rack_id', rackId);
       set('position', position);
       form.querySelector('[name="rack_id_was"]').value = rackId || '';
