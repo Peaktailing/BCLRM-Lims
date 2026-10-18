@@ -424,8 +424,10 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
   holds its ticked choices as hidden fields and makes its checkboxes from
   `choices-inv-m-<key>` when it is opened (`buildMulti`). A source cell's
   ID box gets its colony's list (`inv-src-<n>`) when it is first focused or
-  its colony changed, made from the `inv-src-data` JSON: a mouse colony's
-  IDs were 3 MB of `<option>`s on the samples sheet.
+  its colony changed, made from `/inventory/<key>/sources` (`source_ids`:
+  each colony's IDs in the order of the page's menus), fetched once, the
+  first time: a mouse colony's IDs were 3 MB of `<option>`s on the samples
+  sheet, and then a fifth of its server time as JSON in the page.
 - Rows are written without the indentation between their tags
   (`{% filter tight %}`, `app.py`), which was a third of a long inventory;
   the labels, links, titles and icons every row repeats are worked out
@@ -440,7 +442,10 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
   whole dialog, megabytes on a long inventory): the macro's `src`
   (`data-rack-src`) is `/inventory/<key>/grid` (`grid_data`, the page's
   `?type=` and `?ended=`), fetched then; the Boxes buttons above the sheet
-  take their dialogs from `rack_edits`.
+  take their dialogs from `rack_edits`. The cage sheet's rack grid the
+  same: its tiles come from `/colony/cages/grid` (`colony_cage_grid`, the
+  page's `scope` and `ended`; `mouse_rack_payload(tiles=True)`), and the
+  page carries the racks only, for its Racks buttons and Rack menus.
 - Rows past a sheet's first page (100) are `display: none` from the
   stylesheet until `data-table.js` has drawn it
   (`.data-table-card.dt-held`, which the script takes off): the browser would
@@ -526,7 +531,7 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
   is paged by the server. The page draws its first 100 rows (`FIRST_PAGE`,
   the sheet's first page, in its own order) and, for each other item, an
   entry in `<script type="application/json" data-dt-stubs>`
-  (`_row_stub`): its id and element id, its `data-*` (what the chips
+  (`_row_stubs`): its id and element id, its `data-*` (what the chips
   read), each sortable cell's value as the cell holds it (`k`: a box by
   its id, a status by its value) and the text a search looks in (`s`:
   what `_rowText` reads from a drawn row, its menus' shown choices
@@ -578,19 +583,86 @@ id>` redirects there, and the writes stay under `/plasmids/<row id>/…`.
   - At 100,000 mice the litters (6,634) open in 3.2 s instead of 9.1, the
     cages (1,368 listed) in 3.1 s instead of 7.6 (26 MB of page to 3.8);
     their **Cards**, page and cards together, in 9.7 s instead of 10.4.
-- Tanks and vials are drawn whole by their page and paged after
+- What a long sheet costs the server, and what keeps it down:
+  - Its records are read as plain rows, not ORM objects
+    (`app/plain_records.py`): the mouse sheet's mice with their cages,
+    racks and litters (`mice`), the litter sheet's litters with each pup's
+    number and sex (`litters`; `full_pups` reads the rest, and the pups'
+    cages, for the rows drawn only), an inventory's items (`inventory_items`,
+    each with its box, and its `attrs_dict` decoded once). They carry the
+    models' names (`access.can_edit` tells records apart by class name) and
+    the columns the sheets read, so the rows, stubs and access rules read
+    them as they read the models. They are for reading: every write loads
+    its record through the ORM by id.
+  - The mouse sheet's rows and their forms are written by
+    `app/mouse_rows.py` (`mouse_rows_html`, `mouse_row_forms_html`), the
+    same markup `_mouse_rows.html` wrote, character for character, and the
+    text cells told what it already knows of each field (`app.text_cell`)
+    rather than reading it back from the tag. A change to a mouse row's
+    cells is made there.
+  - Stubs (`mouse_stubs`, `cage_stubs`, `litter_stubs`, `_row_stubs`) work
+    out what every row shares (the words for a sex, a status, a choice, an
+    owner's badge, which column is which) once a sheet, and are written by
+    `|stubs_json`: `|tojson`'s escaping without sorting thousands of rows'
+    keys. A mouse row's cage cells are worked out once a cage
+    (`services.mouse_display_row(cages=…)`), and `positions.natural()` and a
+    rack's labels are cached.
+  - Indexes for what the colony asks (`0044_colony_indexes`): a mouse's
+    date of death, owner and cage, a cage's created date, a litter's date of
+    birth, and `ix_mice_litter_pups`, which holds every column of a pup the
+    litter sheet reads, so the database answers from it alone. The sheet
+    reads the mice it lists without `ORDER BY mouse_id` and sorts them
+    itself: asked for them in order, SQLite walked every mouse by its
+    number. SQLite keeps 64 MB of pages in memory (`db.SQLITE_CACHE_KB`).
+  - `app.py` sets the garbage collector to look for cycles once in 10,000
+    new objects (`gc.set_threshold`): at Python's default, a long sheet's
+    hundreds of thousands of objects were walked many times a page, a fifth
+    of an inventory's time.
+  - The cage sheet builds a cage's row in full (`cage_sheet_row`: each of
+    its mice's rows, its litters to wean, who may edit what) only for the
+    cages it draws; each other cage gets what its stub, the chips and the
+    counts read (`cage_stub_row`), and its litters born in it are loaded
+    for the cages drawn only. The Breeders tab reads its cages, racks and
+    mice as plain rows (`services.breeder_mice`), and its summary in one
+    query (`breeder_summary`). The words every cage row or Breeders card
+    says alike are put in the page's words once a draw (`w` in
+    `_cage_rows.html`, `w_…` in `colony.html`), and an owner's badge is
+    made once a name for the request (`owner_badge_filter`).
+  - At 100,000 mice (`scripts/load-test.py`), the server's time against
+    2.0.13's on the same machine: the mouse sheet (alex's 2,349 mice) 0.17 s
+    (0.49), the litters (6,725) 0.4 s (2.4), the cages 0.5 s (1.15), the
+    Breeders tab (1,602 cages) 0.43 s (1.07); an inventory of 20,000
+    samples 0.7 s (1.85), of 20,000 reagents 0.7 s (1.4); the fish tab
+    0.7 s (1.9); the tanks (3,337) 0.5 s (4.6).
+- Vials are drawn whole by their page and paged after
   (`app/sheet_paging.py`): past `LAZY_OVER` rows, `page()` keeps the
   sheet's first page, makes each other row a stub with
   `cell_text.row_stub` (read from the row as drawn, as `_sortValue` and
   `_rowText` read it, so it needs no code per sheet), takes those rows'
   forms out of its `<template data-row-forms>`, and gives the sheet its
-  rows address: `/zebrafish/tanks/rows`, `/stocks/<key>/units/rows`. That
-  address builds the page's context with only the rows asked for, draws
-  the page, and `rows_of` lifts them and their forms out. A stub carries
-  its row form (`f`) for links. The server still draws every row once for
-  the page; the browser builds only a page of them. At 100,000 mice:
-  3,337 tanks open in 5.4 s (14.2), vials 3.8 s (4.5), a page turn
-  0.1–0.9 s.
+  rows address: `/stocks/<key>/units/rows`. That address builds the
+  page's context with only the rows asked for, draws the page, and
+  `rows_of` lifts them and their forms out. A stub carries its row form
+  (`f`) for links. The server still draws every row once for the page;
+  the browser builds only a page of them. At 100,000 mice: vials 3.8 s
+  (4.5), a page turn 0.1–0.9 s.
+- The tank sheet was paged that way, and drawing 3,337 tanks then reading
+  them back took 4.6 s. Now `_zebrafish_context` draws its first page
+  (`tank_sheet_rows`) and makes each other tank's stub from its data
+  (`zf_tank_stubs`: its `data-*`, each field's value, a menu's shown
+  choice, the owner's initials, the genotyping label, and in text cells
+  an empty Pos's "–"; a lab's own columns are drawn with `custom_cell` and
+  read with `row_stub`). `tests/test_speed.py` holds every stub to
+  `cell_text.row_stub` of its drawn row, with and without the lab's own
+  columns, in both ways of drawing cells and in Chinese.
+  `/zebrafish/tanks/rows` draws only the tanks asked for
+  (`_zebrafish_context(tank_ids=…)`). Each tank's fish are read as plain
+  rows (its count of live fish, its fish rows); only a mating tank still
+  out loads its fish in full, for its Returned dialog, and only the
+  tanks drawn (and those) get their dialog's payload and delete prompt.
+  The rack grid's tiles are made only for the grid (`?mode=grid`). The
+  other tabs read no tank's fish at all. At 100,000 mice the tank sheet
+  answers in 0.45–0.5 s.
 - `static/data-table.js` keeps a sheet's sort in `localStorage`
   (`dt:<id>:sort`, restored before the first render) and its chip in the
   address (`?chip=<spec>`; `?scope=mine` picks the chip reading *Mine*).

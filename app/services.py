@@ -5,7 +5,7 @@ import io
 import os
 import re
 import secrets
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -747,10 +747,15 @@ def reserve_mouse_ids(session, count: int) -> list[int]:
     return ids
 
 
+_DIGITS = re.compile(r"\d+")
+
+
 def _cage_number(code: str | None) -> int:
     """The number a cage ID stands for: "12" -> 12, "2A" -> 2, "B-12" -> 12.
     Only the first run of digits counts, so "B12-3" is 12, not 123."""
-    match = re.search(r"\d+", code or "")
+    if code and code.isdigit():
+        return int(code)   # most are: a lab's thousands, asked for at once
+    match = _DIGITS.search(code or "")
     return int(match.group()) if match else 0
 
 
@@ -764,7 +769,8 @@ def reserve_cage_ids(session, count: int) -> list[str]:
         return []
     # See next_mouse_id: pending rows are invisible without a flush.
     session.flush()
-    codes = set(session.scalars(select(CageRecord.cage_id)).all())
+    # The column alone, not through the ORM: a lab has tens of thousands.
+    codes = {code for code, in session.execute(select(CageRecord.__table__.c.cage_id))}
     highest = max((_cage_number(code) for code in codes), default=0)
     ids: list[str] = []
     candidate = highest
@@ -904,9 +910,11 @@ def apply_status_rules(mouse: MouseRecord, previous_status: str | None) -> None:
         mouse.date_of_death = None
 
 
+_INACTIVE_STATUSES = frozenset(END_STATUSES | {"transfer"})
+
+
 def mouse_is_active(mouse: MouseRecord) -> bool:
-    inactive_statuses = END_STATUSES | {"transfer"}
-    return mouse.date_of_death is None and normalize_status(mouse.status or "") not in inactive_statuses
+    return mouse.date_of_death is None and normalize_status(mouse.status or "") not in _INACTIVE_STATUSES
 
 
 def _cage_position(cage) -> str:
@@ -929,22 +937,44 @@ def transgene_columns_used(mice) -> list[bool]:
     return [any(c >= n for c in counts) for n in range(1, 5)]
 
 
-def mouse_display_row(mouse: MouseRecord, current_username: str | None = None, current_role: str | None = None) -> dict[str, object]:
+def _cage_cells(cage) -> tuple:
+    """What a mouse's row shows of its cage (mouse_display_row): its number,
+    location, rack (id and name), position, and whether it holds breeders."""
+    if cage is None:
+        return "", "", None, "", "", False
+    return (cage.cage_id, cage.cage_location, cage.rack_id_fk, cage.rack.name if cage.rack else "",
+            _cage_position(cage), holds_breeders(cage.purpose))
+
+
+def mouse_display_row(mouse: MouseRecord, current_username: str | None = None, current_role: str | None = None,
+                      cages: dict | None = None, today: date | None = None) -> dict[str, object]:
+    """A mouse's row on the sheets. For a sheet's thousands: `cages`, a dict
+    the caller keeps for what each cage's mice's rows show of it (worked out
+    once a cage), and `today`, the day their ages count to."""
     dob = mouse.litter.date_of_birth if mouse.litter else None
-    ages = calculate_age_fields(dob)
+    age_days = max(((today or date.today()) - dob).days, 0) if dob is not None else None   # calculate_age_fields
     genotype_parts = transgene_parts(mouse)
     can_edit_breeder = current_role == "admin" or mouse.owner == current_username
-    cage_is_breeder = mouse.cage is not None and holds_breeders(mouse.cage.purpose)
+    cage = mouse.cage
+    if cages is None:
+        cage_cells = _cage_cells(cage)
+    else:
+        key = None if cage is None else cage.id
+        cage_cells = cages.get(key)
+        if cage_cells is None:
+            cage_cells = cages[key] = _cage_cells(cage)
+    cage_id, cage_location, cage_rack_id, cage_rack, cage_position, cage_is_breeder = cage_cells
+    active = mouse_is_active(mouse)
     return {
         "id": mouse.id,
         "mouse_id": mouse.mouse_id,
         "ear_tag": mouse.ear_tag or "",
         "strain": mouse.strain or "",
         "attrs": custom_fields.values(mouse),
-        "active": mouse_is_active(mouse),
-        "active_label": "Y" if mouse_is_active(mouse) else "N",
-        "age_weeks": ages["age_weeks"],
-        "age_days": ages["age_days"],
+        "active": active,
+        "active_label": "Y" if active else "N",
+        "age_weeks": age_days // 7 if age_days is not None else None,
+        "age_days": age_days,
         "gender": mouse.gender,
         "genotype": mouse.genotype,
         "genotype_full": mouse.genotype or "",
@@ -953,11 +983,11 @@ def mouse_display_row(mouse: MouseRecord, current_username: str | None = None, c
         "transgene_2": genotype_parts[1] if len(genotype_parts) > 1 else "",
         "transgene_3": genotype_parts[2] if len(genotype_parts) > 2 else "",
         "transgene_4": genotype_parts[3] if len(genotype_parts) > 3 else "",
-        "cage_id": mouse.cage.cage_id if mouse.cage else "",
-        "cage_location": mouse.cage.cage_location if mouse.cage else "",
-        "cage_rack_id": mouse.cage.rack_id_fk if mouse.cage else None,
-        "cage_rack": mouse.cage.rack.name if mouse.cage and mouse.cage.rack else "",
-        "cage_position": _cage_position(mouse.cage),
+        "cage_id": cage_id,
+        "cage_location": cage_location,
+        "cage_rack_id": cage_rack_id,
+        "cage_rack": cage_rack,
+        "cage_position": cage_position,
         "owner": mouse.owner,
         "litter_id": mouse.litter.litter_id if mouse.litter else "",
         "date_of_birth": dob.isoformat() if dob else "",
@@ -1321,18 +1351,19 @@ def breeder_summary(session) -> list[dict[str, object]]:
         lambda: {"f_young": 0, "f_old": 0, "m_young": 0, "m_old": 0, "oldest": 0, "total": 0}
     )
 
-    from sqlalchemy.orm import selectinload
-    # Living mice in breeder cages, with their litters, in two queries.
-    living_in_breeders = (select(MouseRecord).join(CageRecord, MouseRecord.cage_id_fk == CageRecord.id)
-                          .where(MouseRecord.date_of_death.is_(None),
-                                 func.lower(func.trim(CageRecord.purpose)).in_(BREEDER_PURPOSES))
-                          .options(selectinload(MouseRecord.litter), selectinload(MouseRecord.cage)))
-    for mouse in session.scalars(living_in_breeders).all():
+    # Living mice in breeder cages, with their litters' dates of birth, as
+    # plain rows: a large colony's breeders run to thousands.
+    m, c, l = MouseRecord.__table__, CageRecord.__table__, LitterRecord.__table__
+    living_in_breeders = (select(m.c.gender, m.c.genotype, m.c.status, m.c.date_of_death, c.c.purpose,
+                                 l.c.date_of_birth)
+                          .select_from(m.join(c, m.c.cage_id_fk == c.c.id).outerjoin(l, l.c.id == m.c.litter_id_fk))
+                          .where(m.c.date_of_death.is_(None), func.lower(func.trim(c.c.purpose)).in_(BREEDER_PURPOSES)))
+    for mouse in session.execute(living_in_breeders):
         if not mouse_is_active(mouse):
             continue
-        if mouse.cage is None or not holds_breeders(mouse.cage.purpose):
+        if not holds_breeders(mouse.purpose):
             continue
-        dob = mouse.litter.date_of_birth if mouse.litter else None
+        dob = mouse.date_of_birth
         if dob is None:
             continue
         age_weeks = max((today - dob).days, 0) // 7
@@ -1377,6 +1408,13 @@ def breeder_summary(session) -> list[dict[str, object]]:
     return rows
 
 
+# A Breeder cage as the Breeders tab reads it (breeder_mice): its own
+# columns, its rack (plain_records.SheetRack) and its mice (plain records).
+_BreederCage = namedtuple("CageRecord", ("id", "cage_id", "cage_location", "room", "location_detail", "card_id",
+                                         "genotype_summary", "created_at", "rack_id_fk", "rack_row", "rack_col",
+                                         "rack", "mice"))
+
+
 def breeder_mice(session, current_username: str | None, current_role: str | None,
                  recent: date | None = None) -> tuple[list[dict[str, object]], dict[str, int]]:
     """The Breeders tab's cards, one a Breeder cage, and what it left out.
@@ -1387,36 +1425,49 @@ def breeder_mice(session, current_username: str | None, current_role: str | None
     cage and mouse it had; years of them made the tab take a minute). The
     card's counts and its search still go by all its mice. The second value
     says how many were left out: {"cages": n, "mice": n}."""
-    from sqlalchemy.orm import selectinload
+    from . import plain_records
+    from .models import MouseRack
     is_breeder = func.lower(func.trim(CageRecord.purpose)) == BREEDER_PURPOSE
     # The lab's breeding stock to pick from: Breeder cages, not the
-    # mating (Breeding) cages, whose mice are in use.
-    query = (select(CageRecord).where(is_breeder)
-             .options(selectinload(CageRecord.mice).selectinload(MouseRecord.litter), selectinload(CageRecord.rack)))
+    # mating (Breeding) cages, whose mice are in use. Read as plain rows
+    # (app/plain_records.py), each cage with its rack and its mice (with
+    # their litters): the ORM took most of the tab's time.
+    chosen = select(CageRecord.id).where(is_breeder)
     if recent is not None:
         # Only cages that may be shown are loaded; the rule itself is below.
-        query = query.where(
+        chosen = chosen.where(
             CageRecord.id.in_(select(MouseRecord.cage_id_fk).where(
                 MouseRecord.date_of_death.is_(None) | (MouseRecord.date_of_death >= recent)))
             | (CageRecord.created_at >= datetime.combine(recent, datetime.min.time())))
-    cages = natural_sorted(session.scalars(query).all(), key=lambda c: c.cage_id)
+    racks = {r[0]: plain_records.SheetRack(*r) for r in session.execute(
+        select(*(MouseRack.__table__.c[name] for name in plain_records.COLUMNS["mouse_racks"])))}
+    cage_columns = ("id", "cage_id", "cage_location", "room", "location_detail", "card_id", "genotype_summary",
+                    "created_at", "rack_id_fk", "rack_row", "rack_col")
+    t = CageRecord.__table__
+    cages = [_BreederCage(*row, racks.get(row[8]), []) for row in session.execute(
+        select(*(t.c[name] for name in cage_columns)).where(t.c.id.in_(chosen)))]
+    by_id = {cage.id: cage for cage in cages}
+    # Each cage's mice by number (plain_records.mice sorts them).
+    for mouse in plain_records.mice(session, MouseRecord.cage_id_fk.in_(chosen)):
+        if mouse.cage_id_fk in by_id:
+            by_id[mouse.cage_id_fk].mice.append(mouse)
+    cages = natural_sorted(cages, key=lambda c: c.cage_id)
     left_out = {"cages": 0, "mice": 0}
     if recent is not None:
         cages = [c for c in cages if cage_is_active(c) or c.created_at and c.created_at.date() >= recent
                  or any(m.date_of_death and m.date_of_death >= recent for m in c.mice)]
         left_out["cages"] = (session.scalar(select(func.count(CageRecord.id)).where(is_breeder)) or 0) - len(cages)
     grouped: list[dict[str, object]] = []
+    cells: dict = {}
+    today = date.today()
     for cage in cages:
-        owner_name = ""
-        for mouse in cage.mice:
-            if mouse.owner:
-                owner_name = mouse.owner
-                break
-        sorted_mice = sorted(cage.mice, key=lambda item: item.mouse_id)
+        sorted_mice = cage.mice
+        # Its owner: the first of its mice (in the order they were added) that has one.
+        owner_name = min(((mouse.id, mouse.owner) for mouse in sorted_mice if mouse.owner), default=(0, ""))[1]
         listed = sorted_mice if recent is None else [
             mouse for mouse in sorted_mice if mouse.date_of_death is None or mouse.date_of_death >= recent]
         left_out["mice"] += len(sorted_mice) - len(listed)
-        mouse_rows = [mouse_display_row(mouse, current_username, current_role) for mouse in listed]
+        mouse_rows = [mouse_display_row(mouse, current_username, current_role, cells, today) for mouse in listed]
         search_parts: list[str] = [
             cage.cage_id or "",
             cage.cage_location or "",
@@ -1471,13 +1522,16 @@ def breeder_mice(session, current_username: str | None, current_role: str | None
     return grouped, left_out
 
 
+_LITTER_NUMBER = re.compile(r"[Ll]-(\d+)")
+
+
 def next_litter_id(session) -> str:
     """The next litter ID: L-1, L-2, L-3… one past the highest L-number the
     lab has (litters named another way, imported ones, don't count), and
     never one that is taken."""
     session.flush()
-    codes = {(code or "").strip() for code in session.scalars(select(LitterRecord.litter_id))}
-    numbers = [int(m.group(1)) for m in (re.fullmatch(r"[Ll]-(\d+)", code) for code in codes) if m]
+    codes = {(code or "").strip() for code, in session.execute(select(LitterRecord.__table__.c.litter_id))}
+    numbers = [int(m.group(1)) for m in map(_LITTER_NUMBER.fullmatch, codes) if m]
     n = max(numbers, default=0) + 1
     while f"L-{n}" in codes:
         n += 1

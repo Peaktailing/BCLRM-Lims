@@ -239,12 +239,25 @@ class InventorySheetSpeedTests(AppTestCase):
         with app.test_request_context("/"):
             self.assertIn('<use href="/static/icons.svg#trash">', render_template_string("{{ icon('trash') }}"))
 
-    def test_the_colonies_ids_come_as_data(self):
+    def test_the_colonies_ids_come_when_asked(self):
         self.make_item(self.a, "samples")
         html = self.get_ok(self.a, "/inventory/samples")
         self.assertNotIn('<datalist id="inv-src-', html)
-        self.assertIn('<script type="application/json" id="inv-src-data">', html)
+        self.assertNotIn('id="inv-src-data"', html)
         self.assertIn('data-list="inv-src-0"', html)
+        self.assertIn('"sourcesUrl": "/inventory/samples/sources"', html)
+        refs = self.a.get("/inventory/samples/sources").get_json()["refs"]
+        self.assertEqual(refs[0], [str(m) for m in sorted(self.mouse_ids())])   # the mice, by number
+        self.assertEqual(refs[-1], [])   # Other
+        # A sheet with no source column has none to give.
+        self.assertEqual(self.a.get("/inventory/reagents/sources").status_code, 404)
+
+    def mouse_ids(self):
+        from sqlalchemy import select
+        from app.db import SessionLocal
+        from app.models import MouseRecord
+        with SessionLocal() as session:
+            return list(session.scalars(select(MouseRecord.mouse_id)))
 
 
 class InventoryPagingTests(AppTestCase):
@@ -568,6 +581,67 @@ class SheetPagingTests(AppTestCase):
         ids = [self.make_tank(self.a, notes=uniq("tank note")) for _ in range(4)]
         self.check_sheet("/zebrafish?view=tanks", ids, "/zebrafish/tanks/rows",
                          r'<tr id="tank-%d".*?</tr>', lambda i: f"utank-{i}")
+
+    def test_a_tank_not_drawn_reads_as_its_row_would(self):
+        """app.zf_tank_stubs builds an undrawn tank from its data; it must
+        be what data-table.js would read from its row (cell_text.row_stub),
+        in either way of drawing cells, for its owner and someone else."""
+        from unittest import mock
+        from app import custom_fields, inventory_routes
+        from app.cell_text import row_stub
+        from app.db import SessionLocal
+        with SessionLocal() as session:
+            custom_fields.set_fields(session, "zebrafish", [
+                {"key": "diet", "label": "Diet", "type": "select", "options": ["rotifers", "flakes"]},
+                {"key": "room", "label": "Room"}])
+            session.commit()
+        rack = self.make_rack_for_tanks()
+        line = self.make_line(self.a)
+        ids = [self.make_tank(self.a, notes='said "hi" & left', card_id="C-7", rack_id_fk=str(rack), position="A2",
+                              line_id_fk=str(line), purpose="breeding", attr_diet="flakes", attr_room="B 12"),
+               self.make_tank(self.a, purpose="mating"),
+               self.make_tank(self.m),   # someone else's: read only to alex
+               self.make_tank(self.a, purpose="quarantine"),
+               self.make_tank(self.a, rack_id_fk=str(rack), position="A3", line_id_fk=str(line))]
+        execute("update tanks set row=NULL, col=NULL where id=?", ids[4])   # in a rack, at no place: Pos shows "–"
+        execute("update tanks set needs_genotyping=?, mating_return_at=? where id=?", True, days_ahead(3), ids[1])
+        execute("update tanks set purpose='TANK OF OLD' where id=?", ids[3])   # from before the list
+        execute("update tanks set active=? where id=?", False, ids[2])
+        from tests.test_zebrafish import make_fish
+        make_fish(self.a, ids[0], 4, sex="M")
+        make_fish(self.a, ids[0], 2, sex="F", status="sac")
+        url = "/zebrafish?view=tanks"
+
+        def check():
+            for client in (self.a, self.m):
+                for ua in ({"User-Agent": "Mozilla/5.0 Chrome/141.0 Safari/537.36"}, {"User-Agent": "Firefox"},
+                           {"User-Agent": "Firefox", "Accept-Language": "zh-CN"}):
+                    with mock.patch.object(inventory_routes, "LAZY_OVER", 100000):
+                        whole = client.get(url, headers=ua).get_data(as_text=True)
+                    stubs = {s["id"]: s for s in self.stubs(client.get(url, headers=ua).get_data(as_text=True))}
+                    read = {}
+                    for attrs, body in re.findall(r'<tr (id="tank-\d+"[^>]*)>(.*?)</tr>', whole, re.S):
+                        drawn = row_stub(attrs, body)
+                        read[drawn["id"]] = drawn
+                    self.assertTrue(set(ids) & set(stubs), ua)
+                    for tid in ids:
+                        if tid not in stubs:
+                            continue
+                        want, got = read[tid], stubs[tid]
+                        for key in ("d", "k", "f", "e"):
+                            self.assertEqual(got[key], want[key], (tid, key, ua))
+                        self.assertEqual(set(got["s"].split()), set(want["s"].split()), (tid, ua))
+
+        check()
+        # And with none of the lab's own columns (whose cells show words of their own).
+        with SessionLocal() as session:
+            custom_fields.set_fields(session, "zebrafish", [])
+            session.commit()
+        check()
+
+    def make_rack_for_tanks(self):
+        from tests.test_zebrafish import make_rack
+        return make_rack(self.a)
 
     def test_litters(self):
         ids = [self.make_litter(self.a, date_of_birth=days_ago(10)) for _ in range(4)]

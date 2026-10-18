@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import os
 import re
@@ -12,6 +13,7 @@ from flask import Flask, Response, abort, flash, g, get_flashed_messages, has_re
 from markupsafe import Markup, escape
 from jinja2 import pass_environment
 from jinja2.filters import make_attrgetter
+from jinja2.utils import htmlsafe_json_dumps
 from werkzeug.datastructures import ImmutableMultiDict
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
@@ -20,7 +22,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .db import SessionLocal
-from . import access, cell_text, i18n, lab, positions, security
+from . import access, cell_text, i18n, lab, mouse_rows, plain_records, positions, security
 from .i18n import gettext, ngettext, pgettext
 from .formutil import form_changed
 # Importing this registers the SQLAlchemy flush listener that writes
@@ -145,6 +147,13 @@ from .services import (
 
 
 app = Flask(__name__)
+
+# Python looks for objects that only point at each other once a few hundred
+# new ones have piled up, and every so often walks all it holds. A long
+# sheet makes hundreds of thousands (each row's dicts, its words, its
+# record): those looks were a fifth of an inventory's page. Once in 10,000,
+# they are a handful a page; what is freed is the same.
+gc.set_threshold(10_000, 10, 10)
 # English or Chinese: _() in templates, gettext() in Python (app/i18n.py).
 i18n.init_app(app)
 # See app/security.py: a key from SECRET_KEY, or one made once and kept in
@@ -1189,12 +1198,59 @@ def tight(html) -> Markup:
 # its first; an input's placeholder when empty). Gzipped, a page grows by
 # about a tenth.
 _ONE_FIELD = re.compile(r'<td((?:\s[^>]*)?)>\s*(<input\b[^>]*>|<select\b[^>]*>.*?</select>)\s*</td>', re.S)
-_ATTR = re.compile(r'\s(name|value|class|placeholder|title|type|form|data-status|data-scope|data-sex'
-                   r'|data-alive-values|data-dead-values|data-dead-if-set)(?:="([^"]*)")?')
+# A field's attributes, each with its value: a word in a value ("see the
+# form") is part of it, not an attribute of its own.
+_ATTR = re.compile(r'\s([\w:-]+)(?:="([^"]*)")?')
 _CHOSEN = re.compile(r'<option\b(?=[^>]*\bselected\b)[^>]*?\bvalue="([^"]*)"[^>]*>([^<]*)</option>')
 _FIRST = re.compile(r'<option\b[^>]*?\bvalue="([^"]*)"[^>]*>([^<]*)</option>')
 # Copied onto the text: what the page's styles and scripts read from the field.
 _KEPT = ("title", "data-status", "data-scope", "data-sex", "data-alive-values", "data-dead-values", "data-dead-if-set")
+_DISABLED = re.compile(r"\sdisabled\b")
+_READONLY = re.compile(r"\sreadonly\b")
+
+
+def text_cell(td_attrs: str, field: str, attrs: dict | None = None, locked: bool | None = None,
+              chosen: tuple[str, str] | None = None) -> str | None:
+    """A field's cell (<td{td_attrs}>{field}</td>) drawn as text, as
+    as_text_cells draws it; None for a field that stays one (a tick box, a
+    hidden field, one without a name). What the caller knows of the field
+    it says, rather than have it read back from the tag (app/mouse_rows.py):
+    `attrs`, its tag's attributes as written there; `locked`, whether it is
+    disabled (then it is not read-only either); `chosen`, a menu's chosen
+    option's value and words, as written."""
+    tag = "select" if field.startswith("<select") else "input"
+    head = field[:field.index(">") + 1] if attrs is None or locked is None else ""
+    if attrs is None:
+        attrs = dict(_ATTR.findall(head))
+    if attrs.get("type") in ("checkbox", "hidden", "radio") or "name" not in attrs:
+        return None
+    if tag == "select":
+        if chosen is None:
+            # As the browser shows it: the chosen option, else the first.
+            found = _CHOSEN.search(field) or _FIRST.search(field)
+            chosen = (found.group(1), found.group(2)) if found else ("", "")
+        value, shown = chosen
+    else:
+        value = shown = attrs.get("value", "")
+    empty = not value
+    if not shown and "note-cell" not in attrs.get("class", ""):
+        shown = attrs.get("placeholder", "")
+    readonly = False
+    if locked is None:
+        locked = _DISABLED.search(head) is not None
+        readonly = _READONLY.search(head) is not None
+    classes = " ".join(c for c in ["cell-text", attrs.get("class", ""), "is-empty" if empty else "",
+                                   "is-date" if attrs.get("type") == "date" else "",
+                                   "is-disabled" if locked else "",
+                                   # an input's placeholder, shown for an empty one: not its value
+                                   "is-placeholder" if tag != "select" and not value and shown else ""] if c)
+    extra = "".join(f' {k}="{attrs[k]}"' for k in _KEPT if k in attrs)
+    form = f' data-form="{attrs["form"]}"' if attrs.get("form") else ""
+    # A field that can't be changed (or only shows what is worked out) stays text.
+    reach = "" if locked or readonly else ' tabindex="0"'
+    return (f'<td{td_attrs}><span class="{classes}"{reach} data-field="{escape(field)}" '
+            f'data-sort-for="{attrs["name"]}" data-sort-value="{value}"{form}'
+            f'{extra}>{shown}</span></td>')
 
 
 @app.template_filter("as_text_cells")
@@ -1202,41 +1258,78 @@ def as_text_cells(html, on: bool = True) -> Markup:
     html = str(html)
     if not on:
         return Markup(html)
-
-    def cell(m):
-        td_attrs, field = m.group(1), m.group(2)
-        tag = "select" if field.startswith("<select") else "input"
-        head = field[:field.index(">") + 1]
-        attrs = dict(_ATTR.findall(head))
-        if attrs.get("type") in ("checkbox", "hidden", "radio") or "name" not in attrs:
-            return m.group(0)
-        if tag == "select":
-            # As the browser shows it: the chosen option, else the first.
-            chosen = _CHOSEN.search(field) or _FIRST.search(field)
-            value, shown = (chosen.group(1), chosen.group(2)) if chosen else ("", "")
-        else:
-            value = shown = attrs.get("value", "")
-        empty = not value
-        if not shown and "note-cell" not in attrs.get("class", ""):
-            shown = attrs.get("placeholder", "")
-        locked = re.search(r"\sdisabled\b", head) is not None
-        classes = " ".join(c for c in ["cell-text", attrs.get("class", ""), "is-empty" if empty else "",
-                                       "is-date" if attrs.get("type") == "date" else "",
-                                       "is-disabled" if locked else "",
-                                       # an input's placeholder, shown for an empty one: not its value
-                                       "is-placeholder" if tag != "select" and not value and shown else ""] if c)
-        extra = "".join(f' {k}="{attrs[k]}"' for k in _KEPT if k in attrs)
-        form = f' data-form="{attrs["form"]}"' if attrs.get("form") else ""
-        # A field that can't be changed (or only shows what is worked out) stays text.
-        reach = "" if locked or re.search(r"\sreadonly\b", head) else ' tabindex="0"'
-        return (f'<td{td_attrs}><span class="{classes}"{reach} data-field="{escape(field)}" '
-                f'data-sort-for="{attrs["name"]}" data-sort-value="{value}"{form}'
-                f'{extra}>{shown}</span></td>')
-
-    return Markup(_ONE_FIELD.sub(cell, html))
+    return Markup(_ONE_FIELD.sub(lambda m: text_cell(m.group(1), m.group(2)) or m.group(0), html))
 
 
 app.jinja_env.globals["text_cells_on"] = cell_text.text_cells_on
+
+
+def id_url(endpoint: str, arg: str):
+    """url_for(endpoint, arg=…) for a sheet's rows: built once, then each
+    row's id put in its place (`{% set update_url = id_url('update_mouse',
+    'mouse_row_id') %}` … `{{ update_url(row.id) }}`). A route built a row
+    at a time, a few on each, was a tenth of drawing a sheet."""
+    marker = 918273645
+    head, found, tail = url_for(endpoint, **{arg: marker}).partition(str(marker))
+    if not found:   # a converter that changed it: build each one
+        return lambda value: url_for(endpoint, **{arg: value})
+    return lambda value: f"{head}{value}{tail}"
+
+
+app.jinja_env.globals["id_url"] = id_url
+
+
+def mouse_payload_json(row: dict, locked: bool, fields: list[dict]) -> Markup:
+    """What the mouse dialog opens with (_mouse_sheet.html's mouse_payload):
+    the Mice sheet's rows and the cage sheet's sub-rows pass the same, as
+    `|tojson` writes it. Made here: as a macro, a row at a time, it was a
+    tenth of drawing the sheet. `fields`: the lab's own columns, which travel
+    under the names the dialog's fields have."""
+    payload = {
+        "id": row["id"], "mouse_id": row["mouse_id"], "locked": locked,
+        "ear_tag": row["ear_tag"], "strain": row["strain"], "gender": row["gender"],
+        "transgene_1": row["transgene_1"], "transgene_2": row["transgene_2"],
+        "transgene_3": row["transgene_3"], "transgene_4": row["transgene_4"],
+        "cage_id": row["cage_id"], "cage_rack": row["cage_rack_id"] or "", "cage_position": row["cage_position"],
+        "cage_location": row["cage_location"], "owner": row["owner"],
+        "cage_rack_was": row["cage_rack_id"] or "", "cage_position_was": row["cage_position"],
+        "cage_location_was": row["cage_location"],
+        "litter_id": row["litter_id"], "date_of_birth": row["date_of_birth"], "status": row["status"],
+        "date_of_death": row["date_of_death"], "note": row["note"]}
+    for fd in fields:
+        payload["attr_" + fd["key"]] = row["attrs"].get(fd["key"], "")
+    policies = app.jinja_env.policies
+    return htmlsafe_json_dumps(payload, dumps=policies["json.dumps_function"], **policies["json.dumps_kwargs"])
+
+
+app.jinja_env.globals["mouse_payload_json"] = mouse_payload_json
+
+
+@app.template_filter("stubs_json")
+def stubs_json(stubs: list[dict]) -> Markup:
+    """A long sheet's stubs (mouse_stubs, inventory_routes' stubs…) for its
+    <script type="application/json" data-dt-stubs>, safe in the page as
+    `|tojson` writes them, but with each row's keys in the order made and no
+    spaces: sorting thousands of rows' keys took longer than writing them."""
+    return htmlsafe_json_dumps(stubs, dumps=json.dumps, default=app.json.default, separators=(",", ":"))
+
+
+def mouse_rows_html(rows, sheet, custom_columns, custom_columns_all, fragment, as_text, custom_cell,
+                    icon) -> Markup:
+    """The mouse sheet's rows (app/mouse_rows.py), for _mouse_rows.html,
+    which passes its own helpers: _sheet.html's custom_cell and icon().
+    `as_text`: cell_text.text_cells_on(), the cells drawn as text."""
+    return mouse_rows.html(rows, sheet, custom_columns, custom_columns_all, fragment, as_text,
+                           custom_cell=custom_cell, icon=icon, owner_badge=owner_badge_filter,
+                           payload=mouse_payload_json,
+                           duplicate_url=id_url("duplicate_mouse", "mouse_row_id"),
+                           delete_url=id_url("delete_mouse", "mouse_row_id"),
+                           text_cell=text_cell, text_cells=as_text_cells)
+
+
+app.jinja_env.globals["mouse_rows_html"] = mouse_rows_html
+app.jinja_env.globals["mouse_row_forms_html"] = lambda rows: mouse_rows.forms_html(
+    rows, id_url("update_mouse", "mouse_row_id"))
 
 
 @app.template_filter("head")
@@ -1289,8 +1382,21 @@ def table_label_filter(name: str) -> str:
 
 @app.template_filter("owner_badge")
 def owner_badge_filter(name: str) -> Markup:
+    """A person's initials in their colour. Made once a name for the
+    request: a long sheet or the Breeders tab shows the same few thousands
+    of times."""
     if not name:
         return Markup("")
+    made = g.get("owner_badges")
+    if made is None:
+        made = g.owner_badges = {}
+    found = made.get(name)
+    if found is None:
+        found = made[name] = _owner_badge(name)
+    return found
+
+
+def _owner_badge(name: str) -> Markup:
     info = _get_user_directory().get(name)
     if info and info["short"]:
         text = info["short"][:3].upper() if len(info["short"]) > 3 else info["short"].upper()
@@ -1673,6 +1779,32 @@ def cage_purpose_chips(cage_rows, purposes: list[str]) -> list[tuple[str, str, i
     return [(label.lower(), label, counts.get(label.lower(), 0)) for label in purposes]
 
 
+def cage_stub_row(cage) -> dict:
+    """What cage_stubs (and the sheet's chips and counts) read of a cage the
+    sheet does not draw: cage_sheet_row's cells, without each mouse's row,
+    the litters to wean or who may edit what."""
+    living = [m for m in cage.mice if mouse_is_active(m)]
+    females = sum(1 for m in living if m.gender == "F")
+    males = sum(1 for m in living if m.gender == "M")
+    pups = cage_pup_litter(cage)
+    shared = access.is_shared_cage(cage)
+    return {
+        **cage_sheet_values(cage),
+        "id": cage.id,
+        "active": bool(living),
+        "rack_name": cage.rack.name if cage.rack else "",
+        "card_id": cage.card_id,
+        "genotype_auto": cage_genotype_auto(cage),
+        "share_value": project_groups.record_value(cage) if shared else "0",
+        "mine": access.owns(cage),
+        "live_count": len(living),
+        "total_count": len(cage.mice),
+        "sex_label": _sex_label(females, males, len(living) - females - males),
+        "pup_litter": pups.litter_id if pups else "",
+        "mice": [{"mouse_id": m.mouse_id} for m in sorted(cage.mice, key=lambda item: item.mouse_id)],
+    }
+
+
 def cage_sheet_row(cage) -> dict:
     """One row of the cage sheet, with the cage's mice for its sub-row."""
     derived = cage_derived_dates(cage)
@@ -1762,7 +1894,7 @@ RECENT_DAYS = 90   # ended mice, empty cages and old litters shown without "Show
 
 
 def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_ended: bool = False,
-                   only: set[int] | None = None) -> dict[str, object]:
+                   only: set[int] | None = None, rack_tiles: bool = False) -> dict[str, object]:
     """Build the colony page context.
 
     `scope` filters which slice of the colony is listed — your own animals,
@@ -1776,15 +1908,24 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
     and what ended in the last RECENT_DAYS days; `show_ended` shows it all.
     `only`: the cages or litters to draw, by id (a long sheet's rows,
     fetched as they are shown: colony_cage_rows, colony_litter_rows).
+    `rack_tiles`: the rack grid's tiles too (colony_cage_grid); else only
+    its racks, which the sheet's menus and buttons need.
     """
     from sqlalchemy.orm import selectinload
     me = g.user.username if g.user else ""
     recent = date.today() - timedelta(days=RECENT_DAYS)
     with SessionLocal() as db_session:
+        # The IDs the New dialogs offer, first: each flushes the session,
+        # which once it holds a sheet's thousands of records reads them all.
+        next_mouse_id_value = next_mouse_id(db_session)
+        # Each reads every cage or litter ID: only the tab whose New dialog says it.
+        next_cage_id_value = next_cage_id(db_session) if active_view == "cages" else ""
+        next_litter_id_value = next_litter_id(db_session) if active_view == "litters" else ""
         count_of = lambda stmt: db_session.scalar(stmt) or 0  # noqa: E731
+        # count(*), not count(id): SQLite answers it without reading every row.
         totals = {
-            "all_mice": count_of(select(func.count(MouseRecord.id))),
-            "all_cages": count_of(select(func.count(CageRecord.id))),
+            "all_mice": count_of(select(func.count()).select_from(MouseRecord)),
+            "all_cages": count_of(select(func.count()).select_from(CageRecord)),
             "my_mice": count_of(select(func.count(MouseRecord.id)).where(MouseRecord.owner == me)),
             "my_cages": count_of(select(func.count(CageRecord.id)).where(CageRecord.owner == me)),
             "shared_cages": count_of(select(func.count(CageRecord.id)).where(CageRecord.is_shared.is_(True))),
@@ -1795,35 +1936,48 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
                 CageRecord.is_shared.is_(True), CageRecord.share_group_id.in_(sorted(my_groups)))
             totals["group_mice"] = count_of(select(func.count(MouseRecord.id)).where(
                 MouseRecord.owner.in_(sorted(project_groups.colleagues())) | MouseRecord.cage_id_fk.in_(group_cages)))
-        def sheet_mice(*options, where=None):
+        def sheet_mice(where=None):
             """The mice the mouse sheet lists: in scope and, unless asked
-            for, none that ended long ago (`where`: of these only)."""
-            query = select(MouseRecord).options(selectinload(MouseRecord.cage).selectinload(CageRecord.rack),
-                                                *options).order_by(MouseRecord.mouse_id)
-            if where is not None:
-                query = query.where(where)
+            for, none that ended long ago (`where`: of these only). Read as
+            plain rows (app/plain_records.py), each with its cage, rack and
+            litter: the ORM took most of the page's time over them."""
+            conditions = [] if where is None else [where]
             # Only the mice the scope can list are loaded (a big colony keeps
             # thousands of everyone's): a superset, which access.in_scope
             # below then decides on exactly.
-            query = query.where(access.scope_superset(
+            conditions.append(access.scope_superset(
                 MouseRecord.owner, MouseRecord.cage_id_fk.in_(select(CageRecord.id).where(CageRecord.is_shared.is_(True))),
                 scope))
             if not show_ended:
-                query = query.where(MouseRecord.date_of_death.is_(None) | (MouseRecord.date_of_death >= recent))
-            return [m for m in db_session.scalars(query).all()
-                    if access.in_scope(m, scope, shared=access.cage_shared_with(m.cage),
-                                       group_id=access.cage_group(m.cage))]
+                conditions.append(MouseRecord.date_of_death.is_(None) | (MouseRecord.date_of_death >= recent))
+            # A cage's sharing is the same for each of its mice: asked once.
+            shared_with: dict[int, tuple] = {}
+
+            def sharing(cage) -> tuple:
+                key = cage.id if cage is not None else None
+                if key not in shared_with:
+                    shared_with[key] = (access.cage_shared_with(cage), access.cage_group(cage))
+                return shared_with[key]
+
+            listed = []
+            for m in plain_records.mice(db_session, *conditions):
+                shared, group_id = sharing(m.cage)
+                if access.in_scope(m, scope, shared=shared, group_id=group_id):
+                    listed.append(m)
+            return listed
 
         mice, hidden_mice = [], 0
         if active_view == "mice":
             if not show_ended:
-                hidden_mice = count_of(select(func.count(MouseRecord.id)).where(MouseRecord.date_of_death < recent))
-            mice = sheet_mice(selectinload(MouseRecord.litter))
+                # Every mouse but the few alive or ended lately (ix_mice_date_of_death).
+                hidden_mice = totals["all_mice"] - count_of(select(func.count()).select_from(MouseRecord).where(
+                    MouseRecord.date_of_death.is_(None) | (MouseRecord.date_of_death >= recent)))
+            mice = sheet_mice()
         cages, hidden_cages = [], 0
         if active_view == "cages":
+            # Each cage's litters born in it come below, for the rows drawn only.
             cage_query = select(CageRecord).options(
                 selectinload(CageRecord.mice).selectinload(MouseRecord.litter),
-                selectinload(CageRecord.cage_litters).selectinload(CageLitter.litter).selectinload(LitterRecord.mice),
                 selectinload(CageRecord.rack)).order_by(CageRecord.cage_id)
             if not show_ended:
                 # Only cages that may be shown are loaded, with their mice: a
@@ -1860,69 +2014,90 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
             cages = positions.natural_sorted(
                 [c for c in all_cages if access.in_scope(c, scope, shared=access.cage_shared_with(c),
                                                          group_id=access.cage_group(c))], key=lambda c: c.cage_id)
-        litters, hidden_litters = [], 0
+        litters, drawn_litters, hidden_litters = [], [], 0
         if active_view == "litters":
-            # Of each pup, only what its cell shows and who may edit it: a
-            # long colony's litters hold tens of thousands of mice.
-            pups = selectinload(LitterRecord.mice).load_only(
-                MouseRecord.mouse_id, MouseRecord.gender, MouseRecord.status, MouseRecord.date_of_death,
-                MouseRecord.owner, MouseRecord.cage_id_fk, MouseRecord.litter_id_fk)
-            if not (access.is_admin() or access.is_care()):
-                # Who may edit a litter is who may edit all its pups, which
-                # asks each pup's cage (access.can_edit_litter).
-                pups = pups.selectinload(MouseRecord.cage)
-            litter_query = select(LitterRecord).options(pups).order_by(LitterRecord.litter_id)
+            # Of each pup, only what its cell shows and who may edit it, read
+            # as plain rows (app/plain_records.py): a long colony's litters
+            # hold tens of thousands of mice.
+            litter_where = []
             if not show_ended:
                 year_ago = date.today() - timedelta(days=365)
                 with_living = select(MouseRecord.litter_id_fk).where(MouseRecord.date_of_death.is_(None))
                 visible = (LitterRecord.date_of_birth.is_(None) | (LitterRecord.date_of_birth >= year_ago)
                            | LitterRecord.id.in_(with_living))
-                hidden_litters = count_of(select(func.count(LitterRecord.id)).where(~visible))
-                litter_query = litter_query.where(visible)
+                hidden_litters = count_of(select(func.count()).select_from(LitterRecord).where(~visible))
+                litter_where.append(visible)
             if only is not None:
-                litter_query = litter_query.where(LitterRecord.id.in_(sorted(only)))
-            # L-2 before L-10: by number, not letter by letter.
-            litters = positions.natural_sorted(db_session.scalars(litter_query).all(), key=lambda l: l.litter_id)
+                litter_where.append(LitterRecord.id.in_(sorted(only)))
+            litters = plain_records.litters(db_session, *litter_where)
+            # L-2 before L-10: by number, not letter by letter (and two that
+            # number alike, by their IDs).
+            litters.sort(key=lambda l: l.litter_id)
+            litters = positions.natural_sorted(litters, key=lambda l: l.litter_id)
+            # A long sheet draws its first page (_colony_page_context); the
+            # others are stubs (litter_stubs), which read a pup's number and
+            # sex only. Each pup in full, and who may edit the litter, only
+            # for the rows drawn. Who may edit a litter is who may edit all
+            # its pups, which asks each pup's cage (access.can_edit_litter):
+            # not for those who may edit any mouse.
+            drawn_litters = litters if len(litters) <= inventory_routes.LAZY_OVER \
+                else litters[:inventory_routes.FIRST_PAGE]
+            plain_records.full_pups(db_session, drawn_litters, cages=not (access.is_admin() or access.is_care()))
         strains = positions.natural_sorted(db_session.scalars(select(StrainRecord)).all(), key=lambda s: s.strain_name)
         dropdowns = dropdown_options_map(db_session)
         dropdown_records = dropdown_records_map(db_session)
         usernames = current_lab_usernames(db_session)
         notifications = recent_notifications(db_session, g.user.username if g.user else "", limit=10) if g.user else []
 
-        mouse_rows = [mouse_display_row(mouse, g.user.username if g.user else None, g.user.role if g.user else None) for mouse in mice]
-        cage_racks = mouse_rack_payload(db_session, cages) if active_view == "cages" else None
+        me_name, my_role = (g.user.username, g.user.role) if g.user else (None, None)
+        cage_cells, today = {}, date.today()
+        mouse_rows = [mouse_display_row(mouse, me_name, my_role, cage_cells, today) for mouse in mice]
+        cage_racks = mouse_rack_payload(db_session, cages, tiles=rack_tiles) if active_view == "cages" else None
         sheet_racks = mouse_racks(db_session)
         # The sheet renders rows you may not edit as read-only, using the
         # same rule the update routes enforce, rather than letting an edit
-        # appear to save and then be refused.
-        for mouse, row in zip(mice, mouse_rows):
+        # appear to save and then be refused. Only the rows drawn: a long
+        # sheet draws its first page (_colony_page_context), and the others
+        # come from /colony/mice/rows, which asks the same.
+        drawn = mice if len(mice) <= inventory_routes.LAZY_OVER else mice[:inventory_routes.FIRST_PAGE]
+        for mouse, row in zip(drawn, mouse_rows):
             row["editable"] = can_edit_mouse(mouse)
-        cage_rows = [cage_sheet_row(cage) for cage in cages]
+        # A long sheet draws its first page (_colony_page_context); each other
+        # cage is a stub (cage_stubs), which reads only what cage_stub_row
+        # gives: each of its mice's rows, its litters to wean and who may
+        # edit what, only for the rows drawn.
+        drawn = len(cages) if only is not None or len(cages) <= inventory_routes.LAZY_OVER \
+            else inventory_routes.FIRST_PAGE
+        if cages:
+            db_session.scalars(select(CageRecord).where(CageRecord.id.in_([c.id for c in cages[:drawn]])).options(
+                selectinload(CageRecord.cage_litters).selectinload(CageLitter.litter).selectinload(LitterRecord.mice)
+            )).all()
+        cage_rows = [cage_sheet_row(cage) if n < drawn else cage_stub_row(cage) for n, cage in enumerate(cages)]
         # The Experiments tab's "start with a cage" only lists cage numbers.
         cage_ids = positions.natural_sorted(db_session.scalars(select(CageRecord.cage_id).where(
             CageRecord.id.in_(select(MouseRecord.cage_id_fk).where(MouseRecord.date_of_death.is_(None)))))
         ) if active_view == "experiments" else []
         litter_rows = []
-        for litter in litters:
-            # Each pup as its cell shows it (number, sex, alive, age): a
-            # litter tab lists every pup the colony had, tens of thousands.
-            pup_age = calculate_age_fields(litter.date_of_birth)["age_days"]
-            litter_rows.append(
-                {
-                    "id": litter.id,
-                    "litter_id": litter.litter_id,
-                    "date_of_birth": litter.date_of_birth.isoformat() if litter.date_of_birth else "",
-                    "cohort_name": litter.cohort_name,
-                    "father_info": litter.father_info,
-                    "mother_info": litter.mother_info,
-                    "total_pups": litter.total_pups,
-                    "notes": litter.notes,
-                    "editable": access.can_edit_litter(litter),
-                    "mice": [{"mouse_id": mouse.mouse_id, "gender": mouse.gender, "active": mouse_is_active(mouse),
-                              "age_days": pup_age}
-                             for mouse in sorted(litter.mice, key=lambda item: item.mouse_id)],
-                }
-            )
+        drawn = len(drawn_litters)
+        for n, litter in enumerate(litters):
+            row = {
+                "id": litter.id,
+                "litter_id": litter.litter_id,
+                "date_of_birth": litter.date_of_birth.isoformat() if litter.date_of_birth else "",
+                "cohort_name": litter.cohort_name,
+                "father_info": litter.father_info,
+                "mother_info": litter.mother_info,
+                "total_pups": litter.total_pups,
+                "notes": litter.notes,
+                "mice": litter.mice,   # by number (plain_records.PupName): .mouse_id, .gender
+            }
+            if n < drawn:
+                # Each pup as its cell shows it (number, sex, alive, age).
+                pup_age = calculate_age_fields(litter.date_of_birth)["age_days"]
+                row["editable"] = access.can_edit_litter(litter)
+                row["mice"] = [{"mouse_id": mouse.mouse_id, "gender": mouse.gender, "active": mouse_is_active(mouse),
+                                "age_days": pup_age} for mouse in litter.mice]
+            litter_rows.append(row)
         strain_rows = [
             {
                 "id": strain.id,
@@ -1943,12 +2118,8 @@ def colony_context(active_view: str, scope: str = access.DEFAULT_SCOPE, show_end
                                                          g.user.role if g.user else None,
                                                          recent=None if show_ended else recent)
             breeder_summary_rows = breeder_summary(db_session)
-        next_mouse_id_value = next_mouse_id(db_session)
         held_purposes = _in_word_order(db_session.scalars(select(CageRecord.purpose).distinct())) \
             if active_view == "cages" else []
-        # Each reads every cage or litter ID: only the tab whose New dialog says it.
-        next_cage_id_value = next_cage_id(db_session) if active_view == "cages" else ""
-        next_litter_id_value = next_litter_id(db_session) if active_view == "litters" else ""
         # The mice view needs the open experiments too: the selection bar
         # offers "add to experiment", so the list has to be there even when
         # you are not on the experiments tab.
@@ -3125,8 +3296,12 @@ def _colony_page_context(active_view: str, only: set[int] | None = None) -> dict
     context["mouse_sheet_rows"], context["mouse_stubs"], context["mouse_rows_url"] = rows, [], ""
     if active_view == "mice" and len(rows) > inventory_routes.LAZY_OVER:
         context["mouse_sheet_rows"] = rows[:inventory_routes.FIRST_PAGE]
-        context["mouse_stubs"] = [mouse_stub(r, context["custom_columns"]) for r in rows[inventory_routes.FIRST_PAGE:]]
+        context["mouse_stubs"] = mouse_stubs(rows[inventory_routes.FIRST_PAGE:], context["custom_columns"])
         context["mouse_rows_url"] = url_for("colony_mouse_rows")
+    if active_view == "cages":
+        # The rack grid's tiles come when it is first shown (colony_cage_grid).
+        context["cage_grid_url"] = url_for("colony_cage_grid", **{
+            k: request.args[k] for k in ("scope", "ended") if request.args.get(k)})
     # A long cage sheet the same way (_cage_rows.html, /colony/cages/rows):
     # the cards view and Open all fetch what they need (colony.html).
     rows = context["cage_rows"]
@@ -3135,7 +3310,7 @@ def _colony_page_context(active_view: str, only: set[int] | None = None) -> dict
         context["cage_sheet_rows"] = rows[:inventory_routes.FIRST_PAGE]
         groups = project_groups.names()
         purposes = context["cage_sheet"]["purpose_choices"]
-        context["cage_stubs"] = [cage_stub(r, groups, purposes) for r in rows[inventory_routes.FIRST_PAGE:]]
+        context["cage_stubs"] = cage_stubs(rows[inventory_routes.FIRST_PAGE:], groups, purposes)
         context["cage_rows_url"] = url_for("colony_cage_rows", **{
             k: request.args[k] for k in ("scope", "ended") if request.args.get(k)})
     # A long litter sheet the same way (_litter_rows.html, /colony/litters/rows).
@@ -3143,75 +3318,111 @@ def _colony_page_context(active_view: str, only: set[int] | None = None) -> dict
     context["litter_sheet_rows"], context["litter_stubs"], context["litter_rows_url"] = rows, [], ""
     if active_view == "litters" and only is None and len(rows) > inventory_routes.LAZY_OVER:
         context["litter_sheet_rows"] = rows[:inventory_routes.FIRST_PAGE]
-        context["litter_stubs"] = [litter_stub(r) for r in rows[inventory_routes.FIRST_PAGE:]]
+        context["litter_stubs"] = litter_stubs(rows[inventory_routes.FIRST_PAGE:])
         # With the page's scope and ended=all: a litter it lists is one the address can fetch.
         context["litter_rows_url"] = url_for("colony_litter_rows", **{
             k: request.args[k] for k in ("scope", "ended") if request.args.get(k)})
     return context
 
 
-def litter_stub(row: dict) -> dict:
-    """A litter the sheet does not draw, as data-table.js reads a drawn row
-    (_litter_rows.html): its data-*, each sortable cell's value ("k") and
-    the words a search looks in ("s", lower-cased)."""
+def litter_stubs(rows: list[dict]) -> list[dict]:
+    """Litters the sheet does not draw, as data-table.js reads a drawn row
+    (_litter_rows.html): each one's data-*, each sortable cell's value
+    ("k") and the words a search looks in ("s", lower-cased). Their `mice`
+    are the pups as read (.mouse_id, .gender; colony_context). A pup's sex
+    in the page's words is worked out once: a year's litters have tens of
+    thousands of pups."""
     text = lambda value: "" if value is None else str(value)  # noqa: E731
-    mouse_ids = [text(m["mouse_id"]) for m in row["mice"]]
-    data = {"id": str(row["id"]), "litter_id": text(row["litter_id"]), "mice": str(len(mouse_ids)),
-            "mouseIds": " ".join(mouse_ids)}
-    cells = {"date_of_birth": text(row["date_of_birth"]), "cohort_name": text(row["cohort_name"]),
-             "father_info": text(row["father_info"]), "mother_info": text(row["mother_info"]),
-             "total_pups": text(row["total_pups"] or ""), "notes": text(row["notes"])}
-    pups = [f"{text(m['mouse_id'])} {i18n.translate_value(m['gender'])}" if m["gender"] else text(m["mouse_id"])
-            for m in row["mice"]] or [gettext("none yet")]
-    words = [data["litter_id"], *pups, *data.values(), *cells.values()]
-    return {"id": row["id"], "f": f"litter-update-{row['id']}", "d": data, "k": cells,
-            "s": " ".join(w for w in words if w).lower()}
+
+    class Sexes(dict):
+        def __missing__(self, sex):
+            self[sex] = i18n.translate_value(sex)
+            return self[sex]
+
+    sexes = Sexes()
+    none_yet = [gettext("none yet")]
+    out = []
+    for row in rows:
+        mice = row["mice"]
+        mouse_ids = [str(m.mouse_id) for m in mice]   # a mouse always has its number
+        data = {"id": str(row["id"]), "litter_id": text(row["litter_id"]), "mice": str(len(mouse_ids)),
+                "mouseIds": " ".join(mouse_ids)}
+        cells = {"date_of_birth": text(row["date_of_birth"]), "cohort_name": text(row["cohort_name"]),
+                 "father_info": text(row["father_info"]), "mother_info": text(row["mother_info"]),
+                 "total_pups": text(row["total_pups"] or ""), "notes": text(row["notes"])}
+        pups = [f"{number} {sexes[m.gender]}" if m.gender else number for m, number in zip(mice, mouse_ids)]
+        words = [data["litter_id"], *(pups or none_yet), *data.values(), *cells.values()]
+        out.append({"id": row["id"], "f": f"litter-update-{row['id']}", "d": data, "k": cells,
+                    "s": " ".join(filter(None, words)).lower()})
+    return out
 
 
-def cage_stub(row: dict, groups: dict[int, str], purposes: list[str]) -> dict:
-    """A cage the sheet does not draw, as data-table.js reads a drawn row
-    (_cage_rows.html): its data-*, each named cell's value ("k") and the
-    words a search looks in ("s": what the row shows, its data-* and each
-    field's value and the choice it shows, lower-cased). `groups`:
+def cage_stubs(rows: list[dict], groups: dict[int, str], purposes: list[str]) -> list[dict]:
+    """Cages the sheet does not draw, as data-table.js reads a drawn row
+    (_cage_rows.html): each one's data-*, each named cell's value ("k") and
+    the words a search looks in ("s": what the row shows, its data-* and
+    each field's value and the choice it shows, lower-cased). `groups`:
     project_groups.names(), for a cage shared with a group; `purposes`: the
-    Purpose menu's choices, one of which is its purpose whatever its case."""
+    Purpose menu's choices, one of which is its purpose whatever its case.
+    What the rows share (the words, the owners' badges) is worked out once."""
     text = lambda value: "" if value is None else str(value)  # noqa: E731
-    purpose = next((p for p in purposes if p.lower() == text(row["purpose"]).lower()), "")
-    data = {"id": str(row["id"]), "cageRowId": str(row["id"]), "cage_id": text(row["cage_id"]),
-            "active": "true" if row["active"] else "false", "breeding": text(row["breeding"]),
-            "mine": "true" if row["mine"] else "false", "purpose": text(row["purpose"]).strip().lower(),
-            "card_id": text(row["card_id"]), "rack_name": text(row["rack_name"]), "mice": text(row["live_count"]),
-            "wean_due": text(row["wean_due"]), "mouseIds": " ".join(text(m["mouse_id"]) for m in row["mice"]),
-            "genotypes": text(row["genotype_auto"])}
-    cells = {"cage_id": text(row["cage_id"]), "card_id": text(row["card_id"]), "rack_id": text(row["rack_id"]),
-             "position": text(row["position"]), "purpose": purpose,
-             "date_give_birth": text(row["date_give_birth"]), "genotype_summary": text(row["genotype_summary"]),
-             "owner": text(row["owner"]), "is_shared": text(row["share_value"]),
-             "cage_location": text(row["cage_location"]), "notes": text(row["notes"])}
-    share = row["share_value"]
-    shown_share = (i18n.translate_value("Shared") if share == "1"
-                   else groups.get(int(share[1:]), "") if share.startswith("g") and share[1:].isdigit() else "")
-    if not shown_share:
-        shown_share = i18n.translate_value("Personal")
-    if row["live_count"]:
-        count = [str(row["live_count"]), row["sex_label"]]
-    elif row["total_count"]:
-        count = [gettext("0 of %(total)s", total=row["total_count"])]
-    else:
-        count = [gettext("empty")]
-    words = [*count, row["pup_litter"], row["wean_due"] or "–",
-             re.sub(r"<[^>]+>", "", str(owner_badge_filter(row["owner"]))),
-             *data.values(), *cells.values(),
-             row["rack_name"] if row["rack_id"] else "–",
-             i18n.translate_value(purpose, "cage purpose") if purpose else "–",
-             shown_share]
+    by_word = {p.lower(): p for p in reversed(purposes)}   # the first of any two alike, as next() found
+    shared, personal, empty = i18n.translate_value("Shared"), i18n.translate_value("Personal"), gettext("empty")
+    purpose_words: dict[str, str] = {}
+    badges: dict[str, str] = {}
     # Drawn as text (cell_text.text_cells_on), an empty Card ID, Pos or
     # Strain / genotype shows its placeholder, "–".
-    if cell_text.text_cells_on() and not (row["card_id"] and row["position"]
-                                          and (row["genotype_summary"] or row["genotype_auto"])):
-        words.append("–")
-    return {"id": row["id"], "e": f"cage-{row['id']}", "f": f"cage-update-{row['id']}", "d": data, "k": cells,
-            "s": " ".join(text(w) for w in words if w).lower()}
+    as_text = cell_text.text_cells_on()
+    out = []
+    for row in rows:
+        purpose = by_word.get(text(row["purpose"]).lower(), "")
+        data = {"id": str(row["id"]), "cageRowId": str(row["id"]), "cage_id": text(row["cage_id"]),
+                "active": "true" if row["active"] else "false", "breeding": text(row["breeding"]),
+                "mine": "true" if row["mine"] else "false", "purpose": text(row["purpose"]).strip().lower(),
+                "card_id": text(row["card_id"]), "rack_name": text(row["rack_name"]), "mice": text(row["live_count"]),
+                "wean_due": text(row["wean_due"]), "mouseIds": " ".join(text(m["mouse_id"]) for m in row["mice"]),
+                "genotypes": text(row["genotype_auto"])}
+        cells = {"cage_id": text(row["cage_id"]), "card_id": text(row["card_id"]), "rack_id": text(row["rack_id"]),
+                 "position": text(row["position"]), "purpose": purpose,
+                 "date_give_birth": text(row["date_give_birth"]), "genotype_summary": text(row["genotype_summary"]),
+                 "owner": text(row["owner"]), "is_shared": text(row["share_value"]),
+                 "cage_location": text(row["cage_location"]), "notes": text(row["notes"])}
+        share = row["share_value"]
+        shown_share = (shared if share == "1"
+                       else groups.get(int(share[1:]), "") if share.startswith("g") and share[1:].isdigit() else "")
+        if not shown_share:
+            shown_share = personal
+        if row["live_count"]:
+            count = [str(row["live_count"]), row["sex_label"]]
+        elif row["total_count"]:
+            count = [gettext("0 of %(total)s", total=row["total_count"])]
+        else:
+            count = [empty]
+        owner = row["owner"] or ""
+        if owner not in badges:
+            badges[owner] = re.sub(r"<[^>]+>", "", str(owner_badge_filter(row["owner"])))
+        if purpose and purpose not in purpose_words:
+            purpose_words[purpose] = i18n.translate_value(purpose, "cage purpose")
+        words = [*count, row["pup_litter"], row["wean_due"] or "–", badges[owner],
+                 *data.values(), *cells.values(),
+                 row["rack_name"] if row["rack_id"] else "–",
+                 purpose_words[purpose] if purpose else "–",
+                 shown_share]
+        if as_text and not (row["card_id"] and row["position"] and (row["genotype_summary"] or row["genotype_auto"])):
+            words.append("–")
+        out.append({"id": row["id"], "e": f"cage-{row['id']}", "f": f"cage-update-{row['id']}", "d": data,
+                    "k": cells, "s": " ".join(text(w) for w in words if w).lower()})
+    return out
+
+
+@app.route("/colony/cages/grid")
+@login_required
+def colony_cage_grid():
+    """The cage rack grid's racks and tiles (rack-grid.js), for the page's
+    scope and ended, asked for when the grid is first shown."""
+    scope = access.resolve_scope(request.args.get("scope"))
+    context = colony_context("cages", scope, show_ended=request.args.get("ended") == "all", rack_tiles=True)
+    return jsonify(context["cage_racks"])
 
 
 @app.route("/colony/cages/rows")
@@ -3232,32 +3443,57 @@ def colony_cage_rows():
                     "ids": [row["id"] for row in rows]})
 
 
-def mouse_stub(row: dict, custom_columns: list[dict]) -> dict:
-    """A mouse the sheet does not draw, as data-table.js reads a drawn row
-    (_mouse_rows.html): its data-* (the chips), each sortable cell's value
-    ("k", as the cell holds it: a rack by its id) and the words a search
-    looks in ("s": what the row shows and holds, lower-cased)."""
+def mouse_stubs(rows: list[dict], custom_columns: list[dict]) -> list[dict]:
+    """Mice the sheet does not draw, as data-table.js reads a drawn row
+    (_mouse_rows.html): each one's data-* (the chips), each sortable cell's
+    value ("k", as the cell holds it: a rack by its id) and the words a
+    search looks in ("s": what the row shows and holds, lower-cased). What
+    the rows share (the owners' badges, the words for a sex or a status) is
+    worked out once: a long sheet has thousands."""
     text = lambda value: "" if value is None else str(value)  # noqa: E731
-    data = {"active": "true" if row["active"] else "false", "mouse_id": text(row["mouse_id"]),
-            "ear_tag": text(row["ear_tag"]), "age": text(row["age_days"]), "rowForm": f"mouse-update-{row['id']}"}
-    cells = {name: text(row[name]) for name in (
-        "ear_tag", "strain", "gender", "status", "transgene_1", "transgene_2", "transgene_3", "transgene_4",
-        "cage_id", "cage_position", "owner", "litter_id", "date_of_birth", "date_of_death", "cage_location", "note")}
-    cells["cage_rack"] = text(row["cage_rack_id"])
-    for fd in custom_columns:
-        cells[f"attr_{fd['key']}"] = text(row["attrs"].get(fd["key"], ""))
-    gender = row["gender"] or ""
-    words = [str(row["id"]), *data.values(), *cells.values(), row["cage_rack"] or "",
-             gettext("U") if gender == "Unknown" else i18n.translate_value(gender),
-             i18n.translate_value(row["status"] or ""),
-             f"{row['age_weeks']}{gettext('w')}" if row["age_weeks"] is not None else "",
-             re.sub(r"<[^>]+>", "", str(owner_badge_filter(row["owner"])))]
-    for fd in custom_columns:
-        value = text(row["attrs"].get(fd["key"], ""))
-        if value and fd.get("type") in ("select", "multiselect"):
-            words.append(i18n.translate_value(value))
-    return {"id": row["id"], "f": f"mouse-update-{row['id']}", "d": data, "k": {k: v for k, v in cells.items() if v},
-            "s": " ".join(w for w in words if w).lower()}
+    named = ("ear_tag", "strain", "gender", "status", "transgene_1", "transgene_2", "transgene_3", "transgene_4",
+             "cage_id", "cage_position", "owner", "litter_id", "date_of_birth", "date_of_death", "cage_location", "note")
+    weeks_unit = gettext("w")
+    sexes = {"Unknown": gettext("U")}
+    words_of: dict[str, str] = {}   # a value's words as the page shows it (its translation)
+    badges: dict[str, str] = {}
+
+    def shown(value: str) -> str:
+        if value not in words_of:
+            words_of[value] = i18n.translate_value(value)
+        return words_of[value]
+
+    def badge(owner) -> str:
+        key = owner or ""
+        if key not in badges:
+            badges[key] = re.sub(r"<[^>]+>", "", str(owner_badge_filter(owner)))
+        return badges[key]
+
+    out = []
+    for row in rows:
+        row_id, days = row["id"], row["age_days"]
+        data = {"active": "true" if row["active"] else "false", "mouse_id": text(row["mouse_id"]),
+                "ear_tag": row["ear_tag"] or "", "age": "" if days is None else str(days),
+                "rowForm": f"mouse-update-{row_id}"}
+        # Each of these is text or None (services.mouse_display_row).
+        cells = {name: row[name] or "" for name in named}
+        cells["cage_rack"] = text(row["cage_rack_id"])
+        for fd in custom_columns:
+            cells[f"attr_{fd['key']}"] = text(row["attrs"].get(fd["key"], ""))
+        gender = row["gender"] or ""
+        words = [str(row_id), *data.values(), *cells.values(), row["cage_rack"] or "",
+                 sexes[gender] if gender in sexes else shown(gender),
+                 shown(row["status"] or ""),
+                 f"{row['age_weeks']}{weeks_unit}" if row["age_weeks"] is not None else "",
+                 badge(row["owner"])]
+        for fd in custom_columns:
+            value = text(row["attrs"].get(fd["key"], ""))
+            if value and fd.get("type") in ("select", "multiselect"):
+                words.append(shown(value))
+        out.append({"id": row_id, "f": data["rowForm"], "d": data,
+                    "k": {k: v for k, v in cells.items() if v},
+                    "s": " ".join(filter(None, words)).lower()})
+    return out
 
 
 @app.route("/colony/mice/rows")
@@ -4800,17 +5036,20 @@ def place_cage(cage_row_id: int):
     return jsonify({"ok": True})
 
 
-def mouse_rack_payload(db_session, cages) -> dict:
+def mouse_rack_payload(db_session, cages, tiles: bool = True) -> dict:
     """Racks and the cages in scope, for the rack grid. Cages outside the
     scope that sit in a rack are drawn too, dimmed (and locked if you may
     not move them): a cell that looks empty must be empty, or a drop there
-    would move someone else's cage without anyone seeing it."""
+    would move someone else's cage without anyone seeing it. Without
+    `tiles`, the racks only: the grid asks for its tiles when it is first
+    shown (colony_cage_grid), each carrying its cage's dialog."""
     racks = mouse_racks(db_session)
     items = []
     in_scope = {cage.id for cage in cages}
-    others = [c for c in db_session.scalars(select(CageRecord).where(CageRecord.rack_id_fk.is_not(None)))
-              if c.id not in in_scope and c.rack_row]
-    for cage in [*cages, *others]:
+    others = [c for c in db_session.scalars(select(CageRecord).where(CageRecord.rack_id_fk.is_not(None))
+                                            .options(selectinload(CageRecord.mice), selectinload(CageRecord.rack)))
+              if c.id not in in_scope and c.rack_row] if tiles else []
+    for cage in [*cages, *others] if tiles else []:
         outside = cage.id not in in_scope
         live = [m for m in cage.mice if mouse_is_active(m)]
         strains = sorted({(m.transgene_1 or "").strip() for m in live if (m.transgene_1 or "").strip()})
@@ -10373,20 +10612,82 @@ def zf_report(changed: int, skipped: int, what: str, noun: str, plural: str, blo
 # ---- Page ------------------------------------------------------------------
 
 
-def _zebrafish_context(active_view: str):
+def zf_tank_stubs(rows: list[dict], custom_columns: list[dict], racks: list, lines: list) -> list[dict]:
+    """Tanks the sheet does not draw, as data-table.js reads a drawn row
+    (zebrafish.html's tank rows, as cell_text.row_stub reads them): its
+    data-*, each field's value ("k"), its row form, and the words a search
+    looks in ("s": what the row shows, its data-* and each field's value
+    and the choice it shows). Built from each tank's data rather than drawn:
+    a lab's thousands of tanks took seconds to draw and read back.
+    tests/test_speed.py holds each to the row it stands for."""
+    from .cell_text import row_stub
+    as_text = cell_text.text_cells_on()
+    rack_name = {r.id: r.name for r in racks}
+    line_name = {ln.id: ln.name for ln in lines}
+    queued, no = gettext("Queued"), gettext("No")
+    purposes: dict[str, str] = {}
+    badges: dict[str, str] = {}
+    custom_cell = app.jinja_env.get_template("_sheet.html").module.custom_cell if custom_columns else None
+
+    def menu(chosen, names: dict) -> tuple[str, str]:
+        """A rack or line menu's (value, words): the blank "–" when none is
+        chosen, or one that is no longer there."""
+        return (str(chosen), names[chosen]) if chosen and chosen in names else ("", "–")
+
+    def purpose_of(purpose) -> tuple[str, str]:
+        """The Purpose menu's choice: its own word, one from before the
+        list as itself, else the first (the menu's macro, options())."""
+        if purpose in TANK_PURPOSE_OPTIONS:
+            if purpose not in purposes:
+                purposes[purpose] = i18n.translate_value(purpose, "zebrafish")
+            return purpose, purposes[purpose]
+        if purpose:
+            return purpose, purpose
+        return purpose_of(TANK_PURPOSE_OPTIONS[0])
+
+    out = []
+    for tr in rows:
+        t = tr["row"]
+        rack, line, purpose = menu(t.rack_id_fk, rack_name), menu(t.line_id_fk, line_name), purpose_of(t.purpose)
+        owner = t.owner or ""
+        if owner not in badges:
+            badges[owner] = re.sub(r"<[^>]+>", "", str(owner_badge_filter(owner)))
+        data = {"id": str(t.id), "tank_id": str(t.tank_id), "active": "true" if t.active else "false",
+                "mine": "true" if tr["mine"] else "false", "shared": "true" if tr["shared"] else "false",
+                "rack": t.rack.name if t.rack else "", "line": t.line.name if t.line else "",
+                "fish": str(tr["total_fish"]), "geno": "1" if t.needs_genotyping else "",
+                "return": str(t.mating_return_at or "")}
+        sort = {"rack_id_fk": rack[0], "position": tr["position"], "purpose": purpose[0], "line_id_fk": line[0],
+                "owner": owner, "card_id": str(t.card_id), "notes": str(t.notes)}
+        words = [str(t.tank_id), rack[1], purpose[1], line[1], str(tr["total_fish"]), badges[owner],
+                 queued if t.needs_genotyping else no, fmt_day(t.mating_return_at), *data.values(), *sort.values()]
+        if as_text and not tr["position"]:
+            words.append("–")   # an empty Pos shows its placeholder
+        for fd in custom_columns:
+            cell = f'<td>{custom_cell(fd, tr["attrs"].get(fd["key"], ""), f"utank-{t.id}", not tr["editable"], "owner-name-options")}</td>'
+            read = row_stub("", str(as_text_cells(cell, as_text)))
+            sort.update({k: v for k, v in read["k"].items() if k not in sort})
+            words.append(read["s"])
+        out.append({"id": t.id, "e": f"tank-{t.id}", "f": f"utank-{t.id}", "d": data, "k": sort,
+                    "s": " ".join(w for w in words if w).lower()})
+    return out
+
+
+def _zebrafish_context(active_view: str, tank_ids: set[int] | None = None):
+    """What zebrafish.html draws for a tab. On the Tanks tab, `tank_ids`:
+    only these tanks' rows are drawn (zebrafish_tank_rows)."""
     me = access.username()
     today = date.today()
     with SessionLocal() as s:
         systems = sorted(s.scalars(select(WaterSystem)).all(), key=lambda w: positions.place_order(w.name))
         racks = sorted(s.scalars(select(FishRack)).all(), key=lambda r: positions.place_order(r.name))
         lines = positions.natural_sorted(s.scalars(select(FishLine)).all(), key=lambda ln: ln.name)
-        # Eager-load what the template reads after the session closes.
-        tanks = s.scalars(
-            select(TankRecord)
-            .options(joinedload(TankRecord.line),
-                     joinedload(TankRecord.rack),
-                     selectinload(TankRecord.fish))
-        ).unique().all()
+        # Eager-load what the template reads after the session closes. Each
+        # tank's row only for the Tanks tab: the other tabs took most of
+        # their time over every tank's fish.
+        tank_tab = active_view == "tanks"
+        tanks = s.scalars(select(TankRecord).options(joinedload(TankRecord.line), joinedload(TankRecord.rack))
+                          ).unique().all()
         tanks = positions.natural_sorted(tanks, key=lambda t: t.tank_id)
         fish = s.scalars(
             select(FishRecord).options(joinedload(FishRecord.line), joinedload(FishRecord.tank))
@@ -10426,11 +10727,44 @@ def _zebrafish_context(active_view: str):
                 mating_refs[tid] = mating_refs.get(tid, 0) + 1
 
         # ---- Tanks ----
-        tank_rows = []
-        for t in tanks:
-            total = sum(f.count or 0 for f in t.fish if fish_alive(f))
+        # Each tank's fish as plain rows (how many, alive or not): a lab's
+        # tanks hold tens of thousands of fish rows. A mating tank still out
+        # has its fish in full, for where each group goes back to.
+        fish_in: dict[int, list] = {}
+        if tank_tab:
+            for f in s.execute(select(FishRecord.tank_id_fk, FishRecord.count, FishRecord.status, FishRecord.sac_date)):
+                fish_in.setdefault(f[0], []).append(f)
+        returning: dict[int, list] = {}
+        out_now = [t.id for t in tanks if tank_tab and zf_is_mating(t) and t.active]
+        if out_now:
+            for f in s.scalars(select(FishRecord).options(joinedload(FishRecord.line))
+                               .where(FishRecord.tank_id_fk.in_(out_now)).order_by(FishRecord.id)):
+                returning.setdefault(f.tank_id_fk, []).append(f)
+        # A long tank sheet draws its first page; each other tank is a stub
+        # (zf_tank_stubs), made from what its row needs to be found and
+        # sorted. Its row in full (what deleting it would say, its dialog's
+        # payload) only for the tanks drawn, a mating tank still out, and
+        # the rack grid's tiles.
+        tank_mode = request.args.get("mode", "table")
+        paged = (tank_tab and tank_mode == "table" and tank_ids is None
+                 and len(tanks) > inventory_routes.LAZY_OVER)
+        tank_rows, tank_sheet_rows = [], []
+        for n, t in enumerate(tanks if tank_tab else []):
+            groups = fish_in.get(t.id, [])
+            total = sum(f.count or 0 for f in groups if fish_alive(f))
             editable = zf_can_edit(t)
             position = fish_position_label(t)
+            returnable = zf_is_mating(t) and t.active
+            drawn = (tank_ids is None and (not paged or n < inventory_routes.FIRST_PAGE)) or (
+                tank_ids is not None and t.id in tank_ids)
+            if not (drawn or returnable or tank_mode != "table"):
+                tank_rows.append({
+                    "row": t, "total_fish": total, "position": position, "editable": editable,
+                    "attrs": custom_fields.values(t), "mine": t.owner == me, "shared": zf_tank_shared(t),
+                    "fish_rows": len(groups), "returnable": False, "return_plan": []})
+                continue
+            if drawn:
+                tank_sheet_rows.append(len(tank_rows))   # where its row goes in tank_rows, below
             refs = []
             if parent_refs.get(t.id, 0):
                 refs.append(ngettext("%(num)s clutch will no longer name it as a parent",
@@ -10443,14 +10777,14 @@ def _zebrafish_context(active_view: str):
                                      "%(num)s sac-log entries will lose its tank", sac_refs[t.id]))
             affected = "; ".join(refs)
             # A mating tank still out: where each live group goes back to.
-            returnable = zf_is_mating(t) and t.active
             plan = [{"fish": f, "home": home if home in tank_by_id else None,
                      "home_code": tank_by_id[home].tank_id if home in tank_by_id else ""}
-                    for f in t.fish if fish_alive(f) for home in [zf_mating_home(f, t)]] if returnable else []
+                    for f in returning.get(t.id, []) if fish_alive(f)
+                    for home in [zf_mating_home(f, t)]] if returnable else []
             tank_rows.append({
                 "row": t, "total_fish": total, "position": position, "editable": editable,
                 "attrs": custom_fields.values(t),
-                "mine": t.owner == me, "shared": zf_tank_shared(t), "fish_rows": len(t.fish),
+                "mine": t.owner == me, "shared": zf_tank_shared(t), "fish_rows": len(groups),
                 "share_group": project_groups.name_of(t.share_group_id) if zf_tank_shared(t) else "",
                 "returnable": returnable, "return_plan": plan,
                 "return_ready": all(p["home"] for p in plan),
@@ -10466,6 +10800,10 @@ def _zebrafish_context(active_view: str):
                     "share_group": project_groups.value_of(True, t.share_group_id),
                     "rack_id_fk_was": t.rack_id_fk or "", "position_was": position, "owner_was": t.owner},
             })
+
+        drawn_at = set(tank_sheet_rows)
+        tank_sheet_rows = [tank_rows[i] for i in tank_sheet_rows]
+        undrawn = [tr for i, tr in enumerate(tank_rows) if i not in drawn_at] if paged else []
 
         # ---- Fish ----
         fish_rows = []
@@ -10568,7 +10906,10 @@ def _zebrafish_context(active_view: str):
         usernames = current_lab_usernames(s)
         census = {
             "tanks": sum(1 for t in tanks if t.active),
-            "fish": sum(f.count or 0 for t in tanks for f in t.fish if fish_alive(f)),
+            "fish": (sum(tr["total_fish"] for tr in tank_rows) if tank_tab else
+                     sum(f.count or 0 for f in s.execute(
+                         select(FishRecord.count, FishRecord.status, FishRecord.sac_date)
+                         .join(TankRecord, FishRecord.tank_id_fk == TankRecord.id)) if fish_alive(f))),
             "clutches": s.scalar(select(func.count(ClutchRecord.id))) or 0,
             "lines": len(lines),
             "experiments": experiment_pages.tab_count(s, "zebrafish"),
@@ -10603,7 +10944,7 @@ def _zebrafish_context(active_view: str):
             "search": " ".join(filter(None, [tr["row"].tank_id, tr["row"].purpose, tr["row"].owner, tr["row"].card_id,
                                              tr["row"].line.name if tr["row"].line else ""])).lower(),
             "edit": {"data-record-edit": "tank-dialog", "data-record-payload": json.dumps(tr["payload"])},
-        } for tr in tank_rows],
+        } for tr in (tank_rows if tank_mode == "grid" else [])],   # the tiles: only the grid shows them
         "create": {"attrs": {"data-record-edit": "tank-dialog"},
                    "payload": {"tank_id": next_tank_id, "purpose": "stock", "owner": me, "active": "1"},
                    "rack_field": "rack_id_fk", "text_field": "position"},
@@ -10613,6 +10954,11 @@ def _zebrafish_context(active_view: str):
         zf_columns = custom_fields.fields(s, "zebrafish")
     return {
         "active_view": active_view,
+        # The Tanks tab's sheet: the rows it draws, a stub for each other
+        # tank, and where its script fetches their rows.
+        "tank_sheet_rows": tank_sheet_rows,
+        "tank_stubs": zf_tank_stubs(undrawn, custom_fields.in_table(zf_columns), racks, lines) if undrawn else [],
+        "tank_rows_url": url_for("zebrafish_tank_rows") if undrawn else "",
         "zebrafish_views": ZEBRAFISH_VIEWS,
         "custom_columns": custom_fields.in_table(zf_columns),
         "custom_columns_all": zf_columns,
@@ -10653,9 +10999,8 @@ def zebrafish():
         return redirect(url_for("zebrafish", view="tanks", mode=ZEBRAFISH_VIEW_ALIASES[view]))
     if view not in ZEBRAFISH_VIEWS:
         view = "tanks"
-    html = render_template("zebrafish.html", **_zebrafish_context(view))
-    # A long tank sheet: its first page drawn, the rest fetched as shown (app/sheet_paging.py).
-    return sheet_paging.page(html, "zf-tanks-v2", url_for("zebrafish_tank_rows")) if view == "tanks" else html
+    # A long tank sheet draws its first page, the rest fetched as shown (_zebrafish_context).
+    return render_template("zebrafish.html", **_zebrafish_context(view))
 
 
 @app.route("/zebrafish/tanks/rows")
@@ -10664,9 +11009,7 @@ def zebrafish_tank_rows():
     """Rows of a long tank sheet by id (?ids=…, with the page's own
     arguments), as the page draws them; ?as=text for their words."""
     ids = sheet_paging.ids_asked(request)
-    keep = set(ids)
-    context = _zebrafish_context("tanks")
-    context["tank_rows"] = [tr for tr in context["tank_rows"] if tr["row"].id in keep]
+    context = _zebrafish_context("tanks", tank_ids=set(ids))
     return sheet_paging.answer(render_template("zebrafish.html", **context), "zf-tanks-v2", ids, request)
 
 
