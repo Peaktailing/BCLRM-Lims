@@ -264,6 +264,36 @@ class ChemicalReference(Base):
     msds_url: Mapped[str] = mapped_column(String(500), default="")
 
 
+class ControlledList(Base):
+    """The published catalogues of controlled substances, as data.
+
+    A bottle of one of these does not leave the shelf on a lab member's
+    own say-so: the borrow order waits for an approver who is not the
+    borrower (app/controlled.py). The dangerous_type is the catalogue's
+    own class — the same words the Hazard field offers ("drug precursor",
+    "explosive precursor", "narcotic or psychotropic", "highly toxic"),
+    so a bottle and the list agree on what it is.
+
+    Seeded with the common teaching-lab entries; an admin keeps it current
+    in Configure, the way the catalogues are reissued.
+    """
+    __tablename__ = "controlled_list"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Where this record stands in the lab's sequence of changes (app/sync.py):
+    # a phone signing a bottle out checks the list, and its changes travel
+    # like every other record's.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    chemical_name: Mapped[str] = mapped_column(String(200), default="", index=True)
+    # Other names the substance is ordered or asked for by, separated by
+    # commas ("丁酮, 甲乙酮"): a match on any of them counts.
+    alias: Mapped[str] = mapped_column(String(300), default="")
+    cas_number: Mapped[str] = mapped_column(String(20), default="", index=True)
+    dangerous_type: Mapped[str] = mapped_column(String(40), default="", index=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class LitterRecord(Base):
     __tablename__ = "litters"
 

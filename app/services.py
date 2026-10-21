@@ -38,6 +38,7 @@ from .models import (
     WaterLog,
     WaterSystem,
     ChemicalReference,
+    ControlledList,
     DropdownOption,
     LitterRecord,
     DEFAULT_MOUSE_STRAINS,
@@ -162,6 +163,13 @@ def init_database() -> None:
                 mw, source = (round(molecular_weight(formula), 2), "formula") if formula else (0.0, "manual")
                 session.add(ChemicalReference(name=name, cas=cas, formula=formula,
                                               molecular_weight=mw, mw_source=source, notes=notes))
+
+        existing_controlled = session.scalar(select(ControlledList.id).limit(1))
+        if existing_controlled is None:
+            from .controlled import DEFAULT_CONTROLLED
+            for name, aliases, cas, dangerous_type, note in DEFAULT_CONTROLLED:
+                session.add(ControlledList(chemical_name=name, alias=aliases, cas_number=cas,
+                                           dangerous_type=dangerous_type, notes=note))
 
         existing_options = session.scalar(select(DropdownOption.id).limit(1))
         if existing_options is None:

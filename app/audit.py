@@ -49,6 +49,7 @@ TRACKED_TABLES |= {"user_identities"}   # who connected which Google/Microsoft a
 TRACKED_TABLES |= {"experiment_courses", "reagent_borrow_orders", "reagent_return_records",
                    "reagent_allocation_orders", "reagent_demands", "manager_change_logs",
                    "reagent_purchase_plans", "reagent_purchase_orders"}   # the reagent document flow (teaching labs, from BCLRM)
+TRACKED_TABLES |= {"controlled_list"}   # who added or changed a controlled substance, and when
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
 TABLE_LABELS = {
