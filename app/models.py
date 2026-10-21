@@ -15,6 +15,15 @@ from .db import Base
 ORDER_STATUS_OPTIONS = ["requested", "ordered", "received", "cancelled"]
 TASK_STATUS_OPTIONS = ["todo", "in_progress", "done"]
 SAMPLE_TYPE_OPTIONS = ["blood", "tissue", "organoid", "dna", "rna", "protein", "custom"]
+# The reagent document flow (teaching labs): a bottle goes out on a borrow
+# order, comes back on a return record, moves between holders on an
+# allocation order, is asked for on a demand and bought on a purchase plan.
+BORROW_STATUS_OPTIONS = ["pending", "approved", "borrowed", "returned", "rejected", "cancelled"]
+RETURN_OUTCOME_OPTIONS = ["returned", "partially_returned", "written_off"]
+ALLOCATION_STATUS_OPTIONS = ["pending", "done", "cancelled"]
+DEMAND_STATUS_OPTIONS = ["open", "planned", "ordered", "closed"]
+PURCHASE_PLAN_STATUS_OPTIONS = ["draft", "submitted", "approved", "rejected", "ordered"]
+PURCHASE_ORDER_STATUS_OPTIONS = ["draft", "ordered", "partial", "received", "cancelled"]
 COLONY_VIEWS = [
     ("mice", "M"),
     ("cages", "C"),
@@ -1869,6 +1878,196 @@ class InventoryItem(Base, _JsonAttrs):
     updated_by: Mapped[str] = mapped_column(String(80), default="")
 
     rack: Mapped["InventoryRack | None"] = relationship()
+
+
+# ── 化学试剂单据流（教学实验室）────────────────────────────────────────────
+# Contributed by BCLRM (Peaktailing) as the document layer on top of the
+# reagent bottle preset: every bottle that leaves the shelf is asked for,
+# signed out, brought back, moved or bought on one of these. The bottle
+# itself stays an inventory item; these orders only reference it.
+
+
+class ExperimentCourse(Base):
+    """教学场景的一门课（分析化学实验、有机化学实验…）：学生按它领试剂，
+    学期末按它统计人均用量。"""
+
+    __tablename__ = "experiment_courses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    term: Mapped[str] = mapped_column(String(40), default="", index=True)   # "2026-2027-1"
+    teacher: Mapped[str] = mapped_column(String(80), default="")            # 授课教师（用户名）
+    student_count: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ReagentBorrowOrder(Base):
+    """试剂领用工单：pending → approved → borrowed → returned，
+    另有 rejected / cancelled。超期由 overdue 视图按 due_at 算出。"""
+
+    __tablename__ = "reagent_borrow_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, default=0, index=True)    # 单号，模块内自增
+    bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+    requester: Mapped[str] = mapped_column(String(80), nullable=False, index=True)   # 申请人（用户名）
+    approver: Mapped[str] = mapped_column(String(80), default="")                    # 审批人
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    unit: Mapped[str] = mapped_column(String(30), default="")            # mL / g / 瓶
+    purpose: Mapped[str] = mapped_column(Text, default="")               # 实验用途
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    experiment_name: Mapped[str] = mapped_column(String(200), default="")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # 应归还时间
+    remark: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    bottle: Mapped["InventoryItem"] = relationship()
+    course: Mapped["ExperimentCourse | None"] = relationship()
+
+
+class ReagentReturnRecord(Base):
+    """归还记录：还了多少、余量、损耗；启封日期在这里回写到瓶的 attrs。"""
+
+    __tablename__ = "reagent_return_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    borrow_id: Mapped[int | None] = mapped_column(ForeignKey("reagent_borrow_orders.id"), nullable=True, index=True)
+    bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+    returned_by: Mapped[str] = mapped_column(String(80), default="")
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)          # 归还量
+    unit: Mapped[str] = mapped_column(String(30), default="")
+    remaining: Mapped[float | None] = mapped_column(Float, nullable=True)   # 归还后余量
+    loss: Mapped[float] = mapped_column(Float, default=0.0)              # 损耗/洒落
+    opened_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # 首次启封日期（回写 attrs.opened）
+    outcome: Mapped[str] = mapped_column(String(20), default="returned")     # RETURN_OUTCOME_OPTIONS
+    remark: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    borrow: Mapped["ReagentBorrowOrder | None"] = relationship()
+    bottle: Mapped["InventoryItem"] = relationship()
+
+
+class ReagentAllocationOrder(Base):
+    """调配单：一瓶试剂在持有人之间转移，或分装给另一个人（不经过领用流程）。"""
+
+    __tablename__ = "reagent_allocation_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+    from_holder: Mapped[str] = mapped_column(String(80), default="")     # 转出（用户名，空=库房）
+    to_holder: Mapped[str] = mapped_column(String(80), default="")       # 接收
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    unit: Mapped[str] = mapped_column(String(30), default="")
+    purpose: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    decided_by: Mapped[str] = mapped_column(String(80), default="")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    remark: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    bottle: Mapped["InventoryItem"] = relationship()
+
+
+class ReagentDemand(Base):
+    """试剂需求：缺什么、要多少、做什么用；可汇总进采购计划。"""
+
+    __tablename__ = "reagent_demands"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chemical_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    cas: Mapped[str] = mapped_column(String(40), default="", index=True)
+    grade: Mapped[str] = mapped_column(String(60), default="")
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    unit: Mapped[str] = mapped_column(String(30), default="")
+    purpose: Mapped[str] = mapped_column(Text, default="")
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    requester: Mapped[str] = mapped_column(String(80), default="", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)   # DEMAND_STATUS_OPTIONS
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("reagent_purchase_plans.id"), nullable=True, index=True)
+    remark: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    course: Mapped["ExperimentCourse | None"] = relationship()
+    plan: Mapped["ReagentPurchasePlan | None"] = relationship(foreign_keys=[plan_id], back_populates="demands")
+
+
+class ManagerChangeLog(Base):
+    """管理权流转留痕：一瓶试剂的管理人从 A 换成 B，谁批准的、为什么。"""
+
+    __tablename__ = "manager_change_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+    from_manager: Mapped[str] = mapped_column(String(80), default="")
+    to_manager: Mapped[str] = mapped_column(String(80), default="")
+    reason: Mapped[str] = mapped_column(Text, default="")
+    decided_by: Mapped[str] = mapped_column(String(80), default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    bottle: Mapped["InventoryItem"] = relationship()
+
+
+class ReagentPurchasePlan(Base):
+    """采购计划：把一批需求（reagent_demands）汇成一个计划送审。"""
+
+    __tablename__ = "reagent_purchase_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    title: Mapped[str] = mapped_column(String(200), default="")
+    term: Mapped[str] = mapped_column(String(40), default="")            # 学期，便于开学集中采购
+    requester: Mapped[str] = mapped_column(String(80), default="")
+    approver: Mapped[str] = mapped_column(String(80), default="")
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)   # PURCHASE_PLAN_STATUS_OPTIONS
+    remark: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    demands: Mapped[list["ReagentDemand"]] = relationship(foreign_keys=[ReagentDemand.plan_id], back_populates="plan")
+
+
+class ReagentPurchaseOrder(Base):
+    """采购订单：计划批准后向供应商下单，到货时分批 received。"""
+
+    __tablename__ = "reagent_purchase_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("reagent_purchase_plans.id"), nullable=True, index=True)
+    supplier: Mapped[str] = mapped_column(String(200), default="", index=True)
+    item_name: Mapped[str] = mapped_column(String(200), default="")
+    cas: Mapped[str] = mapped_column(String(40), default="")
+    grade: Mapped[str] = mapped_column(String(60), default="")
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    unit: Mapped[str] = mapped_column(String(30), default="")
+    unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)   # PURCHASE_ORDER_STATUS_OPTIONS
+    ordered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    remark: Mapped[str] = mapped_column(Text, default="")
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    plan: Mapped["ReagentPurchasePlan | None"] = relationship(foreign_keys=[plan_id])
 
 
 class AppSetting(Base):

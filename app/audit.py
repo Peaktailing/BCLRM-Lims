@@ -46,6 +46,9 @@ TRACKED_TABLES |= {"mouse_weights"}   # a weight is a record of the animal, kept
 TRACKED_TABLES |= {"plate_layouts", "plate_reads"}   # an experiment's plate layouts, and the plates read onto them
 TRACKED_TABLES |= {"cage_litters"}   # each litter born in a cage: weaning one is undone with its cage
 TRACKED_TABLES |= {"user_identities"}   # who connected which Google/Microsoft account, and when   # so deleting a box (which unplaces its plasmids) can be undone
+TRACKED_TABLES |= {"experiment_courses", "reagent_borrow_orders", "reagent_return_records",
+                   "reagent_allocation_orders", "reagent_demands", "manager_change_logs",
+                   "reagent_purchase_plans", "reagent_purchase_orders"}   # the reagent document flow (teaching labs, from BCLRM)
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
 TABLE_LABELS = {
