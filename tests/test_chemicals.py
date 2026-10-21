@@ -109,6 +109,60 @@ class ChemicalTests(inv_tests.InventoryCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn(self.name, r.get_data(as_text=True))
 
+    def builtin(self, q):
+        return [c for c in self.find(q)["items"] if c.get("builtin")]
+
+    def test_the_built_in_weights_carry_their_cas_number_and_formula(self):
+        # HEPES, C8H18N2O4S, CAS 7365-45-9 — the notebook can now compute
+        # from the formula and match a controlled list on the CAS.
+        got = self.builtin("HEPES")
+        self.assertEqual((got[0]["cas"], got[0]["formula"]), ("7365-45-9", "C8H18N2O4S"))
+        self.assertAlmostEqual(got[0]["mw"], 238.30)
+
+    def test_a_cas_number_finds_a_substance_the_lab_has_no_bottle_of(self):
+        got = self.builtin("50-99-7")           # glucose
+        self.assertEqual([c["name"] for c in got], ["Glucose"])
+
+    def test_a_formula_finds_its_substance(self):
+        got = self.builtin("C12H22O11")         # sucrose
+        self.assertEqual([c["name"] for c in got], ["Sucrose"])
+
+    def test_the_labs_own_bottle_keeps_the_built_in_weight_quiet(self):
+        # A bottle with the same CAS number as a built-in reference speaks
+        # for the substance; the built-in row would only repeat it.
+        cas = "50-99-7"
+        self.make_item(self.a, self.chems, "Glucose, lab stock", attr_cas=cas, attr_mw="180.16",
+                       status="in stock")
+        got = self.find(cas)["items"]
+        self.assertEqual([c["cas"] for c in got if c.get("builtin")], [])
+        mine = [c for c in got if c["ref"]]
+        self.assertEqual(len(mine), 1)
+        self.assertEqual(mine[0]["name"], "Glucose, lab stock")
+
+    def test_a_cas_number_is_checked_before_it_is_kept(self):
+        from app.chemlib import cas_is_valid
+        for cas in ("7647-14-5", "77-86-1", "60-00-4", "50-99-7", "7365-45-9"):
+            self.assertTrue(cas_is_valid(cas), cas)
+        for cas in ("7647-14-6", "50-99-8", "1234-56-7", "not-a-cas", "7732-18-52", ""):
+            self.assertFalse(cas_is_valid(cas), cas)
+
+    def test_one_cas_number_is_one_substance(self):
+        # Two references may not both claim the same CAS number; an empty
+        # one is not a claim, and neither blocks the other.
+        from app.models import ChemicalReference
+        from sqlalchemy.exc import IntegrityError
+        with SessionLocal() as s:
+            s.add(ChemicalReference(name=uniq("Ethanol "), cas="64-17-5", molecular_weight=46.07))
+            s.commit()
+            again = ChemicalReference(name=uniq("Ethanol "), cas="64-17-5", molecular_weight=46.07)
+            s.add(again)
+            with self.assertRaises(IntegrityError):
+                s.commit()
+            s.rollback()
+            s.add(ChemicalReference(name=uniq("Tris "), cas="", molecular_weight=121.14))
+            s.add(ChemicalReference(name=uniq("Borate "), cas="", molecular_weight=61.83))
+            s.commit()
+
 
 class ExperimentPages(inv_tests.InventoryCase):
     def test_a_new_experiment_ends_with_a_summary(self):

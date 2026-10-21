@@ -54,17 +54,21 @@ from .models import (
 )
 
 
+# (name, CAS number, formula, notes). The molecular weight comes from the
+# formula (chemlib), so a reference never disagrees with its own chemistry;
+# a mix with no single substance (the PBS tablet equivalent) has neither
+# and keeps the weight a lab weighs in itself.
 DEFAULT_CHEMICALS = [
-    ("NaCl", 58.44, "Sodium chloride"),
-    ("KCl", 74.55, "Potassium chloride"),
-    ("Tris base", 121.14, "Common buffer component"),
-    ("EDTA", 292.24, "Chelating agent"),
-    ("Glucose", 180.16, "D-glucose"),
-    ("Sucrose", 342.30, "Disaccharide"),
-    ("HEPES", 238.30, "Buffering agent"),
-    ("CaCl2", 110.98, "Calcium chloride"),
-    ("MgCl2", 95.21, "Magnesium chloride"),
-    ("PBS tablet equivalent", 0.0, "Enter a custom MW if needed for tablets or mixes"),
+    ("NaCl", "7647-14-5", "NaCl", "Sodium chloride"),
+    ("KCl", "7447-40-7", "KCl", "Potassium chloride"),
+    ("Tris base", "77-86-1", "C4H11NO3", "Common buffer component"),
+    ("EDTA", "60-00-4", "C10H16N2O8", "Chelating agent (free acid)"),
+    ("Glucose", "50-99-7", "C6H12O6", "D-glucose"),
+    ("Sucrose", "57-50-1", "C12H22O11", "Disaccharide"),
+    ("HEPES", "7365-45-9", "C8H18N2O4S", "Buffering agent"),
+    ("CaCl2", "10043-52-4", "CaCl2", "Calcium chloride (anhydrous)"),
+    ("MgCl2", "7786-30-3", "MgCl2", "Magnesium chloride (anhydrous)"),
+    ("PBS tablet equivalent", "", "", "Enter a custom MW if needed for tablets or mixes"),
 ]
 DEFAULT_MOUSE_OPTIONS = {
     "gender": ["F", "M", "Unknown"],
@@ -150,8 +154,14 @@ def init_database() -> None:
     with SessionLocal() as session:
         existing_chemical = session.scalar(select(ChemicalReference.id).limit(1))
         if existing_chemical is None:
-            for name, mw, notes in DEFAULT_CHEMICALS:
-                session.add(ChemicalReference(name=name, molecular_weight=mw, notes=notes))
+            from .chemlib import molecular_weight
+            for name, cas, formula, notes in DEFAULT_CHEMICALS:
+                # A formula's weight is recomputed, not remembered: correct
+                # the formula and the weight follows. No formula means the
+                # lab weighs the number in itself.
+                mw, source = (round(molecular_weight(formula), 2), "formula") if formula else (0.0, "manual")
+                session.add(ChemicalReference(name=name, cas=cas, formula=formula,
+                                              molecular_weight=mw, mw_source=source, notes=notes))
 
         existing_options = session.scalar(select(DropdownOption.id).limit(1))
         if existing_options is None:

@@ -2299,7 +2299,9 @@ def chemicals_search(s, query: str, limit: int = 12) -> list[dict]:
     CAS number, formula, lot or catalogue number: an exact match first, then
     a start, then the rest; ones in stock before ones used up. Then the
     built-in molecular weights (`chemical_references`), which carry no
-    record to link."""
+    record to link — matched on name, CAS number and formula, so typing a
+    CAS number finds a substance the lab has no bottle of, with its formula
+    to compute from."""
     from . import inventory_service as inventories
     from .models import ChemicalReference, InventoryItem
     q = query.strip().lower()
@@ -2336,12 +2338,21 @@ def chemicals_search(s, query: str, limit: int = 12) -> list[dict]:
     out = [entry for _key, entry in found[:limit]]
     if len(out) < limit and q:
         have = {e["name"].lower() for e in out} | {e["abbr"].lower() for e in out if e["abbr"]}
+        have_cas = {e["cas"].lower() for e in out if e["cas"]}
+        like = like_pattern(query.strip())
         for ref in s.scalars(select(ChemicalReference).where(
-                ChemicalReference.name.ilike(like_pattern(query.strip()), escape="\\")).order_by(ChemicalReference.name)):
+                ChemicalReference.name.ilike(like, escape="\\")
+                | ChemicalReference.cas.ilike(like, escape="\\")
+                | ChemicalReference.formula.ilike(like, escape="\\")).order_by(ChemicalReference.name)):
             if ref.name.lower() in have or not _positive(ref.molecular_weight):
                 continue
-            out.append({"ref": "", "database": "", "name": ref.name, "abbr": "", "cas": "", "formula": "",
-                        "mw": ref.molecular_weight, "purity": None, "density": None, "lot": "",
+            # The lab's own bottle of this substance (by CAS) already speaks
+            # for it; the built-in weight would only repeat what it says.
+            if ref.cas and ref.cas.lower() in have_cas:
+                continue
+            out.append({"ref": "", "database": "", "name": ref.name, "abbr": "", "cas": ref.cas or "",
+                        "formula": ref.formula or "", "mw": ref.molecular_weight,
+                        "purity": None, "density": None, "lot": "",
                         "status": "", "available": True, "builtin": True})
             if len(out) >= limit:
                 break

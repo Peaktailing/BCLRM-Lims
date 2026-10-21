@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.chemlib import (FormulaError, Reaction, balance_check, equivalents,
-                         hill_formula, limiting_reagent, molecular_weight,
-                         parse_formula, percent_yield, theoretical_yield)
+from app.chemlib import (FormulaError, Reaction, balance_check, cas_is_valid,
+                         equivalents, hill_formula, limiting_reagent,
+                         molecular_weight, parse_formula, percent_yield,
+                         theoretical_yield)
 
 
 class TestParseFormula:
@@ -188,3 +189,27 @@ class TestPercentYield:
     def test_zero_theoretical(self):
         with pytest.raises(FormulaError):
             percent_yield(1.0, 0)
+
+
+class TestCasNumber:
+    # A CAS number's last digit is a check digit: the ones before it, read
+    # right to left, each times its position, summed, mod 10. A controlled
+    # substance check that misses on a typo is worse than none.
+    def test_well_known_numbers(self):
+        for cas in ("7732-18-5", "7647-14-5", "7447-40-7", "77-86-1",
+                    "60-00-4", "50-99-7", "57-50-1", "7365-45-9",
+                    "10043-52-4", "7786-30-3", "64-17-5", "108-88-3"):
+            assert cas_is_valid(cas), cas
+
+    def test_a_changed_check_digit_is_refused(self):
+        assert not cas_is_valid("7732-18-6")
+        assert not cas_is_valid("50-99-8")
+        assert not cas_is_valid("7647-14-4")
+
+    def test_malformed(self):
+        for cas in ("", "   ", "7732-18", "7732-188", "77-186-5", "773-18-5",
+                    "abc-de-f", "7732_18_5", "7732-18-5x", None):
+            assert not cas_is_valid(cas), cas
+
+    def test_surrounding_space_is_forgiven(self):
+        assert cas_is_valid("  7732-18-5  ")

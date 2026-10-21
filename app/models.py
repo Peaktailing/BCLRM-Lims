@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, TypeDecorator, UniqueConstraint
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import false as sa_false
 from sqlalchemy import true as sa_true
@@ -238,11 +238,30 @@ class NotebookEntry(Base):
 
 class ChemicalReference(Base):
     __tablename__ = "chemical_references"
+    __table_args__ = (
+        # One CAS number is one substance: two rows may not both claim it.
+        # An empty CAS (a lab that has not filled it in yet) is not a claim,
+        # so it stays out of the index — otherwise the first seeded row
+        # without a CAS would block every other one.
+        Index("ix_chemical_references_cas", "cas", unique=True,
+              sqlite_where=text("cas != ''"), postgresql_where=text("cas <> ''")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True)
     molecular_weight: Mapped[float] = mapped_column(Float)
     notes: Mapped[str] = mapped_column(Text, default="")
+    # What the notebook's Formulation block needs to compute from a formula
+    # instead of trusting a number someone typed in, and what a controlled
+    # substance check matches on. All optional: a reference that predates
+    # them keeps working with name and molecular weight alone.
+    cas: Mapped[str] = mapped_column(String(20), default="")
+    formula: Mapped[str] = mapped_column(String(120), default="")
+    # "manual" — a weighed-in, literature or catalogue value the lab trusts;
+    # "formula" — recomputed from the formula whenever it changes (chemlib).
+    mw_source: Mapped[str] = mapped_column(String(10), default="manual")
+    hazard: Mapped[str] = mapped_column(String(40), default="")
+    msds_url: Mapped[str] = mapped_column(String(500), default="")
 
 
 class LitterRecord(Base):

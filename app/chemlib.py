@@ -299,3 +299,27 @@ def percent_yield(actual_grams: float, theoretical_grams: float) -> dict:
     elif percent < 5:
         warning = "very low — check the limiting reagent was really the one weighed, and losses in workup"
     return {"percent": percent, "warning": warning}
+
+
+# ---------------------------------------------------------------- CAS numbers
+
+# A CAS Registry Number is two to seven digits, two digits, one digit
+# (7732-18-5, water). The last digit is a check digit: the digits before
+# it, read right to left, each times its position, summed, mod 10.
+_CAS = re.compile(r"^(\d{2,7})-(\d{2})-(\d)$")
+
+
+def cas_is_valid(cas: str) -> bool:
+    """True when a CAS number is well-formed and its check digit agrees.
+
+    A typo in a CAS number finds the wrong substance or none at all — a
+    controlled-substance check that misses is worse than one that never
+    ran — so anything typed in for a CAS is checked before it is kept.
+    An empty string is not valid: callers treat "" as "not filled in".
+    """
+    match = _CAS.match((cas or "").strip())
+    if not match:
+        return False
+    digits = match.group(1) + match.group(2)
+    total = sum(int(d) * (i + 1) for i, d in enumerate(reversed(digits)))
+    return total % 10 == int(match.group(3))
