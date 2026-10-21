@@ -260,9 +260,11 @@ def register_product(session, cas: str, formula: str, name: str = "") -> Chemica
 def start_from_template(session, template: ChemicalExperiment, course_id: int | None = None,
                         student: str = "") -> ChemicalExperiment:
     """A course's template becomes one student's working copy: same plan,
-    own record, own bench notes. The template stays a template."""
+    own record, own bench notes. The template stays a template, and the
+    copy remembers which one it came from."""
     copy = ChemicalExperiment(
         title=template.title, kind=template.kind, course_id=course_id or template.course_id,
+        template_id=template.id,
         reaction_json=template.reaction_json, reagents_json=template.reagents_json,
         procedure=template.procedure, product_cas=template.product_cas,
         status="active", created_by=student)

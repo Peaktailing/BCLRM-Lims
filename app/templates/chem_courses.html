@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{# 课程列表（app/chemical_experiments_routes.py 的 chem.courses）：
+   一门课 = 若干模板方案 + 每个学生的一份副本。学期末的统计从这里进。 #}
+
+{% block page_title %}{{ _('实验课程') }} · {{ _('Chemical experiments') }}{% endblock %}
+{% block page_heading %}{{ _('实验课程') }}{% endblock %}
+{% block page_subtitle %}{{ _('模板方案、学生副本与学期用量，一门课一个闭环') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn btn-primary" href="#new-course">{{ icon('plus') }} {{ _('新建课程') }}</a>
+{% endblock %}
+
+{% block content %}
+<section class="card p-4" id="new-course">
+  <h2 class="text-[14px] font-semibold mb-2">{{ icon('plus') }} {{ _('新建课程') }}</h2>
+  <form method="post" action="{{ url_for('chem.course_create') }}"
+        class="flex flex-wrap items-end gap-3">
+    <label class="grid gap-1 text-[13px]" style="min-width: 200px; flex: 1;">
+      <span>{{ _('课程名称') }}</span>
+      <input type="text" name="name" maxlength="200" required placeholder="{{ _('分析化学实验') }}">
+    </label>
+    <label class="grid gap-1 text-[13px]" style="min-width: 140px;">
+      <span>{{ _('学期') }}</span>
+      <input type="text" name="term" maxlength="40" placeholder="2026-2027-1">
+    </label>
+    <label class="grid gap-1 text-[13px]" style="min-width: 120px;">
+      <span>{{ _('教师') }}</span>
+      <input type="text" name="teacher" maxlength="80">
+    </label>
+    <label class="grid gap-1 text-[13px]" style="min-width: 110px;">
+      <span>{{ _('在册学生') }}</span>
+      <input type="number" name="student_count" min="0" value="0">
+    </label>
+    <button type="submit" class="btn btn-primary">{{ icon('check') }} {{ _('创建课程') }}</button>
+  </form>
+</section>
+
+<section class="card p-4">
+  {% if rows %}
+  <div class="dt-scroll">
+    <table class="dt">
+      <thead>
+        <tr>
+          <th style="width: 240px;">{{ _('课程') }}</th>
+          <th style="width: 120px;">{{ _('学期') }}</th>
+          <th style="width: 100px;">{{ _('教师') }}</th>
+          <th style="width: 90px;">{{ _('在册学生') }}</th>
+          <th style="width: 80px;">{{ _('模板') }}</th>
+          <th style="width: 80px;">{{ _('副本') }}</th>
+          <th style="width: 90px;">{{ _('已完成') }}</th>
+          <th style="width: 90px;">{{ _('参与学生') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><a href="{{ url_for('chem.course', course_id=row.course.id) }}">{{ row.course.name }}</a></td>
+          <td>{{ row.course.term or '—' }}</td>
+          <td>{{ row.course.teacher or '—' }}</td>
+          <td>{{ row.course.student_count or '—' }}</td>
+          <td>{{ row.templates }}</td>
+          <td>{{ row.copies }}</td>
+          <td>{{ row.done }}</td>
+          <td>{{ row.students }}</td>
+          <td class="text-right">
+            <a class="btn" href="{{ url_for('chem.course', course_id=row.course.id) }}">{{ icon('chart') }} {{ _('统计') }}</a>
+            <a class="btn" href="{{ url_for('chem.course_report', course_id=row.course.id) }}">{{ icon('file') }} {{ _('报告') }}</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted">{{ _('还没有课程。新建一门课，把模板方案挂上去，学生就能各自开始自己的副本。') }}</p>
+  {% endif %}
+</section>
+{% endblock %}

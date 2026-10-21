@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{# 课程学期报告（app/chemical_experiments_routes.py 的 chem.course_report）：
+   计划了多少、学生称了多少、还差多少——一页可打印的期末账。 #}
+
+{% block page_title %}{{ report.course.name }} · {{ _('学期报告') }}{% endblock %}
+{% block page_heading %}{{ _('学期报告') }}：{{ report.course.name }}{% endblock %}
+{% block page_subtitle %}{{ (report.course.term ~ ' · ' ~ report.course.teacher) if report.course.term or report.course.teacher else _('化学实验课程') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="{{ url_for('chem.course', course_id=report.course.id) }}">{{ icon('back') }} {{ _('返回课程') }}</a>
+  <button class="btn" onclick="window.print()">{{ icon('print') }} {{ _('打印') }}</button>
+{% endblock %}
+
+{% block content %}
+<div class="grid gap-4">
+
+  {# ---------------------------------------------------------------- 总览 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-3">{{ icon('chart') }} {{ _('总览') }}</h2>
+    <div class="flex flex-wrap gap-6 text-[13px]">
+      <div><span class="text-muted">{{ _('模板方案') }}</span><br><strong>{{ report.templates }}</strong></div>
+      <div><span class="text-muted">{{ _('学生副本') }}</span><br><strong>{{ report.copies }}</strong></div>
+      <div><span class="text-muted">{{ _('已完成') }}</span><br><strong>{{ report.done }}</strong></div>
+      <div><span class="text-muted">{{ _('参与学生') }}</span><br><strong>{{ report.students }}</strong>{{ ' / ' ~ report.roll if report.roll else '' }}</div>
+      <div><span class="text-muted">{{ _('平均产率') }}</span><br><strong>{% if report.yield_avg is not none %}{{ report.yield_avg }}%{% else %}—{% endif %}</strong>
+        {% if report.yields %}<span class="text-muted">（{{ report.yields }} 次记录）</span>{% endif %}</div>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- 用量与备料 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('box') }} {{ _('用量与备料') }}</h2>
+    {% if report.usage %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 170px;">{{ _('物质') }}</th>
+            <th style="width: 120px;">{{ _('CAS 号') }}</th>
+            <th style="width: 100px;">{{ _('已称总量') }}</th>
+            <th style="width: 100px;">{{ _('人均') }}</th>
+            <th style="width: 110px;">{{ _('全班预计') }}</th>
+            <th style="width: 100px;">{{ _('待备料') }}</th>
+            <th style="width: 90px;">{{ _('库存') }}</th>
+            <th style="width: 130px;">{{ _('管控') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report.usage %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.cas }}</td>
+            <td>{{ '%.2f'|format(row.grams) }} g</td>
+            <td>{{ '%.3f'|format(row.per_student) }} g</td>
+            <td>{{ '%.2f'|format(row.expected) }} g</td>
+            <td>
+              {% if row.shortfall > 0 %}
+              <span class="text-warn-700">{{ '%.2f'|format(row.shortfall) }} g</span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if row.in_stock %}{{ row.bottles }} {{ _('瓶') }}
+              {% else %}<span class="text-warn-700">{{ _('无') }}</span>{% endif %}
+            </td>
+            <td>
+              {% if row.controlled %}
+              <span class="badge badge-warn">{{ row.controlled_type or _('管控') }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-[12px] text-muted">
+      {{ _('全班预计 = 人均 × 在册学生数；待备料 = 预计 − 已称。人均或称量为零的物质不计预计。') }}
+    </p>
+    {% else %}
+    <p class="text-muted">{{ _('还没有称量数据。') }}</p>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 管控物质 #}
+  {% if report.controlled %}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('warning') }} {{ _('管控物质') }}</h2>
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 170px;">{{ _('物质') }}</th>
+            <th style="width: 120px;">{{ _('CAS 号') }}</th>
+            <th style="width: 140px;">{{ _('类别') }}</th>
+            <th style="width: 110px;">{{ _('已称总量') }}</th>
+            <th style="width: 100px;">{{ _('学生数') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report.controlled %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.cas }}</td>
+            <td>{{ row.controlled_type or _('管控') }}</td>
+            <td>{{ '%.2f'|format(row.grams) }} g</td>
+            <td>{{ row.students }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-[12px] text-muted">{{ _('管控物质的领用均须审批；本表供学期末核对台账。') }}</p>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- 学生明细 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('users') }} {{ _('学生明细') }}</h2>
+    {% if report.students_rows %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 160px;">{{ _('学生') }}</th>
+            <th style="width: 80px;">{{ _('副本') }}</th>
+            <th style="width: 90px;">{{ _('已完成') }}</th>
+            <th style="width: 110px;">{{ _('平均产率') }}</th>
+            <th style="width: 160px;">{{ _('最近活动') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report.students_rows %}
+          <tr>
+            <td>{{ row.student }}</td>
+            <td>{{ row.copies }}</td>
+            <td>{{ row.done }}</td>
+            <td>{% if row.yield_avg is not none %}{{ row.yield_avg }}%{% else %}—{% endif %}</td>
+            <td>{{ row.last.strftime('%Y-%m-%d %H:%M') if row.last else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">{{ _('还没有学生开始副本。') }}</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{# 领用/归还台账（app/chemical_experiments_routes.py 的 chem.borrows）：
+   一瓶试剂从库架到实验台再回来，一条单走完 pending → approved →
+   borrowed → returned；管控物质一条单多一道审批。 #}
+
+{% block page_title %}{{ _('试剂领用') }} · {{ _('Chemical experiments') }}{% endblock %}
+{% block page_heading %}{{ _('试剂领用') }}{% endblock %}
+{% block page_subtitle %}{{ _('领用、审批、归还：一瓶试剂从库架到实验台') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="{{ url_for('chem.index') }}">{{ icon('back') }} {{ _('返回方案') }}</a>
+{% endblock %}
+
+{% block content %}
+<section class="card p-4">
+  <form method="get" action="{{ url_for('chem.borrows') }}" class="flex flex-wrap items-end gap-2 mb-3">
+    <label class="grid gap-1 text-[13px]">
+      <span>{{ _('状态') }}</span>
+      <select name="status" onchange="this.form.submit()">
+        <option value="">{{ _('全部') }}</option>
+        {% for st in statuses %}
+        <option value="{{ st }}" {% if status == st %}selected{% endif %}>{{ labels.get(st, st) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit" class="btn">{{ _('筛选') }}</button></noscript>
+  </form>
+  {% if rows %}
+  <div class="dt-scroll">
+    <table class="dt">
+      <thead>
+        <tr>
+          <th style="width: 70px;">{{ _('单号') }}</th>
+          <th style="width: 180px;">{{ _('试剂瓶') }}</th>
+          <th style="width: 160px;">{{ _('实验') }}</th>
+          <th style="width: 110px;">{{ _('申请人') }}</th>
+          <th style="width: 100px;">{{ _('状态') }}</th>
+          <th style="width: 90px;">{{ _('管控') }}</th>
+          <th style="width: 150px;">{{ _('应归还') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>#{{ row.order.number }}</td>
+          <td>{{ row.bottle }}</td>
+          <td>{{ row.order.experiment_name or '—' }}{{ ' · ' ~ row.course if row.course else '' }}</td>
+          <td>{{ row.order.requester or '—' }}</td>
+          <td>
+            {% if row.overdue %}<span class="badge badge-warn">{{ _('超期') }}</span>
+            {% else %}{{ labels.get(row.order.status, row.order.status) }}{% endif %}
+          </td>
+          <td>
+            {% if row.controlled %}
+            <span class="badge badge-warn">{{ row.controlled_type or _('管控') }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ row.order.due_at.strftime('%Y-%m-%d') if row.order.due_at else '—' }}</td>
+          <td class="text-right">
+            {% if row.order.status == 'pending' and g.user.username != row.order.requester %}
+            <form method="post" action="{{ url_for('chem.borrow_decide', order_id=row.order.id) }}" class="inline">
+              <input type="hidden" name="decision" value="approve">
+              <button type="submit" class="btn">{{ icon('check') }} {{ _('批准') }}</button>
+            </form>
+            <form method="post" action="{{ url_for('chem.borrow_decide', order_id=row.order.id) }}" class="inline">
+              <input type="hidden" name="decision" value="reject">
+              <button type="submit" class="btn">{{ _('拒绝') }}</button>
+            </form>
+            {% elif row.order.status == 'approved' %}
+            <form method="post" action="{{ url_for('chem.borrow_sign_out', order_id=row.order.id) }}" class="inline">
+              <button type="submit" class="btn btn-primary">{{ icon('flask') }} {{ _('领出') }}</button>
+            </form>
+            {% elif row.order.status == 'borrowed' %}
+            <form method="post" action="{{ url_for('chem.borrow_return', order_id=row.order.id) }}"
+                  class="inline flex flex-wrap items-end gap-1">
+              <input type="text" name="returned" size="4" placeholder="{{ _('归还量') }}">
+              <input type="text" name="loss" size="4" placeholder="{{ _('损耗') }}">
+              <select name="outcome">
+                <option value="returned">{{ _('已归还') }}</option>
+                <option value="partially_returned">{{ _('部分归还') }}</option>
+                <option value="written_off">{{ _('损耗核销') }}</option>
+              </select>
+              <button type="submit" class="btn">{{ icon('back') }} {{ _('归还') }}</button>
+            </form>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted">{{ _('还没有领用单。在化学实验方案页点「生成领用单」，方案里的试剂会按库存瓶子各成一条。') }}</p>
+  {% endif %}
+</section>
+{% endblock %}

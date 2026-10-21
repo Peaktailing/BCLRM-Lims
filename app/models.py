@@ -2141,6 +2141,9 @@ class ChemicalExperiment(Base):
     title: Mapped[str] = mapped_column(String(200), index=True)
     kind: Mapped[str] = mapped_column(String(20), default="synthesis", index=True)   # CHEMICAL_EXPERIMENT_KINDS
     course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    # 学生副本指向它复制自的模板；课程外的方案为 NULL
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("chemical_experiments.id"),
+                                                    nullable=True, index=True)
     # {"reactants": [[cas, coefficient], …], "products": [[cas, coefficient], …]}
     reaction_json: Mapped[str] = mapped_column(Text, default="")
     # [{"cas": …, "name": …, "role": reactant|catalyst|solvent|workup}]
@@ -2160,6 +2163,7 @@ class ChemicalExperiment(Base):
     done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     course: Mapped["ExperimentCourse | None"] = relationship()
+    template: Mapped["ChemicalExperiment | None"] = relationship(remote_side="ChemicalExperiment.id")
 
 
 class AppSetting(Base):

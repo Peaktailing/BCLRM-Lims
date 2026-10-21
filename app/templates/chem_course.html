@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{# 一门课程（app/chemical_experiments_routes.py 的 chem.course）：
+   模板 → 学生副本 → 台上称量 → 学期用量。编辑区给能改的人；
+   模板、副本、用量与学生表给所有人。 #}
+
+{% block page_title %}{{ course.name }} · {{ _('实验课程') }}{% endblock %}
+{% block page_heading %}{{ course.name }}{% endblock %}
+{% block page_subtitle %}{{ (course.term ~ ' · ' ~ course.teacher) if course.term or course.teacher else _('化学实验课程') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="{{ url_for('chem.courses') }}">{{ icon('back') }} {{ _('返回课程') }}</a>
+  <a class="btn" href="{{ url_for('chem.course_report', course_id=course.id) }}">{{ icon('chart') }} {{ _('学期报告') }}</a>
+  <a class="btn" href="{{ url_for('chem.new') }}">{{ icon('plus') }} {{ _('新建方案') }}</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid gap-4">
+
+  {# ---------------------------------------------------------------- 课程信息 #}
+  <section class="card p-4">
+    <form method="post" action="{{ url_for('chem.course_update', course_id=course.id) }}"
+          class="flex flex-wrap items-end gap-3" style="max-width: 860px;">
+      <label class="grid gap-1 text-[13px]" style="min-width: 200px; flex: 1;">
+        <span>{{ _('课程名称') }}</span>
+        <input type="text" name="name" maxlength="200" value="{{ course.name }}"
+               {% if not may_edit %}disabled{% endif %}>
+      </label>
+      <label class="grid gap-1 text-[13px]" style="min-width: 140px;">
+        <span>{{ _('学期') }}</span>
+        <input type="text" name="term" maxlength="40" value="{{ course.term }}"
+               placeholder="2026-2027-1" {% if not may_edit %}disabled{% endif %}>
+      </label>
+      <label class="grid gap-1 text-[13px]" style="min-width: 120px;">
+        <span>{{ _('教师') }}</span>
+        <input type="text" name="teacher" maxlength="80" value="{{ course.teacher }}"
+               {% if not may_edit %}disabled{% endif %}>
+      </label>
+      <label class="grid gap-1 text-[13px]" style="min-width: 110px;">
+        <span>{{ _('在册学生') }}</span>
+        <input type="number" name="student_count" min="0" value="{{ course.student_count }}"
+               {% if not may_edit %}disabled{% endif %}>
+      </label>
+      <label class="grid gap-1 text-[13px]" style="min-width: 220px; flex: 1;">
+        <span>{{ _('备注') }}</span>
+        <input type="text" name="notes" maxlength="500" value="{{ course.notes }}"
+               {% if not may_edit %}disabled{% endif %}>
+      </label>
+      {% if may_edit %}
+      <button type="submit" class="btn">{{ icon('check') }} {{ _('保存') }}</button>
+      {% endif %}
+    </form>
+  </section>
+
+  {# ---------------------------------------------------------------- 模板与副本 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('flask') }} {{ _('模板与副本') }}</h2>
+    {% if templates %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 260px;">{{ _('模板方案') }}</th>
+            <th style="width: 90px;">{{ _('类型') }}</th>
+            <th style="width: 130px;">{{ _('副本') }}</th>
+            <th style="width: 130px;">{{ _('已完成') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in templates %}
+          {% set copies = copies_of.get(t.id, []) %}
+          <tr>
+            <td><a href="{{ url_for('chem.detail', experiment_id=t.id) }}">{{ t.title }}</a></td>
+            <td>{{ t.kind }}</td>
+            <td>
+              {{ copies|length }}
+              {% if course.student_count %}
+              <span class="text-muted">/ {{ course.student_count }}</span>
+              {% endif %}
+            </td>
+            <td>{{ copies|selectattr('status', 'equalto', 'done')|list|length }}</td>
+            <td class="text-right">
+              {% if t.status == 'template' %}
+              <form method="post" action="{{ url_for('chem.start', experiment_id=t.id) }}" class="inline">
+                <button type="submit" class="btn">{{ icon('flask') }} {{ _('开始我的副本') }}</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-[12px] text-muted">{{ _('学生用自己的账号点「开始我的副本」；副本继承模板的方程与物质清单，称量与产率各记各的。') }}</p>
+    {% else %}
+    <p class="text-muted">{{ _('这门课还没有模板方案。新建方案时选择本课程并建为模板。') }}</p>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 用量统计 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('chart') }} {{ _('学期用量') }}</h2>
+    {% if usage %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 180px;">{{ _('物质') }}</th>
+            <th style="width: 120px;">{{ _('CAS 号') }}</th>
+            <th style="width: 110px;">{{ _('总用量') }}</th>
+            <th style="width: 110px;">{{ _('人均') }}</th>
+            <th style="width: 90px;">{{ _('学生数') }}</th>
+            <th style="width: 110px;">{{ _('库存') }}</th>
+            <th style="width: 140px;">{{ _('管控') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in usage %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.cas }}</td>
+            <td>{{ '%.2f'|format(row.grams) }} g</td>
+            <td>{{ '%.3f'|format(row.per_student) }} g</td>
+            <td>{{ row.students }}</td>
+            <td>
+              {% if row.in_stock %}
+                {{ row.bottles }} {{ _('瓶') }}
+              {% else %}
+                <span class="text-warn-700">{{ _('无库存') }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.controlled %}
+              <span class="badge badge-warn">{{ row.controlled_type or _('管控') }} · {{ _('需审批') }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-[12px] text-muted">{{ _('总用量取自各副本的「台上实际称量」；人均 = 总用量 ÷ 称过该物质的学生数。') }}</p>
+    {% else %}
+    <p class="text-muted">{{ _('还没有学生提交称量数据。副本里填写「台上实际称量」后，这里按物质汇总。') }}</p>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 学生 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('user') }} {{ _('学生') }}</h2>
+    {% if students %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 160px;">{{ _('学生') }}</th>
+            <th style="width: 80px;">{{ _('副本') }}</th>
+            <th style="width: 90px;">{{ _('已完成') }}</th>
+            <th style="width: 110px;">{{ _('平均产率') }}</th>
+            <th style="width: 160px;">{{ _('最近活动') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in students %}
+          <tr>
+            <td>{{ row.student }}</td>
+            <td>{{ row.copies }}</td>
+            <td>{{ row.done }}</td>
+            <td>{% if row.yield_avg is not none %}{{ row.yield_avg }}%{% else %}—{% endif %}</td>
+            <td>{{ row.last.strftime('%Y-%m-%d %H:%M') if row.last else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">{{ _('还没有学生开始副本。') }}</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

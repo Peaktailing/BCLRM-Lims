@@ -25,7 +25,9 @@ from flask import Blueprint, abort, flash, g, redirect, render_template, request
 from sqlalchemy import select
 
 from . import audit
+from . import chemical_courses as course_plans
 from . import chemical_experiments as plans
+from . import reagent_workflow
 from .db import SessionLocal
 from .models import CHEMICAL_EXPERIMENT_KINDS, ChemicalExperiment, ExperimentCourse
 from .chemlib import Reaction
@@ -208,9 +210,14 @@ def update(experiment_id: int):
         reactants, products = _parse_sides(form.get("reaction", ""))
         experiment.title = (form.get("title") or "").strip()[:200] or experiment.title
         experiment.procedure = form.get("procedure") or ""
-        experiment.product_cas = (form.get("product_cas") or "").strip()[:20]
+        # A blank box means "not typed", not "erased": the product the
+        # yield counts against stays the one the plan named.
+        experiment.product_cas = (form.get("product_cas") or "").strip()[:20] or experiment.product_cas
+        # An empty course box means "not typed", not "no course": a student
+        # weighing at the bench posts the weighed rows, and the copy keeps
+        # the course it was started from.
         course_id = form.get("course_id") or None
-        experiment.course_id = int(course_id) if course_id else None
+        experiment.course_id = int(course_id) if course_id else experiment.course_id
         if reactants and products:
             experiment.reaction_json = plans.reaction_to_json(
                 plans.Reaction(reactants=reactants, products=products))
@@ -311,3 +318,188 @@ def start(experiment_id: int):
             pass
         s.commit()
         return redirect(url_for("chem.detail", experiment_id=copy.id))
+
+
+# ---------------------------------------------------------------- the course
+
+@bp.get("/courses")
+def courses():
+    """The teaching loop's top: every course with its counts, and the
+    short form that starts one."""
+    with SessionLocal() as s:
+        rows = course_plans.courses(s)
+    return render_template("chem_courses.html", rows=rows)
+
+
+@bp.post("/courses")
+def course_create():
+    name = (request.form.get("name") or "").strip()[:200]
+    if not name:
+        flash("请填写课程名称", "error")
+        return redirect(url_for("chem.courses"))
+    with SessionLocal() as s:
+        course = ExperimentCourse(
+            name=name, term=(request.form.get("term") or "").strip()[:40],
+            teacher=(request.form.get("teacher") or "").strip()[:80],
+            student_count=int(request.form.get("student_count") or 0),
+            notes=request.form.get("notes") or "",
+            created_by=g.user.username)
+        s.add(course)
+        s.flush()
+        with audit.batch(s, "create", f"experiment course {course.name}"[:200],
+                         "experiment_courses"):
+            pass
+        s.commit()
+        return redirect(url_for("chem.course", course_id=course.id))
+
+
+@bp.get("/courses/<int:course_id>")
+def course(course_id: int):
+    """One course: its templates, who has started them, and what the
+    students weighed — the term's usage, per substance."""
+    with SessionLocal() as s:
+        course = s.get(ExperimentCourse, course_id)
+        if course is None:
+            abort(404)
+        experiments = list(s.scalars(select(ChemicalExperiment).where(
+            ChemicalExperiment.course_id == course_id).order_by(
+            ChemicalExperiment.status, ChemicalExperiment.id.desc())))
+        templates = [e for e in experiments if e.status == "template"]
+        usage = course_plans.usage(s, course_id)
+        students = course_plans.student_rows(s, course_id)
+        copies_of = {t.id: course_plans.copies_of(s, template_id=t.id) for t in templates}
+        mine = g.user.username
+    return render_template("chem_course.html", course=course, templates=templates,
+                           copies_of=copies_of, usage=usage, students=students,
+                           may_edit=bool(g.user.role == "admin" or course.created_by == mine))
+
+
+@bp.post("/courses/<int:course_id>/update")
+def course_update(course_id: int):
+    with SessionLocal() as s:
+        course = s.get(ExperimentCourse, course_id)
+        if course is None:
+            abort(404)
+        if g.user.role != "admin" and course.created_by != g.user.username:
+            abort(403)
+        course.name = (request.form.get("name") or "").strip()[:200] or course.name
+        course.term = (request.form.get("term") or "").strip()[:40]
+        course.teacher = (request.form.get("teacher") or "").strip()[:80]
+        course.notes = request.form.get("notes") or ""
+        raw = request.form.get("student_count") or "0"
+        try:
+            course.student_count = max(0, int(raw))
+        except ValueError:
+            pass
+        with audit.batch(s, "update", f"experiment course {course.name}"[:200],
+                         "experiment_courses"):
+            pass
+        s.commit()
+    return redirect(url_for("chem.course", course_id=course_id))
+
+
+@bp.get("/courses/<int:course_id>/report")
+def course_report(course_id: int):
+    """The term's report: what was planned, what was weighed, what is
+    still to come — one page a teacher can print or hand on."""
+    with SessionLocal() as s:
+        course = s.get(ExperimentCourse, course_id)
+        if course is None:
+            abort(404)
+        report = course_plans.report(s, course)
+    return render_template("chem_course_report.html", report=report)
+
+
+# ---------------------------------------------------------------- the borrow flow
+
+@bp.get("/borrows")
+def borrows():
+    """The sign-out desk: every borrow order, optionally one status."""
+    status = request.args.get("status") or ""
+    with SessionLocal() as s:
+        rows = reagent_workflow.orders(s, status=status)
+    return render_template("chem_borrows.html", rows=rows, status=status,
+                           labels=reagent_workflow.STATUS_LABELS,
+                           statuses=reagent_workflow.BORROW_STATUSES)
+
+
+@bp.post("/<int:experiment_id>/borrow")
+def borrow_from_plan(experiment_id: int):
+    """The plan's substances, as borrow orders: one per bottle the lab
+    has, controlled ones waiting for an approver."""
+    with SessionLocal() as s:
+        experiment = s.get(ChemicalExperiment, experiment_id)
+        if experiment is None:
+            abort(404)
+        made = reagent_workflow.from_plan(s, experiment, g.user.username)
+        with audit.batch(s, "create",
+                         f"borrow orders from chemical experiment {experiment.title}"[:200],
+                         "reagent_borrow_orders"):
+            pass
+        s.commit()
+    if made["made"]:
+        message = f"已生成 {len(made['made'])} 条领用单"
+        if made["pending"]:
+            message += f"，其中 {made['pending']} 条为管控物质，待审批"
+    else:
+        message = "方案所需试剂均无可用库存" + (f"（跳过：{'、'.join(made['skipped'])}）" if made["skipped"] else "")
+    flash(message, "info")
+    return redirect(url_for("chem.detail", experiment_id=experiment_id))
+
+
+@bp.post("/borrows/<int:order_id>/decide")
+def borrow_decide(order_id: int):
+    """Approve or reject a pending order. A controlled order's borrower
+    is never its approver."""
+    approve = (request.form.get("decision") or "approve") == "approve"
+    with SessionLocal() as s:
+        message = reagent_workflow.decide(s, order_id, g.user, approve)
+        if message:
+            flash(message, "error")
+            return redirect(url_for("chem.borrows"))
+        with audit.batch(s, "update", f"borrow order {order_id} "
+                         f"{'approved' if approve else 'rejected'}", "reagent_borrow_orders"):
+            pass
+        s.commit()
+    flash("已批准" if approve else "已拒绝", "info")
+    return redirect(url_for("chem.borrows", status=request.form.get("back") or ""))
+
+
+@bp.post("/borrows/<int:order_id>/sign-out")
+def borrow_sign_out(order_id: int):
+    with SessionLocal() as s:
+        message = reagent_workflow.sign_out(s, order_id, g.user)
+        if message:
+            flash(message, "error")
+            return redirect(url_for("chem.borrows"))
+        with audit.batch(s, "update", f"borrow order {order_id} signed out",
+                         "reagent_borrow_orders"):
+            pass
+        s.commit()
+    flash("已领出", "info")
+    return redirect(url_for("chem.borrows", status=request.form.get("back") or ""))
+
+
+@bp.post("/borrows/<int:order_id>/return")
+def borrow_return(order_id: int):
+    """The bottle comes back: how much, how much lost, and the day it was
+    first opened goes onto its attrs."""
+    def _num(field: str) -> float:
+        try:
+            return float((request.form.get(field) or "0").replace(",", "."))
+        except ValueError:
+            return 0.0
+    with SessionLocal() as s:
+        message = reagent_workflow.record_return(
+            s, order_id, g.user, returned=_num("returned"), loss=_num("loss"),
+            outcome=request.form.get("outcome") or "returned",
+            remark=request.form.get("remark") or "")
+        if message:
+            flash(message, "error")
+            return redirect(url_for("chem.borrows"))
+        with audit.batch(s, "update", f"borrow order {order_id} returned",
+                         "reagent_borrow_orders"):
+            pass
+        s.commit()
+    flash("已归还", "info")
+    return redirect(url_for("chem.borrows", status=request.form.get("back") or ""))

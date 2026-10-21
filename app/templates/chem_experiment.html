@@ -133,6 +133,10 @@
       <button type="submit" class="btn">{{ icon('cart') }} {{ _('为缺料生成采购需求') }}</button>
       <span class="text-[12px] text-muted">{{ _('缺什么就生成什么需求；已有需求的不会重复。') }}</span>
     </form>
+    <form method="post" action="{{ url_for('chem.borrow_from_plan', experiment_id=experiment.id) }}" class="mt-3">
+      <button type="submit" class="btn">{{ icon('flask') }} {{ _('生成领用单') }}</button>
+      <span class="text-[12px] text-muted">{{ _('有库存的试剂按瓶子各成一条领用单；管控物质待审批。台账在「试剂领用」页。') }}</span>
+    </form>
     {% else %}
     <p class="text-muted">{{ _('方案里还没有物质。在物质清单里按行填写。') }}</p>
     {% endif %}
