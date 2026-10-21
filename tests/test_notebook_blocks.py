@@ -35,6 +35,9 @@ class Blocks(unittest.TestCase):
     def test_a_formulation_works_out_moles_and_equivalents_and_a_log_is_a_line(self):
         self.check("formulation.check.mjs")
 
+    def test_a_reaction_works_out_equivalents_the_limiting_reagent_and_the_yield(self):
+        self.check("reaction.check.mjs")
+
     def test_the_experiment_block_names_the_lot_and_an_expired_one(self):
         self.check("experiment.check.mjs")
 

@@ -121,6 +121,7 @@ export const ITEMS = [
   { id: 'protocol', group: 'Bench', icon: 'task', label: 'Protocol', hint: 'Insert a lab or common protocol', keywords: 'protocol method procedure sop steps library', run: () => window.dispatchEvent(new CustomEvent('nb:open-panel', { detail: { name: 'protocols' } })) },
   { id: 'recipe', group: 'Bench', icon: 'flask', label: 'Buffer recipe', hint: 'Masses and volumes for any volume', keywords: 'buffer media solution pbs recipe', run: block('recipe') },
   { id: 'formulation', group: 'Bench', icon: 'flask', label: 'Formulation', hint: 'Chemicals by mass: moles, equivalents, wt %', keywords: 'formulation reaction synthesis stoichiometry moles mmol equivalents equiv chemicals weigh mass batch 配方 摩尔', run: block('formulation') },
+  { id: 'reaction', group: 'Bench', icon: 'flask', label: 'Reaction', hint: 'An equation: equivalents, limiting reagent, theoretical and actual yield', keywords: 'reaction equation stoichiometry limiting reagent theoretical yield percent yield cas 反应 方程式 产率 当量 限制试剂', run: block('reaction') },
   ...Object.entries(CALC_TYPES).map(([type, label]) => ({
     id: `calc-${type}`, group: 'Bench', icon: 'calc', label, hint: 'Calculator', keywords: `calculator ${type}`, run: block('calc', defaultCalc(type)),
   })),

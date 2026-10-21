@@ -957,7 +957,7 @@ def _empty_block(kind: str, raw: str) -> str:
     """A block with its setup kept and its results gone: a data sheet keeps
     its columns and each row's first cell; a plate reader its layout of
     standards and blanks; a qPCR block its reference gene and control; a
-    formulation its chemicals and equivalents."""
+    formulation its chemicals and equivalents; a reaction its equation."""
     try:
         data = json.loads(raw)
     except ValueError:
@@ -980,6 +980,15 @@ def _empty_block(kind: str, raw: str) -> str:
             if isinstance(c, dict):
                 c.pop("done", None)
                 c.pop("lot", None)
+    elif kind == "reaction" and isinstance(data.get("sides"), list):
+        # The equation stays; this run's weighings, the mass that came out
+        # and the yields recorded before go.
+        for r in data["sides"]:
+            if isinstance(r, dict):
+                r.pop("weighed", None)
+                r.pop("unit", None)
+        data.pop("actual", None)
+        data.pop("log", None)
     else:
         return raw
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
@@ -2366,6 +2375,137 @@ def chemicals():
     with SessionLocal() as s:
         has_database = bool(chemical_modules(s))
         return jsonify({"ok": True, "items": chemicals_search(s, query), "has_database": has_database})
+
+
+# ---------------------------------------------------------------- reactions in notebook pages
+
+def _coefficient(value) -> float | None:
+    try:
+        n = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def reaction_substances(session, cas_list, rows) -> list[dict]:
+    """What the lab's records say about the CAS numbers (and the names) a
+    notebook Reaction block's rows carry.
+
+    A chemical reference first (its name, formula and molecular weight),
+    then a bottle in one of the lab's chemical databases, then a formula
+    the row itself typed, weighed by chemlib. A CAS number nothing knows
+    comes back with no molecular weight; cas_valid says whether its check
+    digit agrees, since a typo finds the wrong substance or none at all."""
+    from .chemlib import FormulaError, cas_is_valid, molecular_weight
+    from .models import ChemicalReference, InventoryItem
+
+    wanted: list[str] = []
+    for cas in list(cas_list) + [r.get("cas") for r in rows]:
+        cas = (cas or "").strip()
+        if cas and cas not in wanted:
+            wanted.append(cas)
+    typed = {r.get("cas"): (r.get("formula") or "") for r in rows if r.get("cas")}
+    module_ids = [m.id for m in chemical_modules(session)]
+    out = []
+    for cas in wanted:
+        found = {"cas": cas, "name": "", "formula": "", "mw": None, "source": "", "cas_valid": cas_is_valid(cas)}
+        ref = session.scalar(select(ChemicalReference).where(ChemicalReference.cas == cas))
+        if ref is not None:
+            found.update(name=ref.name or "", formula=ref.formula or "",
+                         mw=ref.molecular_weight or None, source="reference")
+        elif module_ids:
+            for item in session.scalars(select(InventoryItem).where(
+                    InventoryItem.module_id_fk.in_(module_ids)).order_by(InventoryItem.name)):
+                attrs = item.attrs_dict
+                if str(attrs.get("cas") or "").strip() == cas:
+                    found.update(name=item.name or "", formula=str(attrs.get("formula") or ""),
+                                 mw=_positive(attrs.get("mw")), source="inventory")
+                    break
+        if not found["mw"] and not found["formula"] and typed.get(cas):
+            found["formula"] = typed[cas]
+        if found["formula"] and not found["mw"]:
+            try:
+                found["mw"] = round(molecular_weight(found["formula"]), 2)
+                if not found["source"]:
+                    found["source"] = "formula"
+            except FormulaError:
+                pass
+        out.append(found)
+    # A row carrying a name but no CAS number: a reference may name it.
+    for row in rows:
+        name = (row.get("name") or "").strip()
+        if row.get("cas") or not name:
+            continue
+        ref = session.scalar(select(ChemicalReference).where(ChemicalReference.name == name))
+        if ref is None:
+            ref = session.scalar(select(ChemicalReference).where(
+                ChemicalReference.name.ilike(like_pattern(name), escape="\\"))
+                .order_by(ChemicalReference.name).limit(1))
+        if ref is not None and ref.cas:
+            entry = {"cas": ref.cas, "name": ref.name or name, "formula": ref.formula or "",
+                     "mw": ref.molecular_weight or None, "source": "reference",
+                     "cas_valid": cas_is_valid(ref.cas)}
+            if entry["formula"] and not entry["mw"]:
+                try:
+                    entry["mw"] = round(molecular_weight(entry["formula"]), 2)
+                except FormulaError:
+                    pass
+            out.append(entry)
+    return out
+
+
+def reaction_balance(substances, sides) -> dict:
+    """Whether the equation conserves every element (chemlib
+    balance_check): the formulas the records know, and the CAS numbers
+    whose formula is missing, so the block can say which to fill in."""
+    from .chemlib import FormulaError, Reaction, balance_check
+    formulas = {s["cas"]: s["formula"] for s in substances if s["formula"]}
+    reaction = Reaction(reactants=[(r["cas"], _coefficient(r["coef"])) for r in sides["reactants"] if r["cas"]],
+                        products=[(r["cas"], _coefficient(r["coef"])) for r in sides["products"] if r["cas"]])
+    missing = sorted({r["cas"] for side in ("reactants", "products") for r in sides[side]
+                      if r["cas"] and r["cas"] not in formulas})
+    if any(c is None for _cas, c in reaction.reactants + reaction.products):
+        return {"checked": False, "problems": ["a coefficient is missing or not a number"], "missing": missing}
+    if missing:
+        return {"checked": False, "problems": [], "missing": missing}
+    if not reaction.reactants or not reaction.products:
+        return {"checked": False, "problems": ["an equation needs a reactant and a product"], "missing": []}
+    try:
+        return {"checked": True, "problems": balance_check(reaction, {}, formulas), "missing": []}
+    except FormulaError as exc:
+        return {"checked": False, "problems": [str(exc)], "missing": missing}
+
+
+def _reaction_sides(data) -> dict:
+    sides = {}
+    for side in ("reactants", "products"):
+        rows = []
+        for row in data.get(side) or []:
+            if not isinstance(row, dict):
+                continue
+            rows.append({"cas": str(row.get("cas") or "").strip(),
+                         "coef": row.get("coef"), "name": str(row.get("name") or "").strip(),
+                         "formula": str(row.get("formula") or "").strip()})
+        sides[side] = rows
+    return sides
+
+
+@bp.post("/api/reaction")
+def reaction():
+    """A notebook Reaction block's server side: the substances its CAS
+    numbers name, and whether the equation balances.
+
+    The block does its own arithmetic (frontend/src/blocks/reaction.js,
+    mirroring chemlib); what only the lab's records know — the name,
+    formula and molecular weight behind a CAS number, and the elements
+    that balance an equation — comes from here."""
+    data = request.get_json(silent=True) or {}
+    sides = _reaction_sides(data)
+    cas_list = [str(c).strip() for c in (data.get("cas_list") or []) if str(c).strip()]
+    with SessionLocal() as s:
+        substances = reaction_substances(s, cas_list, sides["reactants"] + sides["products"])
+        balance = reaction_balance(substances, sides) if data.get("check") else None
+        return jsonify({"ok": True, "substances": substances, "balance": balance})
 
 
 # ---------------------------------------------------------------- built-in starters and recipes

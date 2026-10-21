@@ -21,6 +21,7 @@ import { el } from '../util.js';
 import { mountSheet, defaultSheet } from './sheet.js';
 import { mountRecipe, defaultRecipe } from './recipe.js';
 import { mountFormulation, defaultFormulation } from './formulation.js';
+import { mountReaction, defaultReaction } from './reaction.js';
 import { mountCalc, defaultCalc, CALC_TYPES } from './calc.js';
 import { mountPlate, defaultPlate } from './plate.js';
 import { mountQpcr, defaultQpcr } from './qpcr.js';
@@ -32,6 +33,7 @@ export const BLOCKS = {
   sheet: { label: 'Data sheet', json: true, mount: mountSheet, make: defaultSheet },
   recipe: { label: 'Buffer recipe', json: true, mount: mountRecipe, make: defaultRecipe },
   formulation: { label: 'Formulation', json: true, mount: mountFormulation, make: defaultFormulation },
+  reaction: { label: 'Reaction', json: true, mount: mountReaction, make: defaultReaction },
   calc: { label: 'Calculator', json: true, mount: mountCalc, make: () => defaultCalc('dilution') },
   plate: { label: 'Plate reader', json: true, mount: mountPlate, make: defaultPlate },
   qpcr: { label: 'qPCR ΔΔCt', json: true, mount: mountQpcr, make: defaultQpcr },

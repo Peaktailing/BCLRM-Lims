@@ -190,6 +190,27 @@ tr:has(input[data-c="done"]:checked) .nb-form-mol b { text-decoration: line-thro
 .nb-chem-menu small { display: block; color: var(--color-muted); font-size: 11px; }
 .nb-chem-menu p { margin: 6px; }
 
+/* Reaction (blocks/reaction.js): the equation's table, with what was
+   weighed and what the arithmetic makes of it. */
+.tiptap-editor-host .nb-rxn-table { min-width: 760px; }
+.nb-rxn-table col.c-coef { width: 56px; }
+.nb-rxn-arrow td { padding: 2px 0 !important; color: var(--color-muted); font-size: 15px; text-align: center; }
+.nb-rxn-arrow span { display: inline-block; padding: 0 10px; }
+.nb-rxn-table tr.is-product { background: color-mix(in srgb, var(--color-brand-600) 5%, transparent); }
+.nb-rxn-table tr.is-limiting .nb-form-name { font-weight: 600; }
+.nb-rxn-table tr.is-limiting .nb-rxn-mol b::after { content: " · limiting"; color: var(--color-brand-700); font-size: 11px; font-weight: 500; }
+.nb-rxn-tick .nb-muted { font-size: 14px; }
+.nb-rxn-total { margin: 8px 0; font-variant-numeric: tabular-nums; }
+.nb-rxn-yield { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.nb-rxn-yield-label { display: inline-flex; align-items: center; gap: 5px; color: var(--color-muted); font-size: 12px; }
+.nb-rxn-yield-label input { width: 76px; text-align: right; }
+.nb-rxn-unit { color: var(--color-muted); }
+.nb-rxn-yield-line { font-variant-numeric: tabular-nums; }
+.nb-rxn-check { margin: 0 0 8px; min-height: 4px; }
+.nb-rxn-ok { color: var(--color-ok-600); font-size: 12px; }
+.nb-rxn-log { margin: 10px 0 4px; }
+.nb-rxn-log .nb-stats-table { display: block; max-width: 100%; }
+
 /* ---------------------------------------------------------------- calculators */
 
 .nb-calc-head { margin-bottom: 8px; }
