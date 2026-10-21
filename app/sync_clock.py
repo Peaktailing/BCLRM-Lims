@@ -31,6 +31,7 @@ SYNCED_TABLES |= {"experiment_courses", "reagent_borrow_orders", "reagent_return
                   "reagent_allocation_orders", "reagent_demands", "manager_change_logs",
                   "reagent_purchase_plans", "reagent_purchase_orders"}   # the reagent document flow (teaching labs, from BCLRM)
 SYNCED_TABLES |= {"controlled_list"}   # a phone signing a bottle out checks it before the shelf
+SYNCED_TABLES |= {"chemical_experiments"}   # a plan followed at the bench, and the yield recorded there
 
 
 def _table(obj) -> str | None:

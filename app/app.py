@@ -172,6 +172,7 @@ from .stock_routes import bp as stocks_bp  # noqa: E402
 from .labels import bp as labels_bp  # noqa: E402
 from .admin_racks import bp as admin_racks_bp  # noqa: E402
 from . import rack_layout  # noqa: E402
+from .chemical_experiments_routes import bp as chem_bp  # noqa: E402  (chemistry plans: equation, stock, yield)
 
 app.register_blueprint(organism_bp)
 app.register_blueprint(inventory_bp)
@@ -180,6 +181,7 @@ app.register_blueprint(labels_bp)
 app.register_blueprint(admin_racks_bp)
 # A rack's new layout: what happens to what is in it (app/rack_layout.py).
 app.register_blueprint(rack_layout.bp)
+app.register_blueprint(chem_bp)
 
 # Sign in with Google or Microsoft (app/oidc.py); offered only when configured.
 from . import oidc  # noqa: E402
@@ -757,6 +759,10 @@ NAV_SECTIONS: list[dict] = [
              "endpoint": "calendar", "feature": "calendar"},
             {"key": "notebook", "label": "Notebook", "icon": "notebook", "feature": "notebook",
              "endpoint": "notebook", "match": ("notebook", "notebook_templates", "notebook_library")},
+            {"key": "chem", "label": "Chemical experiments", "short": "Chemistry", "icon": "flask",
+             "endpoint": "chem.index", "match": ("chem.index", "chem.new", "chem.detail",
+                                                 "chem.update", "chem.demands", "chem.record_yield",
+                                                 "chem.register_product", "chem.start")},
             {"key": "utilities", "label": "Utilities", "icon": "calculator", "endpoint": "utilities",
              "hint": "Bench calculators and reference data"},
         ],

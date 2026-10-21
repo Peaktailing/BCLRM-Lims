@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{# 化学实验方案（app/chemical_experiments_routes.py）：模板、进行中、已完成的记录。
+   一台天平、一个方案、一个产率 —— 这里的页面围绕这三件事。 #}
+
+{% block page_title %}{{ _('Chemical experiments') }}{% endblock %}
+{% block page_heading %}{{ _('Chemical experiments') }}{% endblock %}
+{% block page_subtitle %}{{ _('合成、滴定、提取、纯化的方案与记录：方程、库存、产率') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn btn-primary" href="{{ url_for('chem.new') }}">{{ icon('plus') }} {{ _('新建方案') }}</a>
+{% endblock %}
+
+{% block content %}
+<section class="card p-4">
+  {% if rows %}
+  <div class="dt-scroll">
+    <table class="dt">
+      <thead>
+        <tr>
+          <th style="width: 260px;">{{ _('方案') }}</th>
+          <th style="width: 110px;">{{ _('类型') }}</th>
+          <th style="width: 100px;">{{ _('状态') }}</th>
+          <th style="width: 160px;">{{ _('课程') }}</th>
+          <th style="width: 80px;">{{ _('物质数') }}</th>
+          <th style="width: 110px;">{{ _('产率') }}</th>
+          <th style="width: 120px;">{{ _('建立者') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><a href="{{ url_for('chem.detail', experiment_id=row.experiment.id) }}">{{ row.experiment.title }}</a></td>
+          <td>{{ row.experiment.kind }}</td>
+          <td>
+            {% if row.experiment.status == 'done' %}{{ _('已完成') }}
+            {% elif row.experiment.status == 'active' %}{{ _('进行中') }}
+            {% else %}{{ _('模板') }}{% endif %}
+          </td>
+          <td>{{ row.course.name if row.course else '—' }}</td>
+          <td>{{ row.reagents }}</td>
+          <td>
+            {% if row.experiment.yield_percent is not none %}{{ row.experiment.yield_percent }}%{% else %}—{% endif %}
+          </td>
+          <td>{{ row.experiment.created_by or '—' }}</td>
+          <td class="text-right">
+            {% if row.experiment.status == 'template' and not row.mine %}
+            <form method="post" action="{{ url_for('chem.start', experiment_id=row.experiment.id) }}" class="inline">
+              <button type="submit" class="btn">{{ icon('flask') }} {{ _('开始我的副本') }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted">{{ _('还没有化学实验方案。新建一个：写下方程，方案会按 CAS 号查库存、算当量、记产率。') }}</p>
+  {% endif %}
+</section>
+{% endblock %}

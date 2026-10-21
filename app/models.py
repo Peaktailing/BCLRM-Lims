@@ -24,6 +24,9 @@ ALLOCATION_STATUS_OPTIONS = ["pending", "done", "cancelled"]
 DEMAND_STATUS_OPTIONS = ["open", "planned", "ordered", "closed"]
 PURCHASE_PLAN_STATUS_OPTIONS = ["draft", "submitted", "approved", "rejected", "ordered"]
 PURCHASE_ORDER_STATUS_OPTIONS = ["draft", "ordered", "partial", "received", "cancelled"]
+# What kind of transformation a chemical experiment performs.
+CHEMICAL_EXPERIMENT_KINDS = ["synthesis", "titration", "extraction", "purification"]
+CHEMICAL_EXPERIMENT_STATUS_OPTIONS = ["template", "active", "done"]
 COLONY_VIEWS = [
     ("mice", "M"),
     ("cages", "C"),
@@ -2119,7 +2122,50 @@ class ReagentPurchaseOrder(Base):
     plan: Mapped["ReagentPurchasePlan | None"] = relationship(foreign_keys=[plan_id])
 
 
+class ChemicalExperiment(Base):
+    """一份化学实验方案/记录：合成、滴定、提取、纯化。
+
+    生物实验的 planned experiments 说的是动物分组和统计检验；这里说的是
+    反应方程和产率。方案里的每种物质按 CAS 号引用（chemlib.Reaction 的
+    序列化），实验完成后实际产量与理论产量给出产率——产物若为新物质，
+    一键登记成 ChemicalReference，全链条闭合。
+
+    模板（template）是给课程准备的：一门课（experiment_courses）的每个
+    学生做同一个实验时，各复制一份 active 记录，互不干扰。
+    """
+
+    __tablename__ = "chemical_experiments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="synthesis", index=True)   # CHEMICAL_EXPERIMENT_KINDS
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    # {"reactants": [[cas, coefficient], …], "products": [[cas, coefficient], …]}
+    reaction_json: Mapped[str] = mapped_column(Text, default="")
+    # [{"cas": …, "name": …, "role": reactant|catalyst|solvent|workup}]
+    reagents_json: Mapped[str] = mapped_column(Text, default="")
+    # {"cas": 实际称量质量(g)} —— 台上真正称的，不是方案上写的
+    weighed_json: Mapped[str] = mapped_column(Text, default="")
+    procedure: Mapped[str] = mapped_column(Text, default="")
+    product_cas: Mapped[str] = mapped_column(String(20), default="", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="template", index=True)   # template / active / done
+    # 结果：实际称得的质量与算出的产率（chemlib.percent_yield）
+    actual_yield_grams: Mapped[float | None] = mapped_column(Float, nullable=True)
+    yield_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    yield_warning: Mapped[str] = mapped_column(Text, default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(80), default="", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    course: Mapped["ExperimentCourse | None"] = relationship()
+
+
 class AppSetting(Base):
+    """Small lab-wide settings, e.g. the display name of a built-in database."""
+
+    __tablename__ = "app_settings"
     """Small lab-wide settings, e.g. the display name of a built-in database."""
 
     __tablename__ = "app_settings"

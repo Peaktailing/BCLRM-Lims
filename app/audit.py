@@ -50,6 +50,7 @@ TRACKED_TABLES |= {"experiment_courses", "reagent_borrow_orders", "reagent_retur
                    "reagent_allocation_orders", "reagent_demands", "manager_change_logs",
                    "reagent_purchase_plans", "reagent_purchase_orders"}   # the reagent document flow (teaching labs, from BCLRM)
 TRACKED_TABLES |= {"controlled_list"}   # who added or changed a controlled substance, and when
+TRACKED_TABLES |= {"chemical_experiments"}   # a chemistry experiment's plan, and its recorded yield
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
 TABLE_LABELS = {

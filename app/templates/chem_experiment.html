@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{# 一个化学实验方案（app/chemical_experiments_routes.py）：
+   方程与台上称量值 → 库存与管控 → 当量与理论产量 → 产率。
+   编辑区给能改的人；库存、算术和动作给所有人。 #}
+
+{% block page_title %}{{ experiment.title if experiment else _('新建方案') }} · {{ _('Chemical experiments') }}{% endblock %}
+{% block page_heading %}{{ experiment.title if experiment else _('新建化学实验方案') }}{% endblock %}
+{% block page_subtitle %}{{ _('按 CAS 号串起库存、管控与产率') }}{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="{{ url_for('chem.index') }}">{{ icon('back') }} {{ _('返回列表') }}</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid gap-4">
+
+  {# ---------------------------------------------------------------- 方案本体 #}
+  <section class="card p-4">
+    <form method="post" action="{{ url_for('chem.update', experiment_id=experiment.id) if experiment else url_for('chem.create') }}"
+          class="grid gap-3" style="max-width: 860px;">
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('标题') }}</span>
+        <input type="text" name="title" maxlength="200" value="{{ experiment.title if experiment else '' }}"
+               placeholder="{{ _('阿司匹林合成') }}" {% if experiment and not may_edit %}disabled{% endif %}>
+      </label>
+      <div class="flex flex-wrap gap-3">
+        <label class="grid gap-1 text-[13px]">
+          <span>{{ _('类型') }}</span>
+          <select name="kind" {% if experiment and not may_edit %}disabled{% endif %}>
+            {% for k in kinds %}<option value="{{ k }}" {% if experiment and experiment.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="grid gap-1 text-[13px]">
+          <span>{{ _('课程（可选）') }}</span>
+          <select name="course_id" {% if experiment and not may_edit %}disabled{% endif %}>
+            <option value="">{{ _('不归属课程') }}</option>
+            {% for c in courses %}
+            <option value="{{ c.id }}" {% if experiment and experiment.course_id == c.id %}selected{% endif %}>{{ c.name }}{{ ' · ' ~ c.term if c.term else '' }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% if not experiment %}
+        <label class="grid gap-1 text-[13px]">
+          <span>{{ _('建为') }}</span>
+          <select name="status">
+            <option value="template">{{ _('模板（课程可复制）') }}</option>
+            <option value="active">{{ _('进行中') }}</option>
+          </select>
+        </label>
+        {% endif %}
+      </div>
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('反应方程') }}</span>
+        <textarea name="reaction" rows="5" {% if experiment and not may_edit %}disabled{% endif %}
+                  placeholder="67-64-1 1&#10;78-93-3 1.2&#10;--&#10;50-78-6 1">{{ reaction_text }}</textarea>
+        <span class="text-[12px] text-muted">{{ _('每行「CAS号 系数」，系数省略为 1；-- 之前是反应物，之后是产物。') }}</span>
+      </label>
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('物质清单') }}</span>
+        <textarea name="reagents" rows="4" {% if experiment and not may_edit %}disabled{% endif %}
+                  placeholder="67-64-1 丙酮 reactant&#10;78-93-3 甲乙酮 reactant&#10;98-95-3 环己烷 solvent">{{ reagents_text }}</textarea>
+        <span class="text-[12px] text-muted">{{ _('每行「CAS号 名称 角色」，角色：reactant / catalyst / solvent / workup。') }}</span>
+      </label>
+      <div class="flex flex-wrap gap-3">
+        <label class="grid gap-1 text-[13px]" style="min-width: 220px; flex: 1;">
+          <span>{{ _('台上实际称量（克）') }}</span>
+          <textarea name="weighed" rows="3" {% if experiment and not may_edit %}disabled{% endif %}
+                    placeholder="67-64-1 0.5&#10;78-93-3 0.6">{{ weighed_text }}</textarea>
+          <span class="text-[12px] text-muted">{{ _('每行「CAS号 质量」。当量、限制试剂与理论产量都按它算。') }}</span>
+        </label>
+        <label class="grid gap-1 text-[13px]" style="min-width: 200px;">
+          <span>{{ _('产物 CAS 号') }}</span>
+          <input type="text" name="product_cas" maxlength="20" value="{{ experiment.product_cas if experiment else '' }}"
+                 placeholder="50-78-6" {% if experiment and not may_edit %}disabled{% endif %}>
+        </label>
+      </div>
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('步骤（Markdown）') }}</span>
+        <textarea name="procedure" rows="6" {% if experiment and not may_edit %}disabled{% endif %}
+                  placeholder="{{ _('1. 称取水杨酸…') }}">{{ experiment.procedure if experiment else '' }}</textarea>
+      </label>
+      {% if may_edit %}
+      <div><button type="submit" class="btn btn-primary">{{ icon('check') }}{{ _('保存方案') if experiment else _('创建方案') }}</button></div>
+      {% else %}
+      <p class="text-[12px] text-muted">{{ _('只有方案的建立者和管理员可以修改。你可以复制一份作为自己的记录。') }}</p>
+      {% endif %}
+    </form>
+  </section>
+
+  {% if experiment %}
+  {# ---------------------------------------------------------------- 库存与管控 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('box') }} {{ _('库存与管控') }}</h2>
+    {% if stock %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 180px;">{{ _('物质') }}</th>
+            <th style="width: 120px;">{{ _('CAS 号') }}</th>
+            <th style="width: 90px;">{{ _('角色') }}</th>
+            <th>{{ _('库存瓶子') }}</th>
+            <th style="width: 130px;">{{ _('管控') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in stock %}
+          <tr>
+            <td>{{ row.name or '—' }}</td>
+            <td>{{ row.cas }}</td>
+            <td>{{ row.role }}</td>
+            <td>
+              {% if row.bottles %}
+                {% for b in row.bottles %}
+                <div class="text-[12.5px]">{{ b.ref }} · {{ b.name }}{{ ' · ' ~ b.lot if b.lot else '' }}{{ ' · ' ~ b.location if b.location else '' }}
+                  {% if not b.available %}<span class="text-muted">（{{ b.status }}）</span>{% endif %}</div>
+                {% endfor %}
+              {% else %}
+                <span class="text-muted">{{ _('无库存') }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.controlled %}
+              <span class="badge badge-warn">{{ row.controlled_type or _('管控') }} · {{ _('需审批') }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{{ url_for('chem.demands', experiment_id=experiment.id) }}" class="mt-3">
+      <button type="submit" class="btn">{{ icon('cart') }} {{ _('为缺料生成采购需求') }}</button>
+      <span class="text-[12px] text-muted">{{ _('缺什么就生成什么需求；已有需求的不会重复。') }}</span>
+    </form>
+    {% else %}
+    <p class="text-muted">{{ _('方案里还没有物质。在物质清单里按行填写。') }}</p>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 算术 #}
+  <section class="card p-4">
+    <h2 class="text-[14px] font-semibold mb-2">{{ icon('calculator') }} {{ _('当量与理论产量') }}</h2>
+    {% if quantities and quantities.ok %}
+    <div class="dt-scroll">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th style="width: 160px;">{{ _('物质') }}</th>
+            <th style="width: 140px;">{{ _('分子量') }}</th>
+            <th style="width: 120px;">{{ _('当量') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cas, eq in quantities.equivalents.items() %}
+          <tr>
+            <td>{{ cas }}</td>
+            <td>{{ quantities.weights.get(cas) }}</td>
+            <td>{{ '%.2f'|format(eq) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-[13px]">
+      {{ _('限制试剂') }}：<strong>{{ quantities.limiting }}</strong>
+      {% if quantities.theoretical %}
+      ・ {{ _('理论产量') }}：<strong>{{ '%.4f'|format(quantities.theoretical.product_grams) }} g</strong>
+      {% endif %}
+    </p>
+    {% elif quantities %}
+    <p class="text-muted">{{ quantities.message }}{% if quantities.unknown_cas %}：{{ quantities.unknown_cas|join('、') }}{% endif %}</p>
+    {% else %}
+    <p class="text-muted">{{ _('填写台上实际称量后，这里给出当量、限制试剂与理论产量。') }}</p>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 产率与产物 #}
+  <section class="card p-4 grid gap-3" style="max-width: 860px;">
+    <h2 class="text-[14px] font-semibold">{{ icon('flask') }} {{ _('产率与产物') }}</h2>
+    {% if experiment.yield_percent is not none %}
+    <p class="text-[13px]">
+      {{ _('实际产量') }} {{ experiment.actual_yield_grams }} g ・
+      {{ _('产率') }} <strong>{{ experiment.yield_percent }}%</strong>
+      {% if experiment.yield_warning %}<span class="text-warn-700">{{ experiment.yield_warning }}</span>{% endif %}
+    </p>
+    {% endif %}
+    <form method="post" action="{{ url_for('chem.record_yield', experiment_id=experiment.id) }}"
+          class="flex flex-wrap items-end gap-2">
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('实际产量（克）') }}</span>
+        <input type="text" name="actual_grams" inputmode="decimal" placeholder="1.80">
+      </label>
+      <button type="submit" class="btn btn-primary">{{ icon('check') }} {{ _('记录产率') }}</button>
+      <span class="text-[12px] text-muted">{{ _('产率超过理论值或过低时，自动给出提示') }}</span>
+    </form>
+    <form method="post" action="{{ url_for('chem.register_product', experiment_id=experiment.id) }}"
+          class="flex flex-wrap items-end gap-2">
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('产物 CAS 号') }}</span>
+        <input type="text" name="cas" maxlength="20" value="{{ experiment.product_cas }}" placeholder="50-78-6">
+      </label>
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('分子式') }}</span>
+        <input type="text" name="formula" maxlength="120" placeholder="C9H8O4">
+      </label>
+      <label class="grid gap-1 text-[13px]">
+        <span>{{ _('名称') }}</span>
+        <input type="text" name="name" maxlength="200" placeholder="{{ _('阿司匹林') }}">
+      </label>
+      <button type="submit" class="btn">{{ icon('database') }} {{ _('登记为化学品档案') }}</button>
+      <span class="text-[12px] text-muted">{{ _('登记后，下一个方案凭 CAS 号即可引用它，分子量按分子式算出。') }}</span>
+    </form>
+    {% if experiment.status == 'template' %}
+    <form method="post" action="{{ url_for('chem.start', experiment_id=experiment.id) }}">
+      <button type="submit" class="btn">{{ icon('flask') }} {{ _('开始我的副本') }}</button>
+      <span class="text-[12px] text-muted">{{ _('模板不变，复制一份作为自己的进行中记录。') }}</span>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}
