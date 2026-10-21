@@ -53,6 +53,11 @@ HAZARDS = ["flammable", "explosive", "corrosive", "toxic", "highly toxic", "oxid
            "drug precursor", "explosive precursor", "narcotic or psychotropic"]
 # The Hazard field as labs got it before it took several (a migration moves those on).
 OLD_HAZARDS = ["none", "flammable", "corrosive", "toxic", "oxidiser", "irritant", "biohazard"]
+# Purity grades as the Chinese national standard and the imported catalogues
+# write them: what a teaching lab buys its bottles at. A lab adds its own in
+# Configure, the same way it adds hazard classes.
+GRADES = ["GR (guaranteed)", "AR (analytical)", "CP (chemically pure)", "LR (lab reagent)",
+          "SP (spectral)", "HPLC", "ACS", "primary standard", "reference material"]
 CONC_UNITS = ["ng/µL", "µg/mL", "mg/mL", "nM", "µM", "cells/mL"]
 # What a Nanodrop, Qubit or BCA reading gives, as numbers a sheet can sort
 # and sum (revision 0008 adds them to Samples made before they were here).
@@ -161,6 +166,33 @@ PRESETS: dict[str, dict] = {
             {"key": "density", "label": "Density (g/mL)", "type": "number", "icon": "droplet", "width": 84, "in_table": False},
             {"key": "storage_temp", "label": "Stored at", "type": "select", "options": STORAGE_TEMPS, "icon": "snowflake", "width": 88},
             {"key": "hazard", "label": "Hazard", "type": "multiselect", "options": HAZARDS, "icon": "warning", "width": 140},
+        ],
+    },
+    # A teaching lab's reagent bottles, one record per bottle rather than per
+    # chemical: who signed it out, when it was opened and how long it keeps
+    # after that. The document flow (borrow / return / allocate / purchase)
+    # builds on this as its archive layer.
+    "chemical_reagents": {
+        "label": "Reagent bottles",
+        "icon": "mortar-pestle",
+        "item_noun": "reagent bottle", "item_noun_plural": "reagent bottles",
+        "blurb": "Every reagent bottle from purchase to scrap: CAS, grade and the controlled "
+                 "categories, who holds it, when it was opened and how long it keeps after that. "
+                 "Built for teaching labs that sign bottles out to students.",
+        "features": ["storage", "sharing", "quantity", "supplier", "expiry", "received"],
+        "category_label": "Kind",
+        "categories": ["inorganic", "organic", "indicator", "buffer", "standard", "reference", "gas", "other"],
+        "statuses": ["in stock", "in use", "low", "empty", "discarded"],
+        "fields": [
+            {"key": "cas", "label": "CAS", "type": "text", "icon": "barcode", "width": 92},
+            {"key": "purity", "label": "Purity (%)", "type": "number", "icon": "gauge", "width": 72},
+            {"key": "grade", "label": "Grade", "type": "select", "options": GRADES, "icon": "star", "width": 128},
+            {"key": "hazard", "label": "Hazard", "type": "multiselect", "options": HAZARDS, "icon": "warning", "width": 140},
+            {"key": "pack_size", "label": "Pack size", "type": "text", "icon": "box", "width": 88},
+            {"key": "opened", "label": "Opened on", "type": "date", "icon": "calendar", "width": 100},
+            {"key": "keeps_months", "label": "Keeps (months) after opening", "type": "number", "icon": "calendar-clock", "width": 104},
+            {"key": "custodian", "label": "Custodian", "type": "text", "icon": "user", "width": 92},
+            {"key": "course", "label": "Course / class", "type": "text", "icon": "notebook", "width": 112, "in_table": False},
         ],
     },
     "antibodies": {
