@@ -61,19 +61,25 @@
             {% if row.order.status == 'pending' and g.user.username != row.order.requester %}
             <form method="post" action="{{ url_for('chem.borrow_decide', order_id=row.order.id) }}" class="inline">
               <input type="hidden" name="decision" value="approve">
+              <input type="hidden" name="v" value="{{ row.v }}">
               <button type="submit" class="btn">{{ icon('check') }} {{ _('批准') }}</button>
             </form>
             <form method="post" action="{{ url_for('chem.borrow_decide', order_id=row.order.id) }}" class="inline">
               <input type="hidden" name="decision" value="reject">
+              <input type="hidden" name="v" value="{{ row.v }}">
               <button type="submit" class="btn">{{ _('拒绝') }}</button>
             </form>
             {% elif row.order.status == 'approved' %}
             <form method="post" action="{{ url_for('chem.borrow_sign_out', order_id=row.order.id) }}" class="inline">
+              <input type="hidden" name="v" value="{{ row.v }}">
               <button type="submit" class="btn btn-primary">{{ icon('flask') }} {{ _('领出') }}</button>
             </form>
             {% elif row.order.status == 'borrowed' %}
             <form method="post" action="{{ url_for('chem.borrow_return', order_id=row.order.id) }}"
                   class="inline flex flex-wrap items-end gap-1">
+              {# The version this page showed. If the bottle moved on since, the
+                 write is refused rather than applied to a shelf that is gone. #}
+              <input type="hidden" name="v" value="{{ row.v }}">
               <input type="text" name="returned" size="4" placeholder="{{ _('归还量') }}">
               <input type="text" name="loss" size="4" placeholder="{{ _('损耗') }}">
               <select name="outcome">

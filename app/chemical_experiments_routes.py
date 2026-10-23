@@ -447,13 +447,22 @@ def borrow_from_plan(experiment_id: int):
     return redirect(url_for("chem.detail", experiment_id=experiment_id))
 
 
+def _shown_version() -> int | None:
+    """The bottle version the form carried (`v`, from the list). Absent means
+    the caller did not show one — a script or a bookmarked URL — and only the
+    state checks apply."""
+    raw = (request.form.get("v") or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
 @bp.post("/borrows/<int:order_id>/decide")
 def borrow_decide(order_id: int):
     """Approve or reject a pending order. A controlled order's borrower
     is never its approver."""
     approve = (request.form.get("decision") or "approve") == "approve"
     with SessionLocal() as s:
-        message = reagent_workflow.decide(s, order_id, g.user, approve)
+        message = reagent_workflow.decide(s, order_id, g.user, approve,
+                                          expected_version=_shown_version())
         if message:
             flash(message, "error")
             return redirect(url_for("chem.borrows"))
@@ -468,7 +477,8 @@ def borrow_decide(order_id: int):
 @bp.post("/borrows/<int:order_id>/sign-out")
 def borrow_sign_out(order_id: int):
     with SessionLocal() as s:
-        message = reagent_workflow.sign_out(s, order_id, g.user)
+        message = reagent_workflow.sign_out(s, order_id, g.user,
+                                            expected_version=_shown_version())
         if message:
             flash(message, "error")
             return redirect(url_for("chem.borrows"))
@@ -483,7 +493,7 @@ def borrow_sign_out(order_id: int):
 @bp.post("/borrows/<int:order_id>/return")
 def borrow_return(order_id: int):
     """The bottle comes back: how much, how much lost, and the day it was
-    first opened goes onto its attrs."""
+    first opened goes onto the bottle."""
     def _num(field: str) -> float:
         try:
             return float((request.form.get(field) or "0").replace(",", "."))
@@ -493,7 +503,8 @@ def borrow_return(order_id: int):
         message = reagent_workflow.record_return(
             s, order_id, g.user, returned=_num("returned"), loss=_num("loss"),
             outcome=request.form.get("outcome") or "returned",
-            remark=request.form.get("remark") or "")
+            remark=request.form.get("remark") or "",
+            expected_version=_shown_version())
         if message:
             flash(message, "error")
             return redirect(url_for("chem.borrows"))

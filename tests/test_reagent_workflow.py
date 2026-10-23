@@ -73,6 +73,16 @@ class WithABottle(BorrowCase):
                                    attr_mw="102.09", attr_purity="99", status="in stock",
                                    attr_quantity="500", attr_unit="mL")
 
+    def setUp(self):
+        super().setUp()
+        # These tests drive the same shelf several times over. Now that a
+        # bottle may only be signed out when it is on the shelf, each starts
+        # with every reagent bottle back in stock — the state the previous
+        # test left behind is not the subject of the next one.
+        execute("update chem_bottle set state='in_stock' where state <> 'in_stock'")
+        execute("update inventory_items set status='in stock' where status='in use' "
+                "and module_id_fk in (select id from inventory_modules where kind='chemical_reagents')")
+
 
 class Pages(BorrowCase):
     def test_the_borrow_page_opens(self):

@@ -57,6 +57,15 @@ bp = Blueprint("sync", __name__)
 
 # What can be done offline: the facility's everyday jobs (the design's
 # version 1), then vials and tanks (phase 3).
+#
+# Deliberately absent: anything about a chemical bottle. The shelf has one
+# writer — this server — and no queue. A bottle is issued, returned, moved or
+# handed to another custodian in one transaction, and the write names the
+# version it saw (app/reagent_workflow.py); a phone keeps the shelf as a
+# read-only cache (app/chem_cache.py) and asks what changed. Putting a bottle
+# action in this tuple would let two devices issue the same physical bottle
+# and leave the lab to reconcile it afterwards, which is the one thing the
+# shelf cannot do.
 ACTIONS = ("mouse_weight", "mice_died", "mouse_change", "litter_born", "litter_genotyping", "wean", "mice_move",
            "note_add", "task_done",
            "stock_event", "rack_flipped", "tank_change", "fish_sac", "water_reading", "mating_returned")

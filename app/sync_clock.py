@@ -1,19 +1,27 @@
-"""The lab's count of changes to the records a device keeps offline.
+"""The lab's count of changes, and the version every record carries.
 
-Every record a phone or desktop keeps (SYNCED_TABLES) carries sync_version:
-each change, in any transaction, gives it the next number of one lab-wide
-count (the sync_clock row). Two questions then have one answer:
+Every record a device keeps (SYNCED_TABLES) carries sync_version: each
+change, in any transaction, gives it the next number of one lab-wide count
+(the sync_clock row). Two questions then have one answer:
 
-  What changed since I last looked?   rows whose sync_version is above my cursor,
-                                      and sync_deletions above it
-  Did this record change since I      its sync_version differs from the one
-  read it?                            the device saw (app/sync.py)
+  What changed since I looked?   rows whose sync_version is above my cursor,
+                                 and sync_deletions above it
+  Did this record change since  its sync_version is past the one I read, so my
+  I read it?                    write would be over someone else's
+
+Both are asked online. The animal-facility screens are the exception: a
+phone there may work with no signal and send what it did afterwards
+(app/sync.py). The chemical shelf is not: a bottle is issued, returned,
+moved or handed to another custodian on the server, in one transaction,
+which is what makes "one bottle, one state" true. A phone keeps the shelf
+as a read-only cache and asks for the rows above its cursor
+(app/chem_cache.py) — it never edits one.
 
 The count is advanced inside the transaction that makes the change, by an
 UPDATE of its one row, which PostgreSQL holds locked until that transaction
 ends. So numbers are handed out in the order transactions commit, and a
-device reading "above my cursor" never misses a change that committed later
-with a lower number. SQLite has one writer at a time anyway.
+reader asking for "above my cursor" never misses a change that committed
+later with a lower number. SQLite has one writer at a time anyway.
 """
 from __future__ import annotations
 
@@ -27,11 +35,18 @@ enabled = True
 
 SYNCED_TABLES = frozenset({"mice", "mouse_cages", "litters", "mouse_weights", "tasks", "mouse_racks",
                            "stock_units", "tanks"})
+# The chemical shelf. `inventory_items` is here because a bottle *is* one of
+# its rows — one number, one bottle — and the three extension tables because
+# a change that only touches them (a custodian, a corrected expiry, a move to
+# the student bench) must still reach the cache. A bottle's version is the
+# newest of the four (app/chem_cache.version).
+SYNCED_TABLES |= {"inventory_items", "chem_bottle", "chem_lot", "chem_placement"}
 SYNCED_TABLES |= {"chem_course", "chem_borrow_order", "chem_return_record",
                   "chem_allocation_order", "chem_demand", "chem_manager_change_log",
                   "chem_purchase_plan", "chem_purchase_order"}   # the reagent document flow (teaching labs, from BCLRM)
 SYNCED_TABLES |= {"chem_controlled_list"}   # a phone signing a bottle out checks it before the shelf
 SYNCED_TABLES |= {"chem_experiment"}   # a plan followed at the bench, and the yield recorded there
+
 
 
 def _table(obj) -> str | None:

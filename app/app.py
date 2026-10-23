@@ -504,6 +504,10 @@ app.register_blueprint(lab_notebook.bp)
 # The assembly wizard: digest and ligate, Gibson, Golden Gate (app/cloning.py).
 from . import cloning_routes  # noqa: E402
 app.register_blueprint(cloning_routes.bp)
+# The shelf as a read-only cache: what changed since a cursor, and one bottle
+# in full (app/chem_cache.py). Writes stay on the server (app/reagent_workflow.py).
+from . import chem_cache_routes  # noqa: E402
+app.register_blueprint(chem_cache_routes.bp)
 
 
 @app.route("/app-icon/<glyph>/<color>.svg")

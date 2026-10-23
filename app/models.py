@@ -1990,6 +1990,16 @@ class InventoryItem(Base, _JsonAttrs):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_by: Mapped[str] = mapped_column(String(80), default="")
+    # Where this row stands in the lab's sequence of changes (app/sync_clock.py).
+    # Two jobs, both online:
+    #   the cache     a phone asks "what changed since 4120?" and gets back only
+    #                 the rows above it (app/chem_cache.py), not the shelf
+    #   the write     an operation names the version it saw; if the row is past
+    #                 it, someone else changed it first and the operation is
+    #                 refused rather than written over (reagent_workflow.py)
+    # It is not an offline watermark: nothing is edited on a device. The copy a
+    # phone keeps is a read-only cache; the server is the only writer.
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
 
     rack: Mapped["InventoryRack | None"] = relationship()
 
@@ -2037,6 +2047,11 @@ class ChemLot(Base):
     pack_size: Mapped[str] = mapped_column(String(40), default="")
     pack_unit: Mapped[str] = mapped_column(String(30), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Its own place in the lab's change count (app/sync_clock.py): a change
+    # that touches only this row — a custodian, a corrected expiry, a move —
+    # still has to reach a phone's cache, and a bottle's version is the newest
+    # of the rows that describe it (app/chem_cache.version).
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     substance: Mapped["ChemicalReference"] = relationship()
@@ -2080,6 +2095,11 @@ class ChemBottle(Base):
     # in_stock / borrowed / empty / discarded — the bottle's own state, derived
     # from the events and kept here so a shelf list is one query.
     state: Mapped[str] = mapped_column(String(20), default="in_stock", index=True)
+    # Its own place in the lab's change count (app/sync_clock.py): a change
+    # that touches only this row — a custodian, a corrected expiry, a move —
+    # still has to reach a phone's cache, and a bottle's version is the newest
+    # of the rows that describe it (app/chem_cache.version).
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -2114,6 +2134,12 @@ class ChemPlacement(Base):
     location_note: Mapped[str] = mapped_column(String(200), default="")   # "3 号柜第二层…"
     moved_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     moved_by: Mapped[str] = mapped_column(String(80), default="")
+    # Its own place in the lab's change count (app/sync_clock.py): a change
+    # that touches only this row — a custodian, a corrected expiry, a move —
+    # still has to reach a phone's cache, and a bottle's version is the newest
+    # of the rows that describe it (app/chem_cache.version).
+    sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
+
 
     item: Mapped["InventoryItem"] = relationship()
     rack: Mapped["InventoryRack | None"] = relationship()
