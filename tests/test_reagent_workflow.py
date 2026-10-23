@@ -45,7 +45,7 @@ class BorrowCase(inv_tests.InventoryCase):
                 "status": "active"}
         r = self.a.post("/chem-experiments", data=data)
         self.assertEqual(r.status_code, 302)
-        return one("select max(id) from chemical_experiments where title=?", title)
+        return one("select max(id) from chem_experiment where title=?", title)
 
     def borrow_from(self, plan: int, client=None) -> object:
         return self.post(client or self.a, f"/chem-experiments/{plan}/borrow")
@@ -94,38 +94,38 @@ class TheFlow(WithABottle):
         plan = self.make_plan()
         bottles = self.anhydride_bottles()
         with SessionLocal() as s:
-            before = one("select count(*) from reagent_borrow_orders")
+            before = one("select count(*) from chem_borrow_order")
             made = reagent_workflow.from_plan(s, s.get(ChemicalExperiment, plan), self.admin)
             s.commit()
         self.assertEqual(len(made["made"]), bottles)          # one order per bottle
         self.assertEqual(made["pending"], bottles)            # all of it a drug precursor
         self.assertIn("水杨酸", made["skipped"])              # the acid has no bottle
-        self.assertEqual(one("select count(*) from reagent_borrow_orders"), before + bottles)
+        self.assertEqual(one("select count(*) from chem_borrow_order"), before + bottles)
 
     def test_a_plan_becomes_an_order_per_bottle(self):
         plan = self.make_plan()
         bottles = self.anhydride_bottles()
-        before = one("select count(*) from reagent_borrow_orders")
+        before = one("select count(*) from chem_borrow_order")
         r = self.borrow_from(plan)
         self.assertFlash(r, "领用单")
         self.assertIn("待审批", r.get_data(as_text=True))     # the anhydride is controlled
-        self.assertEqual(one("select count(*) from reagent_borrow_orders"), before + bottles)
+        self.assertEqual(one("select count(*) from chem_borrow_order"), before + bottles)
         # The newest order: the anhydride's bottle, the plan's purpose.
         values = row("select bottle_id, requester, quantity, unit, purpose, experiment_name "
-                     "from reagent_borrow_orders order by id desc limit 1")
+                     "from chem_borrow_order order by id desc limit 1")
         self.assertEqual(values[1], self.admin)
         self.assertEqual(values[3], "g")
         self.assertIn("领用流方案", values[4])
         self.assertEqual(values[5], "领用流方案")
         # The order carries the next number in the flow's own sequence.
-        self.assertEqual(one("select number from reagent_borrow_orders order by id desc limit 1"),
-                         one("select max(number) from reagent_borrow_orders"))
+        self.assertEqual(one("select number from chem_borrow_order order by id desc limit 1"),
+                         one("select max(number) from chem_borrow_order"))
 
     def test_a_controlled_bottle_is_created_pending_and_says_so(self):
         plan = self.make_plan()
         r = self.borrow_from(plan)
         self.assertFlash(r, "待审批")
-        self.assertEqual(one("select status from reagent_borrow_orders order by id desc limit 1"),
+        self.assertEqual(one("select status from chem_borrow_order order by id desc limit 1"),
                          "pending")
         # The page shows the controlled badge and the catalogue class.
         html = self.get_ok(self.a, "/chem-experiments/borrows")
@@ -134,36 +134,36 @@ class TheFlow(WithABottle):
     def test_the_borrower_may_not_approve_their_own_order(self):
         plan = self.make_plan()
         self.borrow_from(plan, client=self.m)          # the member asks
-        order = one("select max(id) from reagent_borrow_orders where requester=?", self.member)
+        order = one("select max(id) from chem_borrow_order where requester=?", self.member)
         r = self.post(self.m, f"/chem-experiments/borrows/{order}/decide",
                       data={"decision": "approve"})
         self.assertFlash(r, "申请人不能审批")
-        self.assertEqual(one("select status from reagent_borrow_orders where id=?", order), "pending")
+        self.assertEqual(one("select status from chem_borrow_order where id=?", order), "pending")
         # Another member may: the borrower is never the approver, an
         # outsider may be.
         self.post(self.o, f"/chem-experiments/borrows/{order}/decide",
                   data={"decision": "approve"})
-        values = row("select status, approver from reagent_borrow_orders where id=?", order)
+        values = row("select status, approver from chem_borrow_order where id=?", order)
         self.assertEqual((values[0], values[1]), ("approved", self.other))
 
     def test_an_approved_order_is_signed_out_and_the_bottle_is_in_use(self):
         plan = self.make_plan()
         self.borrow_from(plan)
-        order = one("select max(id) from reagent_borrow_orders")
+        order = one("select max(id) from chem_borrow_order")
         self.post(self.o, f"/chem-experiments/borrows/{order}/decide",
                   data={"decision": "approve"})
         r = self.post(self.a, f"/chem-experiments/borrows/{order}/sign-out")
         self.assertFlash(r, "已领出")
-        values = row("select status from reagent_borrow_orders where id=?", order)
+        values = row("select status from chem_borrow_order where id=?", order)
         self.assertEqual(values[0], "borrowed")
         bottle_status = one("select status from inventory_items where id=?",
-                            one("select bottle_id from reagent_borrow_orders where id=?", order))
+                            one("select bottle_id from chem_borrow_order where id=?", order))
         self.assertEqual(bottle_status, "in use")
 
     def test_the_return_writes_the_opening_date_and_frees_the_bottle(self):
         plan = self.make_plan()
         self.borrow_from(plan)
-        order = one("select max(id) from reagent_borrow_orders")
+        order = one("select max(id) from chem_borrow_order")
         self.post(self.o, f"/chem-experiments/borrows/{order}/decide",
                   data={"decision": "approve"})
         self.post(self.a, f"/chem-experiments/borrows/{order}/sign-out")
@@ -171,10 +171,10 @@ class TheFlow(WithABottle):
                       data={"returned": "480", "loss": "20", "outcome": "partially_returned",
                             "remark": "洒了一点"})
         self.assertFlash(r, "已归还")
-        values = row("select status from reagent_borrow_orders where id=?", order)
+        values = row("select status from chem_borrow_order where id=?", order)
         self.assertEqual(values[0], "returned")
-        bottle_id = one("select bottle_id from reagent_borrow_orders where id=?", order)
-        record = row("select quantity, loss, outcome, remark from reagent_return_records "
+        bottle_id = one("select bottle_id from chem_borrow_order where id=?", order)
+        record = row("select quantity, loss, outcome, remark from chem_return_record "
                      "where borrow_id=?", order)
         self.assertEqual((record[0], record[1], record[2]), (480.0, 20.0, "partially_returned"))
         self.assertEqual(record[3], "洒了一点")
@@ -187,18 +187,18 @@ class TheFlow(WithABottle):
     def test_a_return_needs_a_signed_out_order(self):
         plan = self.make_plan()
         self.borrow_from(plan)
-        order = one("select max(id) from reagent_borrow_orders")
+        order = one("select max(id) from chem_borrow_order")
         r = self.post(self.a, f"/chem-experiments/borrows/{order}/return", data={"returned": "1"})
         self.assertFlash(r, "只有已领出")
-        self.assertEqual(one("select status from reagent_borrow_orders where id=?", order), "pending")
+        self.assertEqual(one("select status from chem_borrow_order where id=?", order), "pending")
 
     def test_a_decided_order_cannot_be_decided_again(self):
         plan = self.make_plan()
         self.borrow_from(plan)
-        order = one("select max(id) from reagent_borrow_orders")
+        order = one("select max(id) from chem_borrow_order")
         self.post(self.o, f"/chem-experiments/borrows/{order}/decide",
                   data={"decision": "reject"})
         r = self.post(self.a, f"/chem-experiments/borrows/{order}/decide",
                       data={"decision": "approve"})
         self.assertFlash(r, "已经处理过")
-        self.assertEqual(one("select status from reagent_borrow_orders where id=?", order), "rejected")
+        self.assertEqual(one("select status from chem_borrow_order where id=?", order), "rejected")

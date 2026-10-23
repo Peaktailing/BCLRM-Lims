@@ -28,7 +28,7 @@ class CourseCase(chem_tests.ChemicalExperimentCase):
         data.update(extra)
         r = self.a.post("/chem-experiments/courses", data=data)
         self.assertEqual(r.status_code, 302)
-        return one("select max(id) from experiment_courses where name=?", data["name"])
+        return one("select max(id) from chem_course where name=?", data["name"])
 
     def make_template(self, course_id: int, title: str = "阿司匹林合成") -> int:
         """A template plan of the aspirin class, belonging to the course."""
@@ -38,14 +38,14 @@ class CourseCase(chem_tests.ChemicalExperimentCase):
                 "status": "template"}
         r = self.a.post("/chem-experiments", data=data)
         self.assertEqual(r.status_code, 302)
-        return one("select max(id) from chemical_experiments where title=? and course_id=?",
+        return one("select max(id) from chem_experiment where title=? and course_id=?",
                    title, course_id)
 
     def start_and_weigh(self, client, username: str, template: int,
                         title: str, weighed: str) -> int:
         """A student's whole bench visit: start the copy, weigh, done."""
         self.assertEqual(client.post(f"/chem-experiments/{template}/start").status_code, 302)
-        copy = one("select max(id) from chemical_experiments where created_by=? and title=?",
+        copy = one("select max(id) from chem_experiment where created_by=? and title=?",
                    username, title)
         self.assertIsNotNone(copy)
         self.assertEqual(client.post(f"/chem-experiments/{copy}/update",
@@ -62,20 +62,20 @@ class Pages(CourseCase):
     def test_a_course_is_created_with_its_counts(self):
         course = self.make_course()
         values = row("select name, term, teacher, student_count, created_by "
-                     "from experiment_courses where id=?", course)
+                     "from chem_course where id=?", course)
         self.assertEqual((values[0], values[1], values[2], values[3]), ("有机化学实验", "2026-2027-1", "王老师", 30))
         self.assertEqual(values[4], self.admin)
 
     def test_a_course_needs_a_name(self):
         r = self.post(self.a, "/chem-experiments/courses", data={"name": ""})
-        self.assertEqual(one("select count(*) from experiment_courses where name=?", ""), 0)
+        self.assertEqual(one("select count(*) from chem_course where name=?", ""), 0)
         self.assertFlash(r, "课程名称")
 
     def test_a_student_count_that_is_not_a_number_keeps_the_old_one(self):
         course = self.make_course(student_count="30")
         self.post(self.a, f"/chem-experiments/courses/{course}/update",
                   data={"student_count": "很多", "name": "有机化学实验"})
-        self.assertEqual(one("select student_count from experiment_courses where id=?", course), 30)
+        self.assertEqual(one("select student_count from chem_course where id=?", course), 30)
 
 
 class TheCourse(CourseCase):
@@ -85,9 +85,9 @@ class TheCourse(CourseCase):
         template = self.make_template(course, title="课程页统计")
         # The student starts a copy and weighs at the bench.
         self.assertEqual(self.m.post(f"/chem-experiments/{template}/start").status_code, 302)
-        copy = one("select max(id) from chemical_experiments where created_by=? and title=?",
+        copy = one("select max(id) from chem_experiment where created_by=? and title=?",
                    self.member, "课程页统计")
-        self.assertEqual(one("select template_id from chemical_experiments where id=?", copy), template)
+        self.assertEqual(one("select template_id from chem_experiment where id=?", copy), template)
         self.assertEqual(self.m.post(f"/chem-experiments/{copy}/update",
                                      data={"weighed": chem_tests.WEIGHED,
                                            "reagents": chem_tests.REAGENTS}).status_code, 302)
@@ -107,19 +107,19 @@ class TheCourse(CourseCase):
         self.assertNotEqual(first, second)
         self.assertEqual(self.m.post(f"/chem-experiments/{first}/start").status_code, 302)
         self.assertEqual(self.m.post(f"/chem-experiments/{second}/start").status_code, 302)
-        self.assertEqual(one("select count(*) from chemical_experiments where title=? "
+        self.assertEqual(one("select count(*) from chem_experiment where title=? "
                              "and template_id=?", "同一名字", first), 1)
-        self.assertEqual(one("select count(*) from chemical_experiments where title=? "
+        self.assertEqual(one("select count(*) from chem_experiment where title=? "
                              "and template_id=?", "同一名字", second), 1)
 
     def test_only_the_maker_or_an_admin_edits_a_course(self):
         course = self.make_course(name="别人的课")
         r = self.m.post(f"/chem-experiments/courses/{course}/update", data={"name": "改名"})
         self.assertEqual(r.status_code, 403)
-        self.assertEqual(one("select name from experiment_courses where id=?", course), "别人的课")
+        self.assertEqual(one("select name from chem_course where id=?", course), "别人的课")
         self.assertEqual(self.a.post(f"/chem-experiments/courses/{course}/update",
                                      data={"name": "改名"}).status_code, 302)
-        self.assertEqual(one("select name from experiment_courses where id=?", course), "改名")
+        self.assertEqual(one("select name from chem_course where id=?", course), "改名")
 
     def test_an_unknown_course_is_a_404(self):
         self.assertEqual(self.a.get("/chem-experiments/courses/999999").status_code, 404)

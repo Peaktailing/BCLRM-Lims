@@ -173,7 +173,7 @@ def create():
         s.add(experiment)
         s.flush()
         with audit.batch(s, "create", f"chemical experiment {experiment.title}"[:200],
-                         "chemical_experiments"):
+                         "chem_experiment"):
             pass
         s.commit()
         return redirect(url_for("chem.detail", experiment_id=experiment.id))
@@ -224,7 +224,7 @@ def update(experiment_id: int):
         experiment.reagents_json = json.dumps(_parse_reagents(form.get("reagents", "")))
         experiment.weighed_json = json.dumps(_parse_weighed(form.get("weighed", "")))
         with audit.batch(s, "update", f"chemical experiment {experiment.title}"[:200],
-                         "chemical_experiments"):
+                         "chem_experiment"):
             pass
         s.commit()
     return redirect(url_for("chem.detail", experiment_id=experiment_id))
@@ -240,7 +240,7 @@ def demands(experiment_id: int):
             abort(404)
         made = plans.missing_demands(s, experiment, requester=g.user.username)
         with audit.batch(s, "mixed", f"demands from chemical experiment {experiment.title}"[:200],
-                         "chemical_experiments"):
+                         "chem_experiment"):
             pass
         s.commit()
     flash(f"已生成 {len(made)} 条采购需求" if made else "所需试剂都有库存，无需生成需求", "info")
@@ -267,7 +267,7 @@ def record_yield(experiment_id: int):
             flash(str(exc), "error")
             return redirect(url_for("chem.detail", experiment_id=experiment_id))
         audit_msg = f"yield {result['percent']}% for chemical experiment {experiment.title}"[:200]
-        with audit.batch(s, "update", audit_msg, "chemical_experiments"):
+        with audit.batch(s, "update", audit_msg, "chem_experiment"):
             pass
         s.commit()
     message = f"产率 {result['percent']}%（理论 {result['theoretical_grams']} g）"
@@ -297,7 +297,7 @@ def register_product(experiment_id: int):
             flash(str(exc), "error")
             return redirect(url_for("chem.detail", experiment_id=experiment_id))
         with audit.batch(s, "update", f"product {name or cas} registered from an experiment"[:200],
-                         "chemical_experiments"):
+                         "chem_experiment"):
             pass
         s.commit()
     flash(f"{name or cas} 已登记为化学品档案", "info")
@@ -314,7 +314,7 @@ def start(experiment_id: int):
             abort(404)
         copy = plans.start_from_template(s, template, student=g.user.username)
         with audit.batch(s, "create", f"working copy of chemical experiment {template.title}"[:200],
-                         "chemical_experiments"):
+                         "chem_experiment"):
             pass
         s.commit()
         return redirect(url_for("chem.detail", experiment_id=copy.id))
@@ -347,7 +347,7 @@ def course_create():
         s.add(course)
         s.flush()
         with audit.batch(s, "create", f"experiment course {course.name}"[:200],
-                         "experiment_courses"):
+                         "chem_course"):
             pass
         s.commit()
         return redirect(url_for("chem.course", course_id=course.id))
@@ -392,7 +392,7 @@ def course_update(course_id: int):
         except ValueError:
             pass
         with audit.batch(s, "update", f"experiment course {course.name}"[:200],
-                         "experiment_courses"):
+                         "chem_course"):
             pass
         s.commit()
     return redirect(url_for("chem.course", course_id=course_id))
@@ -434,7 +434,7 @@ def borrow_from_plan(experiment_id: int):
         made = reagent_workflow.from_plan(s, experiment, g.user.username)
         with audit.batch(s, "create",
                          f"borrow orders from chemical experiment {experiment.title}"[:200],
-                         "reagent_borrow_orders"):
+                         "chem_borrow_order"):
             pass
         s.commit()
     if made["made"]:
@@ -458,7 +458,7 @@ def borrow_decide(order_id: int):
             flash(message, "error")
             return redirect(url_for("chem.borrows"))
         with audit.batch(s, "update", f"borrow order {order_id} "
-                         f"{'approved' if approve else 'rejected'}", "reagent_borrow_orders"):
+                         f"{'approved' if approve else 'rejected'}", "chem_borrow_order"):
             pass
         s.commit()
     flash("已批准" if approve else "已拒绝", "info")
@@ -473,7 +473,7 @@ def borrow_sign_out(order_id: int):
             flash(message, "error")
             return redirect(url_for("chem.borrows"))
         with audit.batch(s, "update", f"borrow order {order_id} signed out",
-                         "reagent_borrow_orders"):
+                         "chem_borrow_order"):
             pass
         s.commit()
     flash("已领出", "info")
@@ -498,7 +498,7 @@ def borrow_return(order_id: int):
             flash(message, "error")
             return redirect(url_for("chem.borrows"))
         with audit.batch(s, "update", f"borrow order {order_id} returned",
-                         "reagent_borrow_orders"):
+                         "chem_borrow_order"):
             pass
         s.commit()
     flash("已归还", "info")

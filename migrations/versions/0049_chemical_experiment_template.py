@@ -24,9 +24,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    add_column("chemical_experiments", sa.Column("template_id", sa.Integer, nullable=True))
-    create_index("chemical_experiments", "ix_chemical_experiments_template_id", ["template_id"])
-    if not has_column("chemical_experiments", "template_id"):
+    add_column("chem_experiment", sa.Column("template_id", sa.Integer, nullable=True))
+    create_index("chem_experiment", "ix_chem_experiment_template_id", ["template_id"])
+    if not has_column("chem_experiment", "template_id"):
         return
     # Copies already started: the template is the older row of the same
     # title in the same course. Done in Python rather than one correlated

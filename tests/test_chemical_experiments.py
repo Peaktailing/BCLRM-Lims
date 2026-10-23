@@ -74,7 +74,7 @@ class ChemicalExperimentCase(inv_tests.InventoryCase):
                 "product_cas": ASPIRIN, "status": "template"}
         data.update(extra)
         r = self.a.post("/chem-experiments", data=data)
-        return one("select max(id) from chemical_experiments where title=?", data["title"])
+        return one("select max(id) from chem_experiment where title=?", data["title"])
 
 
 class Pages(ChemicalExperimentCase):
@@ -84,7 +84,7 @@ class Pages(ChemicalExperimentCase):
 
     def test_a_plan_needs_both_sides(self):
         r = self.post(self.a, "/chem-experiments", data={"title": "半拉方案", "reaction": "69-72-7 2"})
-        self.assertEqual(one("select count(*) from chemical_experiments where title=?", "半拉方案"), 0)
+        self.assertEqual(one("select count(*) from chem_experiment where title=?", "半拉方案"), 0)
         self.assertFlash(r, "至少需要")
 
     def test_a_member_sees_the_pages_but_not_anothers_edit(self):
@@ -98,7 +98,7 @@ class Pages(ChemicalExperimentCase):
     def test_a_plan_is_created_and_its_parts_are_kept(self):
         plan = self.make_plan()
         values = row("select reaction_json, reagents_json, weighed_json, product_cas, status "
-                  "from chemical_experiments where id=?", plan)
+                  "from chem_experiment where id=?", plan)
         reaction_json, reagents_json, weighed_json, product_cas, status = values
         self.assertEqual(product_cas, ASPIRIN)
         self.assertEqual(status, "template")
@@ -135,13 +135,13 @@ class TheChain(ChemicalExperimentCase):
         plan = self.make_plan()
         r = self.post(self.a, f"/chem-experiments/{plan}/demands")
         self.assertFlash(r, "已生成 1 条采购需求")
-        values = row("select chemical_name, cas, status, purpose from reagent_demands where cas=?", SALICYLIC)
+        values = row("select chemical_name, cas, status, purpose from chem_demand where cas=?", SALICYLIC)
         self.assertEqual(values[0], "水杨酸")
         self.assertEqual(values[2], "open")
         self.assertIn("阿司匹林合成", values[3])
         # Asking again does not duplicate it.
         self.post(self.a, f"/chem-experiments/{plan}/demands")
-        self.assertEqual(one("select count(*) from reagent_demands where cas=?", SALICYLIC), 1)
+        self.assertEqual(one("select count(*) from chem_demand where cas=?", SALICYLIC), 1)
 
 
 class TheArithmetic(ChemicalExperimentCase):
@@ -173,7 +173,7 @@ class TheArithmetic(ChemicalExperimentCase):
         plan = self.make_plan()
         r = self.post(self.a, f"/chem-experiments/{plan}/yield", data={"actual_grams": "0.72"})
         self.assertFlash(r, "79.9")
-        values = row("select actual_yield_grams, yield_percent, status from chemical_experiments where id=?", plan)
+        values = row("select actual_yield_grams, yield_percent, status from chem_experiment where id=?", plan)
         self.assertEqual(values[0], 0.72)
         self.assertAlmostEqual(values[1], 79.9, places=1)
         self.assertEqual(values[2], "done")
@@ -182,7 +182,7 @@ class TheArithmetic(ChemicalExperimentCase):
         self.references()
         plan = self.make_plan()
         self.post(self.a, f"/chem-experiments/{plan}/yield", data={"actual_grams": "1.4"})
-        warning = one("select yield_warning from chemical_experiments where id=?", plan)
+        warning = one("select yield_warning from chem_experiment where id=?", plan)
         self.assertIn("over the theoretical", warning)
 
     def test_a_yield_needs_a_number(self):
@@ -199,7 +199,7 @@ class TheProduct(ChemicalExperimentCase):
         r = self.post(self.a, f"/chem-experiments/{plan}/product",
                       data={"cas": ASPIRIN, "formula": "C9H8O4", "name": "阿司匹林"})
         self.assertFlash(r, "已登记")
-        values = row("select name, formula, molecular_weight, mw_source from chemical_references where cas=?", ASPIRIN)
+        values = row("select name, formula, molecular_weight, mw_source from chem_substance where cas=?", ASPIRIN)
         self.assertEqual((values[0], values[1]), ("阿司匹林", "C9H8O4"))
         self.assertAlmostEqual(values[2], 180.16, places=1)
         self.assertEqual(values[3], "formula")
@@ -209,7 +209,7 @@ class TheProduct(ChemicalExperimentCase):
                   data={"cas": ASPIRIN, "formula": "C9H8O4", "name": "阿司匹林"})
         self.post(self.a, f"/chem-experiments/{self.make_plan('第二次')}/product",
                   data={"cas": ASPIRIN, "formula": "C9H8O4", "name": "阿司匹林"})
-        self.assertEqual(one("select count(*) from chemical_references where cas=?", ASPIRIN), 1)
+        self.assertEqual(one("select count(*) from chem_substance where cas=?", ASPIRIN), 1)
 
 
 class Copies(ChemicalExperimentCase):
@@ -217,10 +217,10 @@ class Copies(ChemicalExperimentCase):
         plan = self.make_plan()
         r = self.m.post(f"/chem-experiments/{plan}/start")
         self.assertEqual(r.status_code, 302)
-        copy_id = one("select max(id) from chemical_experiments where created_by=?", self.member)
+        copy_id = one("select max(id) from chem_experiment where created_by=?", self.member)
         self.assertIsNotNone(copy_id)
         self.assertNotEqual(copy_id, plan)
-        values = row("select status, created_by, title from chemical_experiments where id=?", copy_id)
+        values = row("select status, created_by, title from chem_experiment where id=?", copy_id)
         self.assertEqual((values[0], values[1]), ("active", self.member))
         # The template stays a template.
-        self.assertEqual(one("select status from chemical_experiments where id=?", plan), "template")
+        self.assertEqual(one("select status from chem_experiment where id=?", plan), "template")

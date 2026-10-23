@@ -58,15 +58,15 @@ _SEED = [
 
 
 def upgrade() -> None:
-    create_table("controlled_list")
+    create_table("chem_controlled_list")
     bind = op.get_bind()
-    have = bind.execute(sa.text("select count(*) from controlled_list")).scalar()
+    have = bind.execute(sa.text("select count(*) from chem_controlled_list")).scalar()
     if not have:
         # created_at is the model's own Python-side default; a raw insert
         # has to say it, so it does, in the same words SQLite stores.
         for name, aliases, cas, dangerous_type, note in _SEED:
             bind.execute(sa.text(
-                "insert into controlled_list "
+                "insert into chem_controlled_list "
                 "(chemical_name, alias, cas_number, dangerous_type, notes, created_at) "
                 "values (:name, :alias, :cas, :type, :note, CURRENT_TIMESTAMP)"),
                 {"name": name, "alias": aliases, "cas": cas, "type": dangerous_type, "note": note})

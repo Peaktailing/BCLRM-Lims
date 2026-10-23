@@ -21,9 +21,9 @@ class TheSeed(unittest.TestCase):
             self.assertTrue(cas_is_valid(cas), f"{name} ({cas})")
 
     def test_the_seed_is_seeded_on_a_new_database(self):
-        count = one("select count(*) from controlled_list")
+        count = one("select count(*) from chem_controlled_list")
         self.assertEqual(count, len(controlled.DEFAULT_CONTROLLED))
-        row = one("select dangerous_type from controlled_list where cas_number='67-64-1'")
+        row = one("select dangerous_type from chem_controlled_list where cas_number='67-64-1'")
         self.assertEqual(row, "drug precursor")
 
     def test_the_seed_covers_the_four_chinese_catalogues(self):

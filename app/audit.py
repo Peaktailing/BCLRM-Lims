@@ -46,11 +46,11 @@ TRACKED_TABLES |= {"mouse_weights"}   # a weight is a record of the animal, kept
 TRACKED_TABLES |= {"plate_layouts", "plate_reads"}   # an experiment's plate layouts, and the plates read onto them
 TRACKED_TABLES |= {"cage_litters"}   # each litter born in a cage: weaning one is undone with its cage
 TRACKED_TABLES |= {"user_identities"}   # who connected which Google/Microsoft account, and when   # so deleting a box (which unplaces its plasmids) can be undone
-TRACKED_TABLES |= {"experiment_courses", "reagent_borrow_orders", "reagent_return_records",
-                   "reagent_allocation_orders", "reagent_demands", "manager_change_logs",
-                   "reagent_purchase_plans", "reagent_purchase_orders"}   # the reagent document flow (teaching labs, from BCLRM)
-TRACKED_TABLES |= {"controlled_list"}   # who added or changed a controlled substance, and when
-TRACKED_TABLES |= {"chemical_experiments"}   # a chemistry experiment's plan, and its recorded yield
+TRACKED_TABLES |= {"chem_course", "chem_borrow_order", "chem_return_record",
+                   "chem_allocation_order", "chem_demand", "chem_manager_change_log",
+                   "chem_purchase_plan", "chem_purchase_order"}   # the reagent document flow (teaching labs, from BCLRM)
+TRACKED_TABLES |= {"chem_controlled_list"}   # who added or changed a controlled substance, and when
+TRACKED_TABLES |= {"chem_experiment"}   # a chemistry experiment's plan, and its recorded yield
 
 # What each table is, for the Audit log and Batch history (not "inventory_items").
 TABLE_LABELS = {

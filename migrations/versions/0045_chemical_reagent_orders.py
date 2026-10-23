@@ -19,14 +19,14 @@ branch_labels = None
 depends_on = None
 
 TABLES = [
-    "experiment_courses",
-    "reagent_borrow_orders",
-    "reagent_return_records",
-    "reagent_allocation_orders",
-    "reagent_demands",
-    "manager_change_logs",
-    "reagent_purchase_plans",
-    "reagent_purchase_orders",
+    "chem_course",
+    "chem_borrow_order",
+    "chem_return_record",
+    "chem_allocation_order",
+    "chem_demand",
+    "chem_manager_change_log",
+    "chem_purchase_plan",
+    "chem_purchase_order",
 ]
 
 

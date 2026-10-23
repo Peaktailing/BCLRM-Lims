@@ -19,7 +19,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    create_table("chemical_experiments")
+    create_table("chem_experiment")
 
 
 def downgrade() -> None:

@@ -240,13 +240,29 @@ class NotebookEntry(Base):
 
 
 class ChemicalReference(Base):
-    __tablename__ = "chemical_references"
+    """一种物质，不是一瓶试剂 —— the substance master data.
+
+    Every fact here is shared by every bottle of the substance: ten bottles
+    of salicylic acid all say the same CAS, formula, molar mass and density,
+    so they say it once, here, and point at it (chem_bottle.substance_id_fk).
+    Changing a density is one UPDATE, not ten.
+
+    Called `chem_substance` rather than "chemical reference" because that is
+    what it is: the lab's own register of what substances it knows, by name,
+    abbreviation, CAS number, formula and molar mass. A bottle that predates
+    this table still works: name and molar weight alone are enough.
+
+    The columns after `msds_url` came from the bottle's attrs when the
+    bottle table was normalised (migrations/versions/0050): they describe
+    the substance, and used to be repeated on every bottle of it.
+    """
+    __tablename__ = "chem_substance"
     __table_args__ = (
         # One CAS number is one substance: two rows may not both claim it.
         # An empty CAS (a lab that has not filled it in yet) is not a claim,
         # so it stays out of the index — otherwise the first seeded row
         # without a CAS would block every other one.
-        Index("ix_chemical_references_cas", "cas", unique=True,
+        Index("ix_chem_substance_cas", "cas", unique=True,
               sqlite_where=text("cas != ''"), postgresql_where=text("cas <> ''")),
     )
 
@@ -266,6 +282,34 @@ class ChemicalReference(Base):
     hazard: Mapped[str] = mapped_column(String(40), default="")
     msds_url: Mapped[str] = mapped_column(String(500), default="")
 
+    # ── what every bottle of it needs, kept once ──────────────────────────
+    # Other names it is ordered or asked for by, comma-separated
+    # ("丁酮, 甲乙酮"): a lookup on any of them finds the row.
+    alias: Mapped[str] = mapped_column(String(300), default="")
+    # g/mL. The one number a metering calculation cannot do without when a
+    # requirement is written in grams and the shelf holds millilitres. NULL:
+    # not known, and a conversion that needs it is refused rather than
+    # guessed (the BCLRM side's capabilities/metering makes the same call).
+    density: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # What a bottle of it usually is, so a new bottle starts filled in.
+    # A bottle may still say otherwise (chem_bottle.purity / .grade):
+    # a 99.5% lot and a technical lot are the same substance, not the same
+    # bottle.
+    purity_default: Mapped[float | None] = mapped_column(Float, nullable=True)
+    grade_default: Mapped[str] = mapped_column(String(60), default="")
+    # The catalogue's class, in the same words the list and the bottle's
+    # Hazard field use (chem_controlled_list.dangerous_type). Empty: free.
+    dangerous_type: Mapped[str] = mapped_column(String(40), default="")
+    # Where it is stored ("RT", "4 °C", "−20 °C", "−80 °C", "LN₂",
+    # "explosion-proof cabinet"): a property of the substance, not of a shelf.
+    storage_class: Mapped[str] = mapped_column(String(40), default="")
+    # Months it keeps, sealed and after first opening. A bottle copies them
+    # into its own keeps_months when opened, so a later change here does not
+    # silently move an expiry date already printed on a label.
+    sealed_shelf_life: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    unsealed_shelf_life: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
 
 class ControlledList(Base):
     """The published catalogues of controlled substances, as data.
@@ -279,13 +323,29 @@ class ControlledList(Base):
 
     Seeded with the common teaching-lab entries; an admin keeps it current
     in Configure, the way the catalogues are reissued.
+
+    `chem_controlled_list` — the `chem_` prefix because it is part of the
+    chemical domain, as the eight document tables are. Its columns are the
+    union of this repo's list and the BCLRM main repo's `controlled_list`:
+    this side keeps `notes` and `sync_version`, the main side keeps
+    `updated_at` and the one-row-per-substance constraint. That is the whole
+    merge — the only pair of tables across the two repos that was the same
+    thing under the same name.
     """
-    __tablename__ = "controlled_list"
+    __tablename__ = "chem_controlled_list"
+    __table_args__ = (
+        # Reissued catalogues list a substance once. (The main repo's list
+        # has carried this constraint since it was written; a merge that
+        # dropped it would let two rows claim one entry.)
+        UniqueConstraint("chemical_name", "cas_number", name="uq_chem_controlled_list_entry"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Where this record stands in the lab's sequence of changes (app/sync.py):
     # a phone signing a bottle out checks the list, and its changes travel
-    # like every other record's.
+    # like every other record's. The main repo has no offline device and so
+    # no such column; it is kept here because blank it costs nothing and
+    # dropping it would stop that phone reading the list.
     sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     chemical_name: Mapped[str] = mapped_column(String(200), default="", index=True)
     # Other names the substance is ordered or asked for by, separated by
@@ -295,6 +355,8 @@ class ControlledList(Base):
     dangerous_type: Mapped[str] = mapped_column(String(40), default="", index=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # From the main repo: its audit list sorts entries by when they changed.
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class LitterRecord(Base):
@@ -1932,18 +1994,158 @@ class InventoryItem(Base, _JsonAttrs):
     rack: Mapped["InventoryRack | None"] = relationship()
 
 
+# ── 化学试剂的批次、瓶子扩展与位置（范式化后的三层）──────────────────────
+# Before migration 0050 these three lived as columns on inventory_items and
+# as keys inside its attrs JSON. They were split out because each answers a
+# different question, and the answers change at different rates:
+#
+#   chem_lot      one delivery: the five bottles that came in one carton
+#                 share its vendor, catalogue number, lot and expiry
+#   chem_bottle   one bottle of a chemical: what it is, where it came from,
+#                 who holds it, when it was opened and how long it keeps
+#   chem_placement where it sits, and where it used to sit
+
+
+class ChemLot(Base):
+    """一批到货：一次采购、一次开箱、一张发票对应的一批瓶子。
+
+    A reagent's vendor, catalogue number, lot number, price, pack size and
+    expiry are properties of the delivery, not of the bottle: five bottles
+    out of one carton repeat them five times, and a corrected expiry date
+    has to be corrected five times. Here it is once, and the five point at
+    it.
+
+    Splitting one lot into several bottles (分装) keeps the same lot: what
+    changed is which bottle it is in, not what was bought.
+    """
+
+    __tablename__ = "chem_lot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    substance_id_fk: Mapped[int] = mapped_column(ForeignKey("chem_substance.id"), nullable=False, index=True)
+    vendor: Mapped[str] = mapped_column(String(120), default="")
+    catalog_number: Mapped[str] = mapped_column(String(120), default="")
+    lot_no: Mapped[str] = mapped_column(String(120), default="")           # 厂家批号
+    unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # When it was made and when it arrived are different dates, and a
+    # teaching lab is asked for both when a bottle's age is questioned.
+    produced_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    received_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    expires_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # What one unit of it holds ("500 mL", "100 g"): an amount used in mL or
+    # g comes off as part of one (inventory_service.pack_size).
+    pack_size: Mapped[str] = mapped_column(String(40), default="")
+    pack_unit: Mapped[str] = mapped_column(String(30), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    substance: Mapped["ChemicalReference"] = relationship()
+
+
+class ChemBottle(Base):
+    """一瓶化学试剂：`inventory_items` 的一行，加上只有试剂瓶才有的东西。
+
+    One row per bottle, keyed by the inventory item's id — so "one number,
+    one bottle" still holds, and every document table that already points at
+    `inventory_items.id` needs no change. What this adds is what the generic
+    inventory item cannot say: which substance it is, which delivery it came
+    from, who is holding it, when it was opened and how long it keeps after
+    that, and whether it is on the shelf.
+
+    `custodian` is the bottle's temporary owner — the person a teacher asks
+    when the course needs something. It changes on
+    chem_manager_change_log, which is the history; this is the present.
+
+    Nothing here duplicates the substance: `chem_bottle.purity` and `.grade`
+    exist because *this* bottle may be a different grade from the substance's
+    usual one, and if they are empty the substance's defaults apply.
+    """
+
+    __tablename__ = "chem_bottle"
+
+    item_id_fk: Mapped[int] = mapped_column(
+        ForeignKey("inventory_items.id", ondelete="CASCADE"), primary_key=True)
+    substance_id_fk: Mapped[int | None] = mapped_column(
+        ForeignKey("chem_substance.id"), nullable=True, index=True)
+    lot_id_fk: Mapped[int | None] = mapped_column(ForeignKey("chem_lot.id"), nullable=True, index=True)
+    custodian: Mapped[str] = mapped_column(String(80), default="", index=True)   # 保管人（用户名）
+    grade: Mapped[str] = mapped_column(String(60), default="")                  # 空：用物质的默认品级
+    purity: Mapped[float | None] = mapped_column(Float, nullable=True)          # 空：用物质的默认纯度
+    opened_on: Mapped[date | None] = mapped_column(Date, nullable=True)         # 首次启封日
+    # Months it keeps after opening, copied from the substance when opened —
+    # so a later change to the substance does not move a date already printed
+    # on the label.
+    keeps_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("chem_course.id"), nullable=True, index=True)
+    # in_stock / borrowed / empty / discarded — the bottle's own state, derived
+    # from the events and kept here so a shelf list is one query.
+    state: Mapped[str] = mapped_column(String(20), default="in_stock", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    item: Mapped["InventoryItem"] = relationship()
+    substance: Mapped["ChemicalReference | None"] = relationship()
+    lot: Mapped["ChemLot | None"] = relationship()
+    course: Mapped["ExperimentCourse | None"] = relationship()
+
+
+class ChemPlacement(Base):
+    """一瓶东西放在哪，以及以前放在哪。
+
+    A bottle moves: from the store room to the lab, from the cabinet to a
+    student bench. Keeping only "where it is now" loses the answer to "when
+    did this get to the teaching lab, and who moved it" — the question a
+    teaching lab actually asks. Each move is a row; the current place is the
+    newest row (v_current_place).
+
+    The rack is the inventory module's own box (`inventory_racks`), so a
+    bottle still shows up in its box on the storage page.
+    """
+
+    __tablename__ = "chem_placement"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id_fk: Mapped[int] = mapped_column(
+        ForeignKey("inventory_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    rack_id_fk: Mapped[int | None] = mapped_column(
+        ForeignKey("inventory_racks.id"), nullable=True, index=True)
+    rack_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rack_col: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    location_note: Mapped[str] = mapped_column(String(200), default="")   # "3 号柜第二层…"
+    moved_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    moved_by: Mapped[str] = mapped_column(String(80), default="")
+
+    item: Mapped["InventoryItem"] = relationship()
+    rack: Mapped["InventoryRack | None"] = relationship()
+
+
 # ── 化学试剂单据流（教学实验室）────────────────────────────────────────────
 # Contributed by BCLRM (Peaktailing) as the document layer on top of the
 # reagent bottle preset: every bottle that leaves the shelf is asked for,
 # signed out, brought back, moved or bought on one of these. The bottle
 # itself stays an inventory item; these orders only reference it.
+#
+# Every table in this domain is `chem_` + a singular noun (see
+# docs/化学表规范与范式化设计.md). The prefix says "this group of tables
+# arrived together and will be merged into the main repo together"; the
+# singular matches the main repo's own naming (borrow_order, reagent_demand),
+# so a merge is a column map rather than a rename.
+#
+# Three layers, and a table belongs to exactly one of them:
+#   1. identity   inventory_items (a bottle is a row; one number, one bottle)
+#                 + chem_bottle (what only a bottle of a chemical has)
+#   2. shared     chem_substance (the substance) and chem_lot (the batch):
+#                 facts many bottles repeat, kept once and pointed at
+#   3. events     the eight document tables below: what happened, when, to
+#                 whom. A bottle's remaining quantity is the sum of these,
+#                 not a column that drifts.
 
 
 class ExperimentCourse(Base):
     """教学场景的一门课（分析化学实验、有机化学实验…）：学生按它领试剂，
     学期末按它统计人均用量。"""
 
-    __tablename__ = "experiment_courses"
+    __tablename__ = "chem_course"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
@@ -1958,20 +2160,34 @@ class ExperimentCourse(Base):
 
 class ReagentBorrowOrder(Base):
     """试剂领用工单：pending → approved → borrowed → returned，
-    另有 rejected / cancelled。超期由 overdue 视图按 due_at 算出。"""
+    另有 rejected / cancelled。超期由 overdue 视图按 due_at 算出。
 
-    __tablename__ = "reagent_borrow_orders"
+    This is the **head** of the order: who asks, why, by when, who approved.
+    What is being signed out lives on ChemBorrowOrderItem, one row per bottle,
+    so one order can take three bottles to one class instead of three orders
+    and three approvals.
+
+    `bottle_id` / `quantity` / `unit` stay for now, meaning "the single-line
+    form": an order with exactly one item repeats that item's bottle and
+    amount here. Orders written from now on fill the items only; an order
+    with no items is read through the old columns (v_chem_borrow_order_line).
+    They go when the read paths do — see the design note, §5.4.
+    """
+
+    __tablename__ = "chem_borrow_order"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     number: Mapped[int] = mapped_column(Integer, default=0, index=True)    # 单号，模块内自增
-    bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+    # Deprecated: the single-line form. Read ChemBorrowOrderItem instead.
+    bottle_id: Mapped[int | None] = mapped_column(ForeignKey("inventory_items.id"), nullable=True, index=True)
     requester: Mapped[str] = mapped_column(String(80), nullable=False, index=True)   # 申请人（用户名）
     approver: Mapped[str] = mapped_column(String(80), default="")                    # 审批人
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    # Deprecated: the single-line form, as `bottle_id` above.
     quantity: Mapped[float] = mapped_column(Float, default=0.0)
     unit: Mapped[str] = mapped_column(String(30), default="")            # mL / g / 瓶
     purpose: Mapped[str] = mapped_column(Text, default="")               # 实验用途
-    course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("chem_course.id"), nullable=True, index=True)
     experiment_name: Mapped[str] = mapped_column(String(200), default="")
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # 应归还时间
     remark: Mapped[str] = mapped_column(Text, default="")
@@ -1980,17 +2196,53 @@ class ReagentBorrowOrder(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    bottle: Mapped["InventoryItem"] = relationship()
+    bottle: Mapped["InventoryItem | None"] = relationship()
     course: Mapped["ExperimentCourse | None"] = relationship()
+    items: Mapped[list["ChemBorrowOrderItem"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan", order_by="ChemBorrowOrderItem.id")
+
+
+class ChemBorrowOrderItem(Base):
+    """领用单的一行：哪瓶、要多少、发了多少、还了多少。
+
+    主表（chem_borrow_order）只说这一单是谁、为什么、什么时候还；这一行
+    说的是具体拿了什么。一单可以多行，因此一节实验课领三样试剂是一张单、
+    一次审批、一个到期日。
+
+    三个数量分开记，是因为它们本来就会不一样：
+      quantity    申请量 —— 教师说「要 100 g」
+      issued_qty  实发量 —— 管理员手上只有 80 g，就发 80
+      returned_qty 已还量 —— 陆续归还，累计到这里
+    `state` 把「没领到」写成可查询的事实（short），而不是靠「单子是 borrowed
+    但数量对不上」去推断。这正是主仓两段管线里缺口单落地的位置：缺口也是
+    一行，issued_qty=0、state=short。
+    """
+
+    __tablename__ = "chem_borrow_order_item"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id_fk: Mapped[int] = mapped_column(
+        ForeignKey("chem_borrow_order.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_id_fk: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)          # 申请量
+    unit: Mapped[str] = mapped_column(String(30), default="")            # mL / g / 瓶
+    issued_qty: Mapped[float] = mapped_column(Float, default=0.0)        # 实发量
+    returned_qty: Mapped[float] = mapped_column(Float, default=0.0)      # 已还量（累计）
+    # pending / issued / partial / returned / short
+    state: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    remark: Mapped[str] = mapped_column(Text, default="")
+
+    order: Mapped["ReagentBorrowOrder"] = relationship(back_populates="items")
+    bottle: Mapped["InventoryItem"] = relationship()
 
 
 class ReagentReturnRecord(Base):
     """归还记录：还了多少、余量、损耗；启封日期在这里回写到瓶的 attrs。"""
 
-    __tablename__ = "reagent_return_records"
+    __tablename__ = "chem_return_record"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    borrow_id: Mapped[int | None] = mapped_column(ForeignKey("reagent_borrow_orders.id"), nullable=True, index=True)
+    borrow_id: Mapped[int | None] = mapped_column(ForeignKey("chem_borrow_order.id"), nullable=True, index=True)
     bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
     returned_by: Mapped[str] = mapped_column(String(80), default="")
     quantity: Mapped[float] = mapped_column(Float, default=0.0)          # 归还量
@@ -2011,7 +2263,7 @@ class ReagentReturnRecord(Base):
 class ReagentAllocationOrder(Base):
     """调配单：一瓶试剂在持有人之间转移，或分装给另一个人（不经过领用流程）。"""
 
-    __tablename__ = "reagent_allocation_orders"
+    __tablename__ = "chem_allocation_order"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     number: Mapped[int] = mapped_column(Integer, default=0, index=True)
@@ -2035,7 +2287,7 @@ class ReagentAllocationOrder(Base):
 class ReagentDemand(Base):
     """试剂需求：缺什么、要多少、做什么用；可汇总进采购计划。"""
 
-    __tablename__ = "reagent_demands"
+    __tablename__ = "chem_demand"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     chemical_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
@@ -2044,10 +2296,10 @@ class ReagentDemand(Base):
     quantity: Mapped[float] = mapped_column(Float, default=0.0)
     unit: Mapped[str] = mapped_column(String(30), default="")
     purpose: Mapped[str] = mapped_column(Text, default="")
-    course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("chem_course.id"), nullable=True, index=True)
     requester: Mapped[str] = mapped_column(String(80), default="", index=True)
     status: Mapped[str] = mapped_column(String(20), default="open", index=True)   # DEMAND_STATUS_OPTIONS
-    plan_id: Mapped[int | None] = mapped_column(ForeignKey("reagent_purchase_plans.id"), nullable=True, index=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("chem_purchase_plan.id"), nullable=True, index=True)
     remark: Mapped[str] = mapped_column(Text, default="")
     sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     created_by: Mapped[str] = mapped_column(String(80), default="")
@@ -2060,7 +2312,7 @@ class ReagentDemand(Base):
 class ManagerChangeLog(Base):
     """管理权流转留痕：一瓶试剂的管理人从 A 换成 B，谁批准的、为什么。"""
 
-    __tablename__ = "manager_change_logs"
+    __tablename__ = "chem_manager_change_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     bottle_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
@@ -2078,7 +2330,7 @@ class ManagerChangeLog(Base):
 class ReagentPurchasePlan(Base):
     """采购计划：把一批需求（reagent_demands）汇成一个计划送审。"""
 
-    __tablename__ = "reagent_purchase_plans"
+    __tablename__ = "chem_purchase_plan"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     number: Mapped[int] = mapped_column(Integer, default=0, index=True)
@@ -2099,11 +2351,11 @@ class ReagentPurchasePlan(Base):
 class ReagentPurchaseOrder(Base):
     """采购订单：计划批准后向供应商下单，到货时分批 received。"""
 
-    __tablename__ = "reagent_purchase_orders"
+    __tablename__ = "chem_purchase_order"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     number: Mapped[int] = mapped_column(Integer, default=0, index=True)
-    plan_id: Mapped[int | None] = mapped_column(ForeignKey("reagent_purchase_plans.id"), nullable=True, index=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("chem_purchase_plan.id"), nullable=True, index=True)
     supplier: Mapped[str] = mapped_column(String(200), default="", index=True)
     item_name: Mapped[str] = mapped_column(String(200), default="")
     cas: Mapped[str] = mapped_column(String(40), default="")
@@ -2134,15 +2386,15 @@ class ChemicalExperiment(Base):
     学生做同一个实验时，各复制一份 active 记录，互不干扰。
     """
 
-    __tablename__ = "chemical_experiments"
+    __tablename__ = "chem_experiment"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     sync_version: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", index=True)
     title: Mapped[str] = mapped_column(String(200), index=True)
     kind: Mapped[str] = mapped_column(String(20), default="synthesis", index=True)   # CHEMICAL_EXPERIMENT_KINDS
-    course_id: Mapped[int | None] = mapped_column(ForeignKey("experiment_courses.id"), nullable=True, index=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("chem_course.id"), nullable=True, index=True)
     # 学生副本指向它复制自的模板；课程外的方案为 NULL
-    template_id: Mapped[int | None] = mapped_column(ForeignKey("chemical_experiments.id"),
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("chem_experiment.id"),
                                                     nullable=True, index=True)
     # {"reactants": [[cas, coefficient], …], "products": [[cas, coefficient], …]}
     reaction_json: Mapped[str] = mapped_column(Text, default="")

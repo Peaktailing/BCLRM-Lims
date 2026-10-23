@@ -27,11 +27,11 @@ enabled = True
 
 SYNCED_TABLES = frozenset({"mice", "mouse_cages", "litters", "mouse_weights", "tasks", "mouse_racks",
                            "stock_units", "tanks"})
-SYNCED_TABLES |= {"experiment_courses", "reagent_borrow_orders", "reagent_return_records",
-                  "reagent_allocation_orders", "reagent_demands", "manager_change_logs",
-                  "reagent_purchase_plans", "reagent_purchase_orders"}   # the reagent document flow (teaching labs, from BCLRM)
-SYNCED_TABLES |= {"controlled_list"}   # a phone signing a bottle out checks it before the shelf
-SYNCED_TABLES |= {"chemical_experiments"}   # a plan followed at the bench, and the yield recorded there
+SYNCED_TABLES |= {"chem_course", "chem_borrow_order", "chem_return_record",
+                  "chem_allocation_order", "chem_demand", "chem_manager_change_log",
+                  "chem_purchase_plan", "chem_purchase_order"}   # the reagent document flow (teaching labs, from BCLRM)
+SYNCED_TABLES |= {"chem_controlled_list"}   # a phone signing a bottle out checks it before the shelf
+SYNCED_TABLES |= {"chem_experiment"}   # a plan followed at the bench, and the yield recorded there
 
 
 def _table(obj) -> str | None:

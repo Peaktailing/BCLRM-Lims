@@ -45,21 +45,21 @@ _BACKFILL = {
 
 
 def upgrade() -> None:
-    add_column("chemical_references", sa.Column("cas", sa.String(20), nullable=False, server_default=""))
-    add_column("chemical_references", sa.Column("formula", sa.String(120), nullable=False, server_default=""))
-    add_column("chemical_references", sa.Column("mw_source", sa.String(10), nullable=False, server_default="manual"))
-    add_column("chemical_references", sa.Column("hazard", sa.String(40), nullable=False, server_default=""))
-    add_column("chemical_references", sa.Column("msds_url", sa.String(500), nullable=False, server_default=""))
-    if not has_index("chemical_references", "ix_chemical_references_cas"):
+    add_column("chem_substance", sa.Column("cas", sa.String(20), nullable=False, server_default=""))
+    add_column("chem_substance", sa.Column("formula", sa.String(120), nullable=False, server_default=""))
+    add_column("chem_substance", sa.Column("mw_source", sa.String(10), nullable=False, server_default="manual"))
+    add_column("chem_substance", sa.Column("hazard", sa.String(40), nullable=False, server_default=""))
+    add_column("chem_substance", sa.Column("msds_url", sa.String(500), nullable=False, server_default=""))
+    if not has_index("chem_substance", "ix_chem_substance_cas"):
         name = op.get_bind().dialect.name
         if name == "postgresql":
-            op.create_index("ix_chemical_references_cas", "chemical_references", ["cas"],
+            op.create_index("ix_chem_substance_cas", "chem_substance", ["cas"],
                             unique=True, postgresql_where=sa.text("cas <> ''"))
         else:
-            op.create_index("ix_chemical_references_cas", "chemical_references", ["cas"],
+            op.create_index("ix_chem_substance_cas", "chem_substance", ["cas"],
                             unique=True, sqlite_where=sa.text("cas != ''"))
     references = sa.table(
-        "chemical_references",
+        "chem_substance",
         sa.column("name", sa.String), sa.column("cas", sa.String), sa.column("formula", sa.String))
     bind = op.get_bind()
     for name, (cas, formula) in _BACKFILL.items():
@@ -70,6 +70,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     try:
-        op.drop_index("ix_chemical_references_cas", table_name="chemical_references")
+        op.drop_index("ix_chem_substance_cas", table_name="chem_substance")
     except Exception:
         pass
